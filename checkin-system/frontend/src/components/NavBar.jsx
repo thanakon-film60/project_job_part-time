@@ -20,7 +20,10 @@ export default function NavBar() {
           <Link className={loc.pathname === "/" ? "active" : ""} to="/">
             ปฏิทินเข้างาน
           </Link>
-          <Link className={loc.pathname === "/faces" ? "active" : ""} to="/faces">
+          <Link
+            className={loc.pathname === "/face-records" ? "active" : ""}
+            to="/face-records"
+          >
             ประวัติใบหน้า
           </Link>
         </nav>

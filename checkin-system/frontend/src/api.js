@@ -1,6 +1,8 @@
-const BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+// production: ปล่อยว่าง = เรียกโดเมนเดียวกัน (IIS จะส่งต่อไป backend ให้เอง)
+// ตอน dev: ตั้ง VITE_API_BASE=http://localhost:8002
+const BASE = import.meta.env.VITE_API_BASE ?? "";
 
-const SKIP = { "ngrok-skip-browser-warning": "true" }; // ข้ามหน้าเตือน ngrok
+const SKIP = { "ngrok-skip-browser-warning": "true" }; // ข้ามหน้าเตือน ngrok (เผื่อกลับไปใช้)
 
 let token = localStorage.getItem("token") || null;
 let employee = JSON.parse(localStorage.getItem("employee") || "null");

@@ -8,4 +8,7 @@ pydantic-settings>=2.4
 python-multipart>=0.0.9
 python-jose[cryptography]>=3.3
 passlib[bcrypt]>=1.7.4
+# passlib 1.7.4 อ่านเวอร์ชันของ bcrypt ผ่าน __about__ ซึ่งถูกลบไปใน bcrypt 4.1+
+# ถ้าไม่ตรึงเวอร์ชันจะพัง: "password cannot be longer than 72 bytes"
+bcrypt<4.1
 email-validator>=2.1

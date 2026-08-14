@@ -25,9 +25,9 @@ export default function AppLayout({ children }) {
       label: <Link to="/">ปฏิทินเข้างาน</Link>,
     },
     {
-      key: "/faces",
+      key: "/face-records",
       icon: <SmileOutlined />,
-      label: <Link to="/faces">ประวัติใบหน้า</Link>,
+      label: <Link to="/face-records">ประวัติใบหน้า</Link>,
     },
   ];
 

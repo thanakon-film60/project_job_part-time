@@ -21,8 +21,10 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* ใช้ /face-records ไม่ใช่ /faces เพราะ /faces เป็น path ของ API
+          (เว็บกับ API อยู่โดเมนเดียวกัน จึงห้ามชนกัน) */}
       <Route
-        path="/faces"
+        path="/face-records"
         element={
           <RequireAuth>
             <FaceRecordsPage />
