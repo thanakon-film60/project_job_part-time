@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.debugpy",
+    "ms-vscode.powershell",
+    "dbaeumer.vscode-eslint",
+    "dart-code.flutter",
+    "redhat.vscode-yaml"
+  ]
+}

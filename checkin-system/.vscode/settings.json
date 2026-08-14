@@ -1,0 +1,30 @@
+{
+  // ใช้ Python ใน venv ของ backend
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/venv/Scripts/python.exe",
+  "python.terminal.activateEnvironment": true,
+
+  // ⚠️ สำคัญกับโปรเจ็กต์นี้: ไฟล์ .env และ config.yml ต้องเป็น UTF-8 "ไม่มี BOM"
+  // ไม่งั้น python-dotenv และ cloudflared จะอ่านไม่ผ่าน
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false,
+  "[dotenv]": { "files.encoding": "utf8" },
+  "[yaml]": { "files.encoding": "utf8" },
+
+  // ไฟล์ .ps1 ต้องเป็น UTF-8 "มี BOM" เพราะ Windows PowerShell 5.1
+  // อ่านสคริปต์ที่ไม่มี BOM เป็น ANSI ทำให้ตัวอักษรไทยเพี้ยนจนรันไม่ได้
+  "[powershell]": { "files.encoding": "utf8bom" },
+
+  "files.eol": "\r\n",
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  },
+  "search.exclude": {
+    "**/venv": true,
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.dart_tool": true
+  }
+}

@@ -1,0 +1,109 @@
+{
+  // ===================================================================
+  // เปิดใช้: กด Ctrl+Shift+P -> "Tasks: Run Task" -> เลือกจากรายการ
+  // (หรือ Ctrl+Shift+B สำหรับ task ที่ตั้งเป็น default)
+  //
+  // พอร์ตที่ใช้บนเครื่องนี้
+  //   8000 = โปรเจ็กต์อื่น (frontend_film_dev) — ห้ามใช้
+  //   8001 = backend production (Scheduled Task MardodiCheckinAPI)
+  //   8002 = backend ตอน dev  <- task ในไฟล์นี้ใช้ตัวนี้
+  //   5173 = React dev server (vite)
+  //     80 = IIS (เว็บ production หลัง Cloudflare Tunnel)
+  // ===================================================================
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1. Dev: ติดตั้งไลบรารีทั้งหมด",
+      "detail": "สร้าง venv + pip install + npm install (รันครั้งเดียวตอนเริ่ม)",
+      "type": "shell",
+      "options": { "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"] } },
+      "command": "cd backend; if (-not (Test-Path venv)) { python -m venv venv }; .\\venv\\Scripts\\python -m pip install --upgrade pip; .\\venv\\Scripts\\pip install -r requirements-base.txt; cd ..\\frontend; npm install",
+      "problemMatcher": []
+    },
+    {
+      "label": "2. Dev: Backend (uvicorn :8002)",
+      "detail": "hot reload + SQLite — ไม่กระทบ backend production ที่ :8001",
+      "type": "shell",
+      "isBackground": true,
+      "options": {
+        "cwd": "${workspaceFolder}/backend",
+        "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"] },
+        "env": {
+          "DATABASE_URL": "sqlite:///./checkin-dev.db",
+          "SECRET_KEY": "local-dev-secret",
+          "ALLOWED_ORIGINS": "*",
+          "PYTHONIOENCODING": "utf-8"
+        }
+      },
+      "command": ".\\venv\\Scripts\\python -m uvicorn app.main:app --reload --port 8002",
+      "presentation": { "group": "dev", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "3. Dev: Frontend (vite :5173)",
+      "detail": "React hot reload — ยิง API ไปที่ :8002",
+      "type": "shell",
+      "isBackground": true,
+      "options": {
+        "cwd": "${workspaceFolder}/frontend",
+        "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"] },
+        "env": { "VITE_API_BASE": "http://localhost:8002" }
+      },
+      "command": "npm run dev",
+      "presentation": { "group": "dev", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Dev: รันทั้งหมด (backend + frontend)",
+      "detail": "เปิด 2 terminal พร้อมกัน แล้วเข้า http://localhost:5173",
+      "dependsOn": ["2. Dev: Backend (uvicorn :8002)", "3. Dev: Frontend (vite :5173)"],
+      "dependsOrder": "parallel",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Dev: ใส่ข้อมูลตัวอย่าง (seed)",
+      "detail": "สร้างบัญชี BOSS001 / EMP001 ลงฐานข้อมูล dev",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/backend",
+        "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"] },
+        "env": {
+          "DATABASE_URL": "sqlite:///./checkin-dev.db",
+          "SECRET_KEY": "local-dev-secret",
+          "PYTHONIOENCODING": "utf-8"
+        }
+      },
+      "command": ".\\venv\\Scripts\\python seed.py",
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Deploy: อัปเดตขึ้น production",
+      "detail": "build React + copy ขึ้น IIS + restart backend  (ต้องเปิด VS Code แบบ Run as Administrator)",
+      "type": "shell",
+      "options": { "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"] } },
+      "command": "& '${workspaceFolder}/deploy/windows-server/deploy-update.ps1'",
+      "presentation": { "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Deploy: ตรวจสถานะ production",
+      "detail": "เช็ค IIS / backend / tunnel และยิงทดสอบผ่านโดเมนจริง",
+      "type": "shell",
+      "options": { "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"] } },
+      "command": "& '${workspaceFolder}/deploy/windows-server/deploy-update.ps1' -CheckOnly",
+      "presentation": { "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Deploy: ดู log ของ Cloudflare Tunnel",
+      "type": "shell",
+      "options": { "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"] } },
+      "command": "Get-Content F:\\Game\\cloudflared.log -Tail 40 -Wait",
+      "isBackground": true,
+      "presentation": { "panel": "dedicated" },
+      "problemMatcher": []
+    }
+  ]
+}

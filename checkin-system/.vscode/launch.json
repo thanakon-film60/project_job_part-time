@@ -1,0 +1,45 @@
+{
+  // ===================================================================
+  // กด F5 เพื่อ debug (ใส่ breakpoint ในโค้ด backend ได้เลย)
+  // ต้องรัน task "1. Dev: ติดตั้งไลบรารีทั้งหมด" ก่อนอย่างน้อย 1 ครั้ง
+  // ===================================================================
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend: debug (uvicorn :8002)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--reload", "--port", "8002"],
+      "cwd": "${workspaceFolder}/backend",
+      "python": "${workspaceFolder}/backend/venv/Scripts/python.exe",
+      "env": {
+        "DATABASE_URL": "sqlite:///./checkin-dev.db",
+        "SECRET_KEY": "local-dev-secret",
+        "ALLOWED_ORIGINS": "*",
+        "PYTHONIOENCODING": "utf-8"
+      },
+      "jinja": true,
+      "justMyCode": false,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Frontend: เปิด Chrome ชี้ vite :5173",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "preLaunchTask": "3. Dev: Frontend (vite :5173)"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "รันทั้งระบบ (backend debug + frontend)",
+      "configurations": [
+        "Backend: debug (uvicorn :8002)",
+        "Frontend: เปิด Chrome ชี้ vite :5173"
+      ],
+      "stopAll": true
+    }
+  ]
+}
