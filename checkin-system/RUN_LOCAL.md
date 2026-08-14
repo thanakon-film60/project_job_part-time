@@ -1,31 +1,109 @@
 # รันดูเว็บบนเครื่องตัวเอง (ทดสอบเร็ว ใช้ SQLite)
 
-ต้องเปิด **2 Terminal พร้อมกัน**: ตัวหนึ่งรัน backend อีกตัวรัน frontend
-
-> ก่อนเริ่ม: มุมซ้ายล่าง VS Code ขึ้น "Restricted Mode" ให้กด **Manage → Trust** เพื่อให้ใช้ Terminal ได้เต็มที่
-> เปิด Terminal ใน VS Code: เมนู **Terminal → New Terminal**
+> ถ้าอยากเปิดให้คนอื่นเข้าจากอินเทอร์เน็ต (และให้แอป Flutter เรียกได้) ไม่ต้องใช้วิธีในหน้านี้
+> ระบบตั้งไว้แล้วที่ **https://thanakronpart-time.com** ผ่าน Cloudflare Tunnel (ใช้ `www.` และ `api.` ได้ด้วย)
+> ดู [`deploy/cloudflare/CLOUDFLARE_TUNNEL_SETUP.md`](deploy/cloudflare/CLOUDFLARE_TUNNEL_SETUP.md)
 
 ---
 
-## Terminal ที่ 1 — Backend (ข้อมูล)
+## วิธีที่ง่ายที่สุด — ดับเบิลคลิก `START.bat`
+
+ที่โฟลเดอร์ `checkin-system` มีไฟล์ **`START.bat`** — ดับเบิลคลิกแล้วจะเปิด **แผงควบคุม** ขึ้นมา กดปุ่มเอาได้เลย ไม่ต้องเปิด VS Code ไม่ต้องจำคำสั่ง
+
+| ปุ่ม | ทำอะไร |
+|---|---|
+| ▶ **รันบนเครื่องนี้** | ติดตั้งไลบรารีให้ถ้ายังไม่มี → สร้างข้อมูลตัวอย่าง → เปิด backend + หน้าเว็บ → เปิดเบราว์เซอร์ให้ |
+| ■ **หยุดที่รันบนเครื่อง** | ปิด backend + หน้าเว็บที่รันอยู่ (ไม่กระทบเว็บจริง) |
+| ▲ **อัปขึ้นเว็บจริง** | build React → copy ขึ้น IIS → restart backend → ทดสอบผ่านโดเมนจริงให้ |
+| ✓ **เช็คสถานะเว็บจริง** | ดูว่า IIS / backend / Cloudflare Tunnel ยังปกติไหม |
+| ◆ **เปิดเว็บจริง** | เปิด https://thanakronpart-time.com ในเบราว์เซอร์ |
+| ⚙ **ติดตั้งใหม่ทั้งหมด** | IIS + backend + tunnel (ใช้ตอนย้ายเครื่อง / ระบบพัง) |
+
+แถบบนสุดจะแสดงสถานะสด ๆ 3 อย่าง: **เว็บจริง / เครื่องนี้ (dev) / Cloudflare Tunnel** พร้อมไฟเขียว-แดง อัปเดตทุก 30 วินาที
+ผลลัพธ์ของทุกคำสั่งจะขึ้นในกล่องดำด้านขวาเป็นภาษาไทย
+
+> 💡 คลิกขวาที่ `START.bat` → **Send to → Desktop (create shortcut)** จะได้ไอคอนบนหน้าจอ กดจากตรงนั้นได้เลย
+
+**ทำไมต้องเป็นหน้าต่างโปรแกรม ไม่ใช่หน้าต่างดำ:** หน้าต่าง cmd/PowerShell ของ Windows ใช้ฟอนต์ที่ไม่มีตัวอักษรไทย ภาษาไทยจะกลายเป็น `???` ทั้งหมด แม้ตั้ง UTF-8 แล้วก็ตาม — แผงควบคุมนี้เป็นหน้าต่างโปรแกรมจริง (WinForms) จึงใช้ฟอนต์ระบบและอ่านภาษาไทยได้ครบ
+
+> หน้าต่างสีดำที่เด้งขึ้นมาตอนกด "รันบนเครื่องนี้" (BACKEND / FRONTEND) ตั้งใจให้เป็นภาษาอังกฤษล้วน ด้วยเหตุผลเดียวกัน — ปิดหน้าต่างนั้น = หยุดตัวนั้น
+
+---
+
+## วิธีที่ 1 — ผ่าน VS Code (ถ้าจะแก้โค้ด)
+
+**เปิดโฟลเดอร์ `checkin-system` ใน VS Code** (ไม่ใช่ `project_job_part-time`) ไม่งั้นไฟล์ `.vscode/` จะไม่ทำงาน
+
+> ครั้งแรกมุมซ้ายล่างจะขึ้น "Restricted Mode" ให้กด **Manage → Trust**
+> และมุมขวาล่างจะชวนติดตั้ง extension ที่แนะนำ — กด Install ให้ครบ
+
+### ครั้งแรกครั้งเดียว
+`Ctrl+Shift+P` → **Tasks: Run Task** → **1. Dev: ติดตั้งไลบรารีทั้งหมด**
+(สร้าง venv + `pip install` + `npm install`)
+
+จากนั้น → **Dev: ใส่ข้อมูลตัวอย่าง (seed)**
+
+### รันทุกครั้งที่ทำงาน
+เลือกอย่างใดอย่างหนึ่ง:
+
+| ต้องการ | วิธี |
+|---|---|
+| รันเฉย ๆ ทั้ง backend + frontend | `Ctrl+Shift+B` (หรือ Run Task → **Dev: รันทั้งหมด**) |
+| **debug** ใส่ breakpoint ในโค้ด Python | กด **F5** → เลือก *Backend: debug (uvicorn :8002)* |
+| debug ทั้ง backend + เปิด Chrome ให้ | F5 → *รันทั้งระบบ (backend debug + frontend)* |
+
+เปิด http://localhost:5173 (หน้าเว็บ) และ http://localhost:8002/docs (API docs)
+
+### Task ฝั่ง production
+
+| Task | ทำอะไร |
+|---|---|
+| **Deploy: ตรวจสถานะ production** | เช็ค IIS / backend / tunnel + ยิงทดสอบผ่านโดเมนจริง |
+| **Deploy: อัปเดตขึ้น production** | build React → copy ขึ้น IIS → restart backend → ทดสอบให้ |
+| **Deploy: ดู log ของ Cloudflare Tunnel** | tail log แบบ realtime |
+
+> 2 อันแรกต้องเปิด VS Code แบบ **Run as Administrator** (คลิกขวาที่ไอคอน VS Code → Run as administrator)
+
+---
+
+## วิธีที่ 2 — พิมพ์เองใน Terminal
+
+ต้องเปิด **2 Terminal พร้อมกัน**
+
+### Terminal ที่ 1 — Backend
 ```powershell
 cd backend
 .\run-local.ps1
 ```
-สคริปต์จะสร้าง venv, ลงไลบรารี, ใส่ข้อมูลตัวอย่าง แล้วรัน API ที่ http://localhost:8000
+สคริปต์จะสร้าง venv, ลงไลบรารี, ใส่ข้อมูลตัวอย่าง แล้วรัน API ที่ http://localhost:8002
 **ปล่อยหน้าต่างนี้ไว้ อย่าปิด**
 
 > ถ้าเจอ error ว่ารันสคริปต์ไม่ได้ (execution policy) ให้พิมพ์ก่อน 1 ครั้ง:
 > `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
 
-## Terminal ที่ 2 — Frontend (หน้าเว็บ)
+### Terminal ที่ 2 — Frontend
 กด **+** เปิด Terminal ใหม่ (อย่าปิดอันแรก) แล้ว:
 ```powershell
 cd frontend
 npm install
+$env:VITE_API_BASE = "http://localhost:8002"
 npm run dev
 ```
 จะขึ้นบรรทัด `Local: http://localhost:5173/` → กด Ctrl+คลิก เปิดในเบราว์เซอร์
+
+---
+
+## พอร์ตบนเครื่องนี้ (อย่าใช้ชนกัน)
+
+| พอร์ต | ใคร | หมายเหตุ |
+|---|---|---|
+| 80 | IIS — เว็บ production | อยู่หลัง Cloudflare Tunnel |
+| 8000 | **โปรเจ็กต์อื่น** (`frontend_film_dev`) | ห้ามใช้ |
+| 8001 | backend production | Scheduled Task `MardodiCheckinAPI` |
+| **8002** | **backend ตอน dev** | ใช้ตัวนี้เวลาเขียนโค้ด |
+| 5173 | React dev server (vite) | |
+
+ฐานข้อมูล dev แยกเป็นคนละไฟล์ (`checkin-dev.db`) จึงแก้อะไรก็ไม่กระทบข้อมูล production
 
 ---
 
@@ -48,7 +126,7 @@ npm run dev
 ---
 
 ## ปัญหาที่พบบ่อย
-- **หน้าเว็บว่าง/ล็อกอินไม่ได้** → ตรวจว่า Terminal ที่ 1 (backend) ยังรันอยู่ที่พอร์ต 8000
+- **หน้าเว็บว่าง/ล็อกอินไม่ได้** → ตรวจว่า Terminal ที่ 1 (backend) ยังรันอยู่ที่พอร์ต 8002
 - **กล้องไม่ขึ้น** → ต้องเปิดผ่าน `http://localhost:5173` เท่านั้น (ถ้าเปิดด้วย IP เช่น 127.0.0.1 ก็ได้ แต่ถ้าเป็น IP เครื่องในวง LAN เบราว์เซอร์จะบล็อกกล้องเพราะไม่ใช่ HTTPS)
 - **`npm` หรือ `python` ไม่รู้จัก** → ยังไม่ได้ติดตั้ง Node.js / Python หรือยังไม่ได้ปิด-เปิด Terminal ใหม่หลังติดตั้ง
 - **`ERROR: Failed building wheel for psycopg2-binary / pydantic-core`** → เกิดจากพยายามลงไดรเวอร์ PostgreSQL ตอนรันโลคอล

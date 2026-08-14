@@ -6,6 +6,16 @@
 Flutter app  ──(GPS ตลอดเวลา + สแกนหน้า)──►  FastAPI + PostgreSQL  ──►  React ปฏิทิน (เจ้านายดู)
 ```
 
+## เริ่มใช้งานเร็วสุด
+
+**ดับเบิลคลิก `START.bat`** → เปิดแผงควบคุม กดปุ่มเดียว (รันบนเครื่อง / อัปขึ้นเว็บจริง / เช็คสถานะ)
+รายละเอียด: [`RUN_LOCAL.md`](RUN_LOCAL.md)
+
+เว็บจริงที่ใช้งานอยู่: **https://thanakronpart-time.com**
+(ใช้ได้ทั้ง `thanakronpart-time.com`, `www.thanakronpart-time.com` และ `api.thanakronpart-time.com` — ชี้ที่เดียวกันหมด)
+
+---
+
 ## องค์ประกอบ
 | ส่วน | เทคโนโลยี | โฟลเดอร์ |
 |---|---|---|
@@ -51,10 +61,14 @@ npm run dev
 ```
 เปิด http://localhost:5173 → ถูกพาไป **`/login`** → ล็อกอิน แล้วใช้เมนู 2 หน้า:
 - **`/` ปฏิทินเข้างาน** — ผู้จัดการเลือกพนักงาน/เดือน เห็นเวลาเข้า-ออกและสถานะอยู่ในออฟฟิศ
-- **`/faces` ประวัติใบหน้า** — เปิดกล้องเว็บถ่ายบันทึกใบหน้าเข้าประวัติ และดูแกลเลอรีรูปที่บันทึกไว้ (ผู้จัดการดูของพนักงานทุกคนได้)
+- **`/face-records` ประวัติใบหน้า** — เปิดกล้องเว็บถ่ายบันทึกใบหน้าเข้าประวัติ และดูแกลเลอรีรูปที่บันทึกไว้ (ผู้จัดการดูของพนักงานทุกคนได้)
+
+> ⚠️ เว็บกับ API อยู่โดเมนเดียวกันและ **API ไม่มี `/api` นำหน้า** ดังนั้นชื่อ route ของหน้าเว็บห้ามซ้ำกับ path ของ API
+> (หน้าประวัติใบหน้าจึงใช้ `/face-records` ไม่ใช่ `/faces` เพราะ `/faces` เป็นของ API)
+> ถ้าเพิ่ม router ใหม่ใน backend ต้องไปเติมชื่อในกฎ `ProxyToBackend` ของ `deploy/windows-server/web.config` ด้วย
 
 > หน้าเว็บมีระบบล็อกอินจริง (JWT เก็บใน localStorage) ทุกหน้าถูกป้องกัน ถ้ายังไม่ล็อกอินจะเด้งไป `/login`
-> การเปิดกล้องบันทึกใบหน้าต้องรันผ่าน **HTTPS** (เช่นผ่าน ngrok) เบราว์เซอร์ถึงจะให้ใช้กล้อง
+> การเปิดกล้องบันทึกใบหน้าต้องรันผ่าน **HTTPS** เบราว์เซอร์ถึงจะให้ใช้กล้อง — ใช้ Cloudflare Tunnel (ดูหัวข้อ Deploy ด้านล่าง)
 
 ## 3) รัน Flutter (แอปพนักงาน)
 ```bash
@@ -64,7 +78,38 @@ flutter create .            # สร้างโฟลเดอร์ android/ i
 flutter pub get
 flutter run
 ```
-ปรับ `lib/config.dart` → `apiBase` ให้ชี้ backend (emulator ใช้ `http://10.0.2.2:8000`)
+ปรับ `lib/config.dart` → `apiBase` ให้ชี้ backend (emulator ใช้ `http://10.0.2.2:8001`)
+ค่า production ตั้งไว้แล้วเป็น `https://thanakronpart-time.com` (เรียก API ได้ตรง ๆ ไม่มี `/api` นำหน้า)
+
+---
+
+## Deploy: เปิดออกสู่อินเทอร์เน็ต
+
+**วิธีหลัก — Cloudflare Tunnel** (URL คงที่ + HTTPS ฟรี + ไม่ต้องเปิดพอร์ตที่ router)
+
+```
+มือถือ ──► https://thanakronpart-time.com ──(cloudflared)──► IIS :80 ┬─ React (static)
+                                                                        └─ /auth /reports ... → uvicorn :8001
+```
+
+เปิด PowerShell แบบ Administrator แล้วรัน 3 คำสั่ง:
+
+```powershell
+cd checkin-system\deploy
+.\windows-server\install-iis-site.ps1      # IIS + URL Rewrite + ARR + build React
+.\windows-server\install-backend-task.ps1  # backend เป็น Scheduled Task ที่ :8001
+.\cloudflare\setup-tunnel.ps1 -InstallService
+```
+
+รายละเอียดทั้งหมด คำสั่งที่ใช้บ่อย และตารางแก้ปัญหา: [`deploy/cloudflare/CLOUDFLARE_TUNNEL_SETUP.md`](deploy/cloudflare/CLOUDFLARE_TUNNEL_SETUP.md)
+
+**ทางเลือกอื่น**
+
+| วิธี | คู่มือ | เหมาะกับ |
+|---|---|---|
+| Cloudflare Tunnel ✅ | `deploy/cloudflare/CLOUDFLARE_TUNNEL_SETUP.md` | ใช้งานจริง — URL คงที่ ไม่มีหน้าเตือน |
+| ngrok | `deploy/ngrok/NGROK_SETUP.md` | ทดสอบชั่วคราว (URL ฟรีเปลี่ยนทุกครั้งที่รีสตาร์ต) |
+| โดเมนจริง + port forward | `deploy/windows-server/DEPLOY_WINDOWS_SERVER.md` | มี public IP และคุม router ได้ |
 
 ---
 

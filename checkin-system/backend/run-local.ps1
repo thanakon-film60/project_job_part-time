@@ -7,8 +7,15 @@
 $ErrorActionPreference = "Stop"
 
 # ใช้ SQLite ไฟล์เดียว (ทดสอบง่าย ไม่ต้องใช้ psycopg2/PostgreSQL)
-$env:DATABASE_URL = "sqlite:///./checkin.db"
-$env:SECRET_KEY   = "local-dev-secret"
+$env:DATABASE_URL     = "sqlite:///./checkin-dev.db"
+$env:SECRET_KEY       = "local-dev-secret"
+$env:ALLOWED_ORIGINS  = "*"
+# console ของ Windows เป็น cp1252 — บังคับ UTF-8 ไม่งั้น print ภาษาไทยจะพัง
+$env:PYTHONIOENCODING = "utf-8"
+
+# พอร์ต 8000 มีโปรเจ็กต์อื่นบนเครื่องนี้ใช้อยู่ และ 8001 คือ backend production
+# ตอน dev จึงใช้ 8002 เพื่อไม่ให้ชนกัน
+$devPort = 8002
 
 # ถ้า venv เดิมพัง (จากการติดตั้งที่ล้มเหลว) ให้ลบทิ้งแล้วสร้างใหม่
 if (Test-Path "venv") {
@@ -41,8 +48,8 @@ Write-Host "== บัญชีสำหรับล็อกอิน ==" -Foreg
 Write-Host "  ผู้จัดการ (ดูปฏิทิน): BOSS001 / boss12345"
 Write-Host "  พนักงาน:            EMP001  / password123"
 Write-Host ""
-Write-Host "เปิด API ที่ http://localhost:8000/docs" -ForegroundColor Green
+Write-Host "เปิด API ที่ http://localhost:$devPort/docs" -ForegroundColor Green
 Write-Host "ปล่อยหน้าต่างนี้ไว้ อย่าปิด แล้วเปิด Terminal ใหม่ไปรัน frontend"
 Write-Host ""
 
-.\venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+.\venv\Scripts\python -m uvicorn app.main:app --reload --port $devPort
