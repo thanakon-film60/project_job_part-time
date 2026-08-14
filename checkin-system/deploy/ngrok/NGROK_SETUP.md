@@ -1,5 +1,10 @@
 # เปิดให้เข้าจากอินเทอร์เน็ตด้วย ngrok.exe
 
+> ⚠️ **นี่เป็นทางเลือกสำรอง** — วิธีหลักของโปรเจ็กต์นี้คือ **Cloudflare Tunnel**
+> ซึ่งให้ URL คงที่ ไม่มีหน้าเตือน และตั้งค่าไว้บนเครื่องเรียบร้อยแล้ว
+> ดู [`../cloudflare/CLOUDFLARE_TUNNEL_SETUP.md`](../cloudflare/CLOUDFLARE_TUNNEL_SETUP.md)
+> ใช้ ngrok เฉพาะตอนอยากทดสอบชั่วคราวจากเครื่องอื่นที่ไม่ได้ตั้ง tunnel ไว้
+
 ใช้ ngrok แทนการจดโดเมน / port forward / ทำ HTTPS เอง — ngrok ให้ URL แบบ `https://xxxx.ngrok-free.app` ที่วิ่งเข้ามาที่เครื่องของคุณโดยตรง
 
 ```

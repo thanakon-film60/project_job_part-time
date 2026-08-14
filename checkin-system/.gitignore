@@ -3,7 +3,15 @@ __pycache__/
 *.pyc
 venv/
 .env
+.env.bak
 *.db
+
+# Cloudflare Tunnel — ห้าม commit credentials เด็ดขาด
+*.pem
+.cloudflared/
+cloudflared.log
+# ไฟล์ credentials ของ tunnel (ชื่อเป็น <tunnel-id>.json)
+1d37443e-8845-4c41-8c80-aa0f671ba280.json
 backend/storage/*
 !backend/storage/.gitkeep
 

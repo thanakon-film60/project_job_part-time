@@ -1,0 +1,63 @@
+# ===================================================================
+# Cloudflare Tunnel config — โปรเจ็กต์ checkin-system (MARDODI)
+#
+# ปลายทาง: IIS พอร์ต 80 บนเครื่องนี้
+#   IIS เสิร์ฟ React (static) + reverse proxy ไป uvicorn 127.0.0.1:8001
+#   จึงได้ทั้งหน้าเว็บและ API อยู่ URL เดียวกัน (same-origin ไม่ต้องกังวล CORS)
+#
+# ใช้ได้ 3 โดเมน ชี้ที่เดียวกันหมด:
+#   thanakronpart-time.com       (โดเมนหลัก)
+#   www.thanakronpart-time.com
+#   api.thanakronpart-time.com
+#
+# วิธีใช้:
+#   คัดลอกไฟล์นี้ไปวางเป็น F:\Game\config.yml แล้วสั่ง
+#     .\cloudflared-windows-amd64.exe tunnel --config F:\Game\config.yml run Film_Part-Time
+#   หรือใช้สคริปต์ setup-tunnel.ps1 ในโฟลเดอร์เดียวกันนี้
+#
+# ⚠️ ห้าม commit ไฟล์ credentials (.json) ขึ้น Git เด็ดขาด
+# ===================================================================
+
+tunnel: 1d37443e-8845-4c41-8c80-aa0f671ba280
+credentials-file: C:\Users\Administrator\.cloudflared\1d37443e-8845-4c41-8c80-aa0f671ba280.json
+
+# ให้ log อยู่ระดับ info (เปลี่ยนเป็น debug เวลาไล่ปัญหา)
+loglevel: info
+# เขียน log ลงไฟล์ เพื่อให้ไล่ปัญหาได้ตอนรันเป็น Windows Service
+logfile: F:\Game\cloudflared.log
+
+ingress:
+  # ---------------------------------------------------------------
+  # ทั้ง 3 โดเมน -> IIS :80 (เว็บ + API)
+  #
+  # หมายเหตุ: cloudflared ไม่มีวิธี "รวมหลาย hostname ในกฎเดียว"
+  #           ต้องเขียนแยกกันแบบนี้ ถ้าเพิ่มโดเมนใหม่ก็ก๊อปบล็อกไปเพิ่ม
+  #           แล้วอย่าลืมสั่ง tunnel route dns ให้โดเมนนั้นด้วย
+  # ---------------------------------------------------------------
+  - hostname: thanakronpart-time.com
+    service: http://localhost:80
+    originRequest:
+      # เขียน Host header เป็น localhost เพื่อให้ IIS site ที่ไม่ผูก hostname รับได้
+      httpHostHeader: localhost
+      # อัปโหลดรูปใบหน้าอาจใช้เวลา — ยืดเวลา connect/timeout เล็กน้อย
+      connectTimeout: 30s
+      noTLSVerify: true
+
+  - hostname: www.thanakronpart-time.com
+    service: http://localhost:80
+    originRequest:
+      httpHostHeader: localhost
+      connectTimeout: 30s
+      noTLSVerify: true
+
+  - hostname: api.thanakronpart-time.com
+    service: http://localhost:80
+    originRequest:
+      httpHostHeader: localhost
+      connectTimeout: 30s
+      noTLSVerify: true
+
+  # ---------------------------------------------------------------
+  # ทุกอย่างที่เหลือ -> 404
+  # ---------------------------------------------------------------
+  - service: http_status:404
