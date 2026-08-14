@@ -1,0 +1,11 @@
+# ไลบรารีหลักที่ใช้ได้ทั้งโลคอล (SQLite) และ production
+# ใช้ >= เพื่อให้ pip เลือกเวอร์ชันที่มี wheel ตรงกับ Python ของเครื่อง
+fastapi>=0.110
+uvicorn[standard]>=0.29
+sqlalchemy>=2.0.30
+pydantic[email]>=2.9
+pydantic-settings>=2.4
+python-multipart>=0.0.9
+python-jose[cryptography]>=3.3
+passlib[bcrypt]>=1.7.4
+email-validator>=2.1

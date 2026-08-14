@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: checkin
+      POSTGRES_PASSWORD: checkin
+      POSTGRES_DB: checkin
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checkin"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://checkin:checkin@db:5432/checkin
+      OFFICE_LAT: "13.9231953"
+      OFFICE_LNG: "100.5195808"
+      OFFICE_NAME: MARDODI
+      GEOFENCE_RADIUS_KM: "2.0"
+      SECRET_KEY: change-this-to-a-long-random-string
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/storage:/app/storage
+
+volumes:
+  pgdata:

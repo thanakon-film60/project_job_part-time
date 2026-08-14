@@ -1,0 +1,16 @@
+html, body, #root { margin: 0; height: 100%; }
+body { font-family: "Sarabun", -apple-system, "Segoe UI", sans-serif; }
+
+/* กล้องแบบกระจกเงา */
+.mirror-video {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 10px;
+  background: #000;
+  transform: scaleX(-1);
+}
+
+/* เซลล์ปฏิทิน */
+.cal-cell { min-height: 46px; font-size: 12px; }
+.cal-cell .t-in { color: #237804; }
+.cal-cell .t-out { color: #ad4e00; }

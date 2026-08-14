@@ -1,0 +1,97 @@
+# ระบบเช็คอินเข้างาน MARDODI
+
+ระบบเช็คอินเข้างานที่ยืนยันด้วย **ตำแหน่ง GPS (รัศมี 2 กม. รอบออฟฟิศ)** + **สแกนใบหน้า** บันทึกเวลาเข้า/ออกลงฐานข้อมูล และให้เจ้านายดูเป็น **ปฏิทินรายเดือน**
+
+```
+Flutter app  ──(GPS ตลอดเวลา + สแกนหน้า)──►  FastAPI + PostgreSQL  ──►  React ปฏิทิน (เจ้านายดู)
+```
+
+## องค์ประกอบ
+| ส่วน | เทคโนโลยี | โฟลเดอร์ |
+|---|---|---|
+| Back-end + ฐานข้อมูล | FastAPI + PostgreSQL + SQLAlchemy | `backend/` |
+| หน้าจอเจ้านาย (ปฏิทิน) | React + Vite + Ant Design (responsive) | `frontend/` |
+| แอปพนักงาน | Flutter (GPS + ML Kit face detection) | `flutter_app/` |
+| การวิเคราะห์ Takeout | — | `TRAVEL_ANALYSIS.md` |
+
+## ออฟฟิศและเงื่อนไข
+- ออฟฟิศ: **บริษัท มาดูดิ จำกัด (MARDODI)** — พิกัด `13.9231953, 100.5195808` (จากลิงก์ Google Maps)
+- เช็คอินได้เมื่อ **อยู่ในรัศมี 2 กม.** และ **ตรวจพบใบหน้า (liveness ผ่าน)** เท่านั้น
+- Flutter เปิด GPS ต่อเนื่อง (background service) ส่งพิกัดทุก 60 วินาที เพื่อรู้ว่าอยู่จุดไหน
+
+---
+
+## 1) รัน Back-end (แนะนำใช้ Docker)
+```bash
+cd checkin-system
+docker compose up --build
+```
+เปิด API docs ที่ http://localhost:8000/docs
+
+### หรือรันเอง (ไม่ใช้ Docker)
+```bash
+cd backend
+python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env        # ปรับ DATABASE_URL ให้ชี้ PostgreSQL ของคุณ
+python seed.py              # สร้างบัญชีตัวอย่าง + ข้อมูลทดสอบ
+uvicorn app.main:app --reload
+```
+
+บัญชีตัวอย่างจาก `seed.py`:
+- พนักงาน: `EMP001` / `password123`
+- เจ้านาย: `BOSS001` / `boss12345`
+
+## 2) รัน React (ปฏิทินให้เจ้านายดู)
+```bash
+cd frontend
+npm install
+cp .env.example .env        # ตั้ง VITE_API_BASE=http://localhost:8000
+npm run dev
+```
+เปิด http://localhost:5173 → ถูกพาไป **`/login`** → ล็อกอิน แล้วใช้เมนู 2 หน้า:
+- **`/` ปฏิทินเข้างาน** — ผู้จัดการเลือกพนักงาน/เดือน เห็นเวลาเข้า-ออกและสถานะอยู่ในออฟฟิศ
+- **`/faces` ประวัติใบหน้า** — เปิดกล้องเว็บถ่ายบันทึกใบหน้าเข้าประวัติ และดูแกลเลอรีรูปที่บันทึกไว้ (ผู้จัดการดูของพนักงานทุกคนได้)
+
+> หน้าเว็บมีระบบล็อกอินจริง (JWT เก็บใน localStorage) ทุกหน้าถูกป้องกัน ถ้ายังไม่ล็อกอินจะเด้งไป `/login`
+> การเปิดกล้องบันทึกใบหน้าต้องรันผ่าน **HTTPS** (เช่นผ่าน ngrok) เบราว์เซอร์ถึงจะให้ใช้กล้อง
+
+## 3) รัน Flutter (แอปพนักงาน)
+```bash
+cd flutter_app
+flutter create .            # สร้างโฟลเดอร์ android/ ios/ ครั้งแรก
+# ทำตาม PLATFORM_SETUP.md เพื่อเพิ่มสิทธิ์ location/camera/background
+flutter pub get
+flutter run
+```
+ปรับ `lib/config.dart` → `apiBase` ให้ชี้ backend (emulator ใช้ `http://10.0.2.2:8000`)
+
+---
+
+## API หลัก
+| Method | Path | ใช้ทำอะไร |
+|---|---|---|
+| POST | `/auth/register` | สมัครพนักงาน/ผู้จัดการ |
+| POST | `/auth/login` | เข้าสู่ระบบ (คืน JWT) |
+| POST | `/checkins` | เช็คอิน/เอาต์ (ตรวจ geofence + face, แนบรูป) |
+| GET | `/checkins/me` | ประวัติเช็คอินของตัวเอง |
+| POST | `/faces/enroll` | บันทึกรูปใบหน้าเข้าประวัติ (face enrollment) |
+| GET | `/faces/me` | ประวัติใบหน้าของตัวเอง |
+| GET | `/faces/employee/{id}` | ประวัติใบหน้าของพนักงาน (ผู้จัดการ/เจ้าของ) |
+| GET | `/faces/{id}/photo` | สตรีมไฟล์รูป (เฉพาะเจ้าของหรือผู้จัดการ) |
+| POST | `/locations/ping` | ส่งพิกัด GPS ต่อเนื่อง |
+| GET | `/reports/employees` | รายชื่อพนักงาน (เฉพาะผู้จัดการ) |
+| GET | `/reports/calendar` | สรุปเข้า-ออกรายวันสำหรับปฏิทิน (เฉพาะผู้จัดการ) |
+| GET | `/reports/geofence` | ข้อมูลออฟฟิศ/รัศมี |
+
+## ฐานข้อมูล (ตาราง)
+- `employees` — พนักงาน/ผู้จัดการ (มี hashed password, is_manager)
+- `checkins` — log การเข้า/ออก: เวลา, พิกัด, ระยะจากออฟฟิศ, อยู่ในเขต?, พบใบหน้า?, path รูป
+- `location_pings` — พิกัด GPS ต่อเนื่องจาก background service
+
+## หมายเหตุด้านความปลอดภัย/ต่อยอด
+- โหมดใบหน้าเป็น **detection + liveness** (ยืนยันว่าเป็นคนจริง) ไม่ได้จับคู่ตัวตน 1:1 — ถ้าต้องการยืนยันว่าเป็น "คุณจริง ๆ" ต้องเพิ่ม face embeddings (FaceNet) และเก็บรูปต้นแบบ
+- production: เปลี่ยน `SECRET_KEY`, จำกัด CORS, ใช้ HTTPS, และย้าย migration ไปใช้ Alembic
+- รองรับหลายสาขาได้โดยเพิ่มตาราง `offices` และเทียบ geofence กับสาขาที่ใกล้ที่สุด
+
+ดูผลการวิเคราะห์ข้อมูลการเดินทางจาก Google Takeout ได้ที่ `TRAVEL_ANALYSIS.md`

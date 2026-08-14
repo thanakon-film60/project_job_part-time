@@ -1,0 +1,71 @@
+# ===== Secrets / config =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+*.jks
+credentials.json
+serviceAccount*.json
+
+# ===== Personal data (Google Takeout) =====
+Takeout/
+*.zip
+
+# ===== Python (backend) =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local database & uploads
+*.db
+*.sqlite
+*.sqlite3
+backend/storage/*
+!backend/storage/.gitkeep
+
+# ===== Node / Vite (frontend) =====
+node_modules/
+dist/
+dist_verify/
+.vite/
+vite.config.js.timestamp-*
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== Flutter / Dart =====
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.iml
+flutter_app/android/
+flutter_app/ios/
+
+# ===== Editors / IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Misc =====
+.claude-prompt.md
+*.bak
+*.tmp

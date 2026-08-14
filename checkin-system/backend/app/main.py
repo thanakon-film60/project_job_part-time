@@ -1,0 +1,39 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .config import settings
+from .database import Base, engine
+from .routers import auth, checkins, faces, locations, reports
+
+# สร้างตารางอัตโนมัติเมื่อสตาร์ต (สำหรับ dev; production ควรใช้ Alembic)
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="ระบบเช็คอินเข้างาน MARDODI", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.origins_list,  # ตั้งผ่าน ALLOWED_ORIGINS ใน production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router)
+app.include_router(checkins.router)
+app.include_router(faces.router)
+app.include_router(locations.router)
+app.include_router(reports.router)
+
+
+@app.get("/")
+def root():
+    return {
+        "service": "checkin-mardodi",
+        "office": settings.office_name,
+        "geofence_radius_km": settings.geofence_radius_km,
+    }
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}

@@ -1,0 +1,15 @@
+# ตัวอย่าง config ngrok — วางไว้ข้าง ngrok.exe แล้วสั่ง:  ngrok start --all --config ngrok.yml
+# ขอ authtoken ฟรีได้ที่ https://dashboard.ngrok.com  (Your Authtoken)
+version: "3"
+agent:
+  authtoken: ใส่_AUTHTOKEN_ของคุณ
+
+tunnels:
+  checkin:
+    # ยิงเข้า IIS พอร์ต 80 (IIS เสิร์ฟ React + reverse proxy /api ให้ backend)
+    addr: 80
+    proto: http
+    # ให้ ngrok เขียน Host header เป็น localhost เพื่อให้ IIS site (ไม่ผูก hostname) รับได้
+    host_header: localhost
+    # ถ้ามีแพ็กเกจแบบมี static domain ให้ปลดคอมเมนต์บรรทัดล่างเพื่อใช้ URL คงที่
+    # domain: your-fixed-name.ngrok-free.app
