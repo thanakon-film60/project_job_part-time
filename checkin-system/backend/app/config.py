@@ -1,3 +1,5 @@
+import json
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,10 +8,18 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://checkin:checkin@localhost:5432/checkin"
 
+    # --- ออฟฟิศหลัก (ของเดิม ใช้เป็นค่า fallback ถ้าไม่ได้ตั้ง OFFICES) ---
     office_lat: float = 13.9231953
     office_lng: float = 100.5195808
     office_name: str = "MARDODI"
     geofence_radius_km: float = 2.0
+
+    # --- รองรับหลายสถานที่ ---
+    # ตั้งใน .env เป็น JSON บรรทัดเดียว เช่น
+    #   OFFICES=[{"name":"MARDODI","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},
+    #            {"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0}]
+    # ถ้าเว้นว่างไว้ ระบบจะใช้ office_* ด้านบนเป็นสถานที่เดียว (เข้ากันได้กับของเดิม)
+    offices: str = ""
 
     secret_key: str = "change-this-to-a-long-random-string"
     access_token_expire_minutes: int = 720
@@ -26,6 +36,44 @@ class Settings(BaseSettings):
         if self.allowed_origins.strip() == "*":
             return ["*"]
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    @property
+    def offices_list(self) -> list[dict]:
+        """รายการสถานที่ที่เช็คอินได้ — คืนอย่างน้อย 1 รายการเสมอ
+
+        อ่านจาก OFFICES (JSON) ถ้าตั้งไว้ ไม่งั้นใช้ office_* เป็นสถานที่เดียว
+        ค่าที่ผิดรูปแบบจะถูกข้าม เพื่อไม่ให้ระบบล่มเพราะพิมพ์ JSON ผิด
+        """
+        raw = (self.offices or "").strip()
+        if raw:
+            try:
+                items = json.loads(raw)
+            except json.JSONDecodeError:
+                items = []
+            result = []
+            for it in items if isinstance(items, list) else []:
+                try:
+                    result.append(
+                        {
+                            "name": str(it["name"]),
+                            "lat": float(it["lat"]),
+                            "lng": float(it["lng"]),
+                            "radius_km": float(it.get("radius_km", self.geofence_radius_km)),
+                        }
+                    )
+                except (KeyError, TypeError, ValueError):
+                    continue
+            if result:
+                return result
+
+        return [
+            {
+                "name": self.office_name,
+                "lat": self.office_lat,
+                "lng": self.office_lng,
+                "radius_km": self.geofence_radius_km,
+            }
+        ]
 
 
 settings = Settings()

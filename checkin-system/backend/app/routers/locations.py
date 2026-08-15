@@ -19,7 +19,7 @@ def ping(
     db: Session = Depends(get_db),
 ):
     """Flutter ส่งพิกัด GPS มาต่อเนื่อง (background) เพื่อบันทึกว่าอยู่ในเขตหรือไม่"""
-    distance_km, within = evaluate_location(payload.latitude, payload.longitude)
+    distance_km, within, office = evaluate_location(payload.latitude, payload.longitude)
     ping = LocationPing(
         employee_id=emp.id,
         timestamp=datetime.utcnow(),
@@ -27,6 +27,7 @@ def ping(
         longitude=payload.longitude,
         distance_km=distance_km,
         within_geofence=within,
+        office_name=office["name"],
     )
     db.add(ping)
     db.commit()

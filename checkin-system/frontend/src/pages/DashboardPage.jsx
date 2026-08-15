@@ -106,7 +106,19 @@ export default function DashboardPage() {
               </span>
               {geo && (
                 <Text type="secondary">
-                  ออฟฟิศ {geo.office_name} · รัศมี {geo.radius_km} กม.
+                  {/* รองรับหลายสถานที่ — ถ้า API เก่ายังไม่ส่ง offices มา ให้ถอยไปใช้ฟิลด์เดิม */}
+                  สถานที่เข้างาน:{" "}
+                  {(geo.offices?.length
+                    ? geo.offices
+                    : [
+                        {
+                          name: geo.office_name,
+                          radius_km: geo.radius_km,
+                        },
+                      ]
+                  )
+                    .map((o) => `${o.name} (${o.radius_km} กม.)`)
+                    .join(" · ")}
                 </Text>
               )}
             </Space>

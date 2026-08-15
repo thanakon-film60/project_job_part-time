@@ -43,6 +43,8 @@ class CheckIn(Base):
     longitude: Mapped[float] = mapped_column(Float)
     distance_km: Mapped[float] = mapped_column(Float)
     within_geofence: Mapped[bool] = mapped_column(Boolean)
+    # ชื่อสถานที่ที่เช็คอิน (รองรับหลายสาขา) — nullable เพื่อให้ข้อมูลเก่าที่ยังไม่มีค่ายังอ่านได้
+    office_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     face_detected: Mapped[bool] = mapped_column(Boolean, default=False)
     photo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
@@ -81,3 +83,5 @@ class LocationPing(Base):
     longitude: Mapped[float] = mapped_column(Float)
     distance_km: Mapped[float] = mapped_column(Float)
     within_geofence: Mapped[bool] = mapped_column(Boolean)
+    # สถานที่ที่ใกล้ที่สุดตอนส่งพิกัดมา (รองรับหลายสาขา)
+    office_name: Mapped[str | None] = mapped_column(String(120), nullable=True)

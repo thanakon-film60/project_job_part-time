@@ -20,7 +20,9 @@ param(
     [string]$DatabaseUrl = "sqlite:///./checkin.db",
     [string]$SecretKey   = "",
     # โดเมนที่อนุญาตให้เรียก API จากเบราว์เซอร์
-    [string]$AllowedOrigins = "https://thanakronpart-time.com,https://www.thanakronpart-time.com,https://api.thanakronpart-time.com"
+    [string]$AllowedOrigins = "https://thanakronpart-time.com,https://www.thanakronpart-time.com,https://api.thanakronpart-time.com",
+    # สถานที่ที่เช็คอินได้ (JSON บรรทัดเดียว) — เพิ่ม/แก้สาขาได้ที่นี่
+    [string]$Offices = '[{"name":"MARDODI","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},{"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0}]'
 )
 
 $ErrorActionPreference = "Stop"
@@ -71,6 +73,7 @@ try {
     # สำคัญ: ต้องเขียนแบบ UTF-8 ไม่มี BOM ไม่งั้น python-dotenv จะอ่านคีย์บรรทัดแรกเพี้ยน
     $envLines = @(
         "DATABASE_URL=$DatabaseUrl",
+        "OFFICES=$Offices",
         "OFFICE_LAT=13.9231953",
         "OFFICE_LNG=100.5195808",
         "OFFICE_NAME=MARDODI",

@@ -16,7 +16,32 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def evaluate_location(lat: float, lon: float) -> tuple[float, bool]:
-    """คืน (ระยะจากออฟฟิศ กม., อยู่ในเขตหรือไม่)"""
-    dist = haversine_km(lat, lon, settings.office_lat, settings.office_lng)
-    return dist, dist <= settings.geofence_radius_km
+def evaluate_location(lat: float, lon: float) -> tuple[float, bool, dict]:
+    """ตรวจว่าพิกัดที่ส่งมาอยู่ในเขตของสถานที่ใดหรือไม่
+
+    รองรับหลายสถานที่ (ดู OFFICES ใน .env)
+
+    วิธีเลือก: ถ้าอยู่ในเขตของหลายที่พร้อมกัน เลือกที่ "ใกล้ที่สุด"
+    ถ้าไม่อยู่ในเขตของที่ไหนเลย ก็คืนที่ที่ใกล้ที่สุดไว้เพื่อบอกว่าห่างเท่าไร
+
+    คืนค่า (ระยะจากสถานที่ที่เลือก กม., อยู่ในเขตหรือไม่, ข้อมูลสถานที่)
+    """
+    offices = settings.offices_list
+
+    # คำนวณระยะไปทุกที่ แล้วเรียงตาม (อยู่ในเขตก่อน, ระยะใกล้ก่อน)
+    scored = []
+    for office in offices:
+        dist = haversine_km(lat, lon, office["lat"], office["lng"])
+        inside = dist <= office["radius_km"]
+        scored.append((not inside, dist, office))
+
+    scored.sort(key=lambda x: (x[0], x[1]))
+    outside, dist, office = scored[0]
+    return dist, (not outside), office
+
+
+def describe_offices() -> str:
+    """ข้อความสรุปสถานที่ทั้งหมด ใช้ในข้อความ error ตอนเช็คอินไม่ผ่าน"""
+    return ", ".join(
+        f"{o['name']} (รัศมี {o['radius_km']} กม.)" for o in settings.offices_list
+    )

@@ -16,11 +16,15 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 @router.get("/geofence", response_model=GeofenceInfo)
 def geofence_info():
+    offices = settings.offices_list
+    first = offices[0]
     return GeofenceInfo(
-        office_name=settings.office_name,
-        office_lat=settings.office_lat,
-        office_lng=settings.office_lng,
-        radius_km=settings.geofence_radius_km,
+        offices=offices,
+        # ฟิลด์เดิม = สถานที่แรก (ให้ client เก่ายังทำงานได้)
+        office_name=first["name"],
+        office_lat=first["lat"],
+        office_lng=first["lng"],
+        radius_km=first["radius_km"],
     )
 
 

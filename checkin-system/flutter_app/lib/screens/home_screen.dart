@@ -32,15 +32,17 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     LocationService.stream().listen((pos) {
-      final dist =
-          LocationService.distanceFromOfficeKm(pos.latitude, pos.longitude);
+      // รองรับหลายสถานที่ — เลือกที่ที่เข้าเขตแล้ว หรือที่ใกล้ที่สุดถ้ายังไม่เข้า
+      final (office, dist, within) =
+          LocationService.nearestOffice(pos.latitude, pos.longitude);
       setState(() {
         _pos = pos;
         _distanceKm = dist;
-        _within = dist <= Config.geofenceRadiusKm;
-        _status = _within
-            ? 'อยู่ในเขตออฟฟิศ พร้อมเช็คอิน'
-            : 'อยู่นอกเขต (${dist.toStringAsFixed(2)} กม.)';
+        _within = within;
+        _status = within
+            ? 'อยู่ในเขต ${office.name} พร้อมเช็คอิน'
+            : 'อยู่นอกเขต — ใกล้สุดคือ ${office.name} '
+                'ห่าง ${dist.toStringAsFixed(2)} กม.';
       });
     });
   }

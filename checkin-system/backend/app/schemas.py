@@ -37,6 +37,7 @@ class CheckInOut(BaseModel):
     longitude: float
     distance_km: float
     within_geofence: bool
+    office_name: str | None = None
     face_detected: bool
     photo_path: str | None
 
@@ -57,6 +58,7 @@ class LocationPingOut(BaseModel):
     longitude: float
     distance_km: float
     within_geofence: bool
+    office_name: str | None = None
 
     class Config:
         from_attributes = True
@@ -73,7 +75,21 @@ class FaceProfileOut(BaseModel):
         from_attributes = True
 
 
+class OfficeInfo(BaseModel):
+    """สถานที่ที่เช็คอินได้ 1 แห่ง"""
+
+    name: str
+    lat: float
+    lng: float
+    radius_km: float
+
+
 class GeofenceInfo(BaseModel):
+    # รายการสถานที่ทั้งหมด (รองรับหลายสาขา)
+    offices: list[OfficeInfo] = []
+
+    # ---- ฟิลด์เดิม: ชี้ไปที่สถานที่แรกในรายการ ----
+    # เก็บไว้เพื่อให้เว็บ/แอปเวอร์ชันเก่ายังใช้งานได้
     office_name: str
     office_lat: float
     office_lng: float

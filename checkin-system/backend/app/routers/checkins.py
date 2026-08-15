@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
-from ..geofence import evaluate_location
+from ..geofence import describe_offices, evaluate_location
 from ..models import CheckIn, Employee
 from ..schemas import CheckInOut
 from ..security import get_current_employee
@@ -28,14 +28,16 @@ async def create_checkin(
     if kind not in ("in", "out"):
         raise HTTPException(status_code=400, detail="kind ต้องเป็น 'in' หรือ 'out'")
 
-    distance_km, within = evaluate_location(latitude, longitude)
+    # รองรับหลายสถานที่ — ระบบเลือกที่ที่อยู่ในเขต (หรือใกล้ที่สุดถ้าไม่อยู่ในเขตเลย)
+    distance_km, within, office = evaluate_location(latitude, longitude)
 
     # เงื่อนไข: ต้องอยู่ในรัศมี และต้องตรวจพบใบหน้า
     if not within:
         raise HTTPException(
             status_code=422,
-            detail=f"อยู่นอกเขตออฟฟิศ ({distance_km:.2f} กม. > "
-            f"{settings.geofence_radius_km} กม.) เช็คอินไม่ได้",
+            detail=f"อยู่นอกเขตที่กำหนด — ใกล้สุดคือ {office['name']} "
+            f"ห่าง {distance_km:.2f} กม. (อนุญาตไม่เกิน {office['radius_km']} กม.) "
+            f"| สถานที่ทั้งหมด: {describe_offices()}",
         )
     if not face_detected:
         raise HTTPException(
@@ -60,6 +62,7 @@ async def create_checkin(
         longitude=longitude,
         distance_km=distance_km,
         within_geofence=within,
+        office_name=office["name"],
         face_detected=face_detected,
         photo_path=photo_path,
     )
