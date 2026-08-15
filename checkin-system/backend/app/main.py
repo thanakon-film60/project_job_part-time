@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .database import Base, apply_pending_migrations, engine
-from .routers import auth, checkins, faces, locations, reports
+from .routers import auth, checkins, faces, line, locations, reports
 
 # สร้างตารางอัตโนมัติเมื่อสตาร์ต (สำหรับ dev; production ควรใช้ Alembic)
 Base.metadata.create_all(bind=engine)
@@ -23,6 +23,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(checkins.router)
 app.include_router(faces.router)
+app.include_router(line.router)
 app.include_router(locations.router)
 app.include_router(reports.router)
 

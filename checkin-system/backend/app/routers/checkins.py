@@ -1,6 +1,7 @@
+import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -9,10 +10,33 @@ from ..config import settings
 from ..database import get_db
 from ..geofence import describe_offices, evaluate_location
 from ..models import CheckIn, Employee
+from ..notify_line import push_text
 from ..schemas import CheckInOut
 from ..security import get_current_employee
 
 router = APIRouter(prefix="/checkins", tags=["checkins"])
+log = logging.getLogger("checkins")
+
+
+def notify_checkin(emp: Employee, record: CheckIn) -> None:
+    """แจ้งเข้ากลุ่ม LINE ว่ามีคนเช็คอิน/เช็คเอาท์
+
+    ห่อ try ทั้งก้อน — ถ้า LINE มีปัญหาต้องไม่ทำให้การเช็คอินล้มเหลว
+    """
+    try:
+        local_time = record.timestamp + timedelta(
+            hours=settings.timezone_offset_hours
+        )
+        icon = "🟢" if record.kind == "in" else "🔴"
+        action = "เข้างาน" if record.kind == "in" else "ออกงาน"
+        push_text(
+            f"{icon} {action}\n"
+            f"👤 {emp.full_name} ({emp.employee_code})\n"
+            f"🕐 {local_time.strftime('%H:%M')} น. · {local_time.strftime('%d/%m/%Y')}\n"
+            f"📍 {record.office_name} (ห่าง {record.distance_km:.2f} กม.)"
+        )
+    except Exception as e:
+        log.warning("แจ้งเตือน LINE ไม่สำเร็จ: %s", e)
 
 
 @router.post("", response_model=CheckInOut)
@@ -69,6 +93,10 @@ async def create_checkin(
     db.add(record)
     db.commit()
     db.refresh(record)
+
+    # แจ้งเข้ากลุ่ม LINE — ทำหลัง commit และห้ามให้พังจนกระทบการเช็คอิน
+    notify_checkin(emp, record)
+
     return record
 
 

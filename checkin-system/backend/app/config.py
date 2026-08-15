@@ -27,6 +27,16 @@ class Settings(BaseSettings):
 
     storage_dir: str = "storage"
 
+    # --- แจ้งเตือนเข้ากลุ่ม LINE (Messaging API) ---
+    # LINE Notify ปิดบริการแล้ว ต้องใช้ LINE Official Account + Messaging API
+    # วิธีตั้งค่า: deploy/line/LINE_SETUP.md
+    line_notify_enabled: bool = True
+    line_channel_access_token: str = ""   # จาก LINE Developers Console
+    line_channel_secret: str = ""         # ใช้ตรวจลายเซ็น webhook
+    line_target_id: str = ""              # Group ID ของกลุ่มที่จะให้แจ้งเตือน (ขึ้นต้นด้วย C)
+    # เขตเวลาที่ใช้แสดงเวลาในข้อความ (ฐานข้อมูลเก็บเป็น UTC)
+    timezone_offset_hours: int = 7        # ไทย = UTC+7
+
     # โดเมนที่อนุญาตให้เรียก API จากเบราว์เซอร์ (คั่นด้วยจุลภาค)
     # production: ตั้งเป็นโดเมนจริง เช่น "https://checkin.example.com"
     allowed_origins: str = "*"
