@@ -9,7 +9,7 @@
 """
 
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 from app.database import SessionLocal
@@ -20,7 +20,9 @@ TZ = timedelta(hours=settings.timezone_offset_hours)
 
 
 def local_now() -> datetime:
-    return datetime.utcnow() + TZ
+    # Keep a naive value for compatibility with the existing SQLite columns,
+    # but obtain UTC from the timezone-aware API (utcnow is deprecated).
+    return datetime.now(timezone.utc).replace(tzinfo=None) + TZ
 
 
 def build_summary(day: datetime.date) -> str:

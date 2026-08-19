@@ -8,7 +8,7 @@ Flutter app  ──(GPS ตลอดเวลา + สแกนหน้า)─�
 
 ## เริ่มใช้งานเร็วสุด
 
-**ดับเบิลคลิก `START.bat`** → เปิดแผงควบคุม กดปุ่มเดียว (รันบนเครื่อง / อัปขึ้นเว็บจริง / เช็คสถานะ)
+**ดับเบิลคลิก `START_PART_TIME.bat`** → เปิดแผงควบคุม กดปุ่มเดียว (รันบนเครื่อง / อัปขึ้นเว็บจริง / เช็คสถานะ)
 รายละเอียด: [`RUN_LOCAL.md`](RUN_LOCAL.md)
 
 เว็บจริงที่ใช้งานอยู่: **https://thanakronpart-time.com**
@@ -46,7 +46,7 @@ Flutter app  ──(GPS ตลอดเวลา + สแกนหน้า)─�
 OFFICES=[{"name":"MARDODI","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},{"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0},{"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2}]
 ```
 
-แล้ว restart backend (กดปุ่ม **อัปขึ้นเว็บจริง** ใน `START.bat` หรือ `Start-ScheduledTask -TaskName MardodiCheckinAPI`)
+แล้ว restart backend (กดปุ่ม **อัปขึ้นเว็บจริง** ใน `START_PART_TIME.bat` หรือ `Start-ScheduledTask -TaskName MardodiCheckinAPI`)
 
 > - หาพิกัดจาก Google Maps: คลิกขวาที่จุดนั้น → ตัวเลขชุดแรกคือ lat ชุดที่สองคือ lng
 > - ถ้าเว้น `OFFICES` ว่างไว้ ระบบจะถอยไปใช้ `OFFICE_LAT` / `OFFICE_LNG` / `GEOFENCE_RADIUS_KM` เป็นสถานที่เดียว (เข้ากันได้กับของเดิม)

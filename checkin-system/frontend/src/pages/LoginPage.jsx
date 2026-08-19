@@ -12,6 +12,7 @@ export default function LoginPage() {
   const nav = useNavigate();
   const loc = useLocation();
   const from = loc.state?.from || "/";
+  const expired = new URLSearchParams(loc.search).get("expired") === "1";
 
   async function onFinish(values) {
     setError("");
@@ -40,10 +41,10 @@ export default function LoginPage() {
           <Paragraph type="secondary">
             เข้าสู่ระบบเพื่อดูปฏิทินและจัดการประวัติใบหน้า
           </Paragraph>
-          {error && (
+          {(error || expired) && (
             <Alert
               type="error"
-              message={error}
+              message={error || "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่"}
               style={{ marginBottom: 16 }}
               showIcon
             />

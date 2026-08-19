@@ -6,6 +6,7 @@
 """
 
 import logging
+import os
 
 from fastapi import APIRouter, Depends, Header, Request
 
@@ -16,6 +17,21 @@ from ..security import require_manager
 
 router = APIRouter(prefix="/line", tags=["line"])
 log = logging.getLogger("line")
+
+# ScheduledTask has no visible console. Keep a small local audit log so LINE
+# webhook failures can be diagnosed without recording tokens or secrets.
+_log_dir = os.path.join(settings.storage_dir, "logs")
+os.makedirs(_log_dir, exist_ok=True)
+_audit_path = os.path.abspath(os.path.join(_log_dir, "line-webhook.log"))
+if not any(
+    isinstance(handler, logging.FileHandler)
+    and os.path.abspath(handler.baseFilename) == _audit_path
+    for handler in log.handlers
+):
+    _handler = logging.FileHandler(_audit_path, encoding="utf-8")
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    log.addHandler(_handler)
+log.setLevel(logging.INFO)
 
 
 @router.post("/webhook")
@@ -49,13 +65,14 @@ async def webhook(request: Request, x_line_signature: str | None = Header(None))
         if etype in ("join", "memberJoined"):
             reply_token = event.get("replyToken")
             if reply_token:
-                reply_text(
+                reply_ok = reply_text(
                     reply_token,
                     "สวัสดีครับ ผมคือบอทแจ้งเตือนเข้างาน MARDODI\n\n"
                     f"ID ของห้องนี้คือ:\n{sid}\n\n"
                     "เอาค่านี้ไปใส่ LINE_TARGET_ID ใน .env ของระบบ "
                     "แล้ว restart backend เป็นอันเสร็จ",
                 )
+                log.info("webhook join reply_ok=%s source=%s id=%s", reply_ok, stype, sid)
             continue
 
         # พิมพ์ "id" ในกลุ่ม -> ตอบ ID กลับ (เผื่อพลาดตอนบอทเข้ากลุ่มครั้งแรก)
@@ -64,11 +81,12 @@ async def webhook(request: Request, x_line_signature: str | None = Header(None))
             text = (msg.get("text") or "").strip().lower()
             reply_token = event.get("replyToken")
             if text in ("id", "groupid", "group id", "ไอดี") and reply_token:
-                reply_text(
+                reply_ok = reply_text(
                     reply_token,
                     f"ID ของห้องนี้คือ:\n{sid}\n\n"
                     "เอาไปใส่ LINE_TARGET_ID ใน .env แล้ว restart backend",
                 )
+                log.info("webhook id reply_ok=%s source=%s id=%s", reply_ok, stype, sid)
 
     return {"ok": True}
 

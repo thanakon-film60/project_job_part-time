@@ -111,7 +111,7 @@ LINE_TARGET_ID=
 
 > ⚠️ ต้องบันทึกเป็น **UTF-8 ไม่มี BOM** (ถ้าเปิดด้วย VS Code ในโปรเจ็กต์นี้ตั้งไว้ให้แล้ว)
 
-แล้ว restart backend — กดปุ่ม **อัปขึ้นเว็บจริง** ใน `START.bat` หรือ:
+แล้ว restart backend — กดปุ่ม **อัปขึ้นเว็บจริง** ใน `START_PART_TIME.bat` หรือ:
 
 ```powershell
 Stop-ScheduledTask -TaskName MardodiCheckinAPI
