@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import '../config.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
 import 'checkin_screen.dart';
@@ -49,7 +48,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _goCheckIn(String kind) async {
     if (_pos == null) return;
-    final result = await Navigator.of(context).push<bool>(
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await navigator.push<bool>(
       MaterialPageRoute(
         builder: (_) => CheckInScreen(
           kind: kind,
@@ -58,8 +59,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-    if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+    if (!mounted) return;
+    if (result == true) {
+      messenger.showSnackBar(
         SnackBar(
             content: Text(kind == 'in' ? 'เข้างานสำเร็จ' : 'ออกงานสำเร็จ')),
       );
@@ -77,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await ApiService.logout();
-              if (!mounted) return;
+              if (!context.mounted) return;
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(builder: (_) => const LoginScreen()),
               );
@@ -91,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Card(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(

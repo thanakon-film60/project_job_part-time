@@ -41,6 +41,7 @@ nssm set $ServiceName Start SERVICE_AUTO_START
 # ตัวแปรแวดล้อม production (แก้ค่าตามจริง)
 $envBlock = @(
   "DATABASE_URL=postgresql://checkin:CHANGE_ME@127.0.0.1:5432/checkin",
+  'OFFICES=[{"name":"MARDODI","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},{"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0},{"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2}]',
   "OFFICE_LAT=13.9231953",
   "OFFICE_LNG=100.5195808",
   "OFFICE_NAME=MARDODI",

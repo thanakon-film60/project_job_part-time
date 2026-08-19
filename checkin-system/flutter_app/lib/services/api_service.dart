@@ -4,6 +4,24 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 
+class CheckInResult {
+  final bool success;
+  final String message;
+  final String? kind;
+  final DateTime? timestamp;
+  final double? distanceKm;
+  final String? officeName;
+
+  const CheckInResult({
+    required this.success,
+    required this.message,
+    this.kind,
+    this.timestamp,
+    this.distanceKm,
+    this.officeName,
+  });
+}
+
 class ApiService {
   static String? _token;
 
@@ -63,8 +81,7 @@ class ApiService {
   }
 
   /// เช็คอิน/เช็คเอาต์ พร้อมแนบรูปใบหน้า
-  /// คืน (สำเร็จ, ข้อความ)
-  static Future<(bool, String)> checkIn({
+  static Future<CheckInResult> checkIn({
     required double lat,
     required double lng,
     required String kind, // "in" หรือ "out"
@@ -88,13 +105,28 @@ class ApiService {
     final streamed = await req.send();
     final res = await http.Response.fromStream(streamed);
     if (res.statusCode == 200) {
-      return (true, 'บันทึกเวลาสำเร็จ');
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final action = data['kind'] == 'out' ? 'ออกงาน' : 'เข้างาน';
+      return CheckInResult(
+        success: true,
+        message: 'บันทึก$actionสำเร็จ',
+        kind: data['kind']?.toString(),
+        timestamp: DateTime.tryParse(data['timestamp']?.toString() ?? ''),
+        distanceKm: (data['distance_km'] as num?)?.toDouble(),
+        officeName: data['office_name']?.toString(),
+      );
     }
     try {
       final err = jsonDecode(res.body);
-      return (false, err['detail']?.toString() ?? 'เกิดข้อผิดพลาด');
+      return CheckInResult(
+        success: false,
+        message: err['detail']?.toString() ?? 'เกิดข้อผิดพลาด',
+      );
     } catch (_) {
-      return (false, 'เกิดข้อผิดพลาด (${res.statusCode})');
+      return CheckInResult(
+        success: false,
+        message: 'เกิดข้อผิดพลาด (${res.statusCode})',
+      );
     }
   }
 }

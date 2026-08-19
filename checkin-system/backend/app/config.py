@@ -17,7 +17,8 @@ class Settings(BaseSettings):
     # --- รองรับหลายสถานที่ ---
     # ตั้งใน .env เป็น JSON บรรทัดเดียว เช่น
     #   OFFICES=[{"name":"MARDODI","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},
-    #            {"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0}]
+    #            {"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0},
+    #            {"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2}]
     # ถ้าเว้นว่างไว้ ระบบจะใช้ office_* ด้านบนเป็นสถานที่เดียว (เข้ากันได้กับของเดิม)
     offices: str = ""
 

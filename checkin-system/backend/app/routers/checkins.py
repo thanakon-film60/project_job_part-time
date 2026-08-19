@@ -27,13 +27,16 @@ def notify_checkin(emp: Employee, record: CheckIn) -> None:
         local_time = record.timestamp + timedelta(
             hours=settings.timezone_offset_hours
         )
-        icon = "🟢" if record.kind == "in" else "🔴"
         action = "เข้างาน" if record.kind == "in" else "ออกงาน"
+        time_text = local_time.strftime("%H:%M น. %d/%m/%Y")
+        distance_text = (
+            f"{record.distance_km * 1000:.0f} เมตร"
+            if record.distance_km < 1
+            else f"{record.distance_km:.2f} กม."
+        )
         push_text(
-            f"{icon} {action}\n"
-            f"👤 {emp.full_name} ({emp.employee_code})\n"
-            f"🕐 {local_time.strftime('%H:%M')} น. · {local_time.strftime('%d/%m/%Y')}\n"
-            f"📍 {record.office_name} (ห่าง {record.distance_km:.2f} กม.)"
+            f"ตอนนี้ฉันได้บันทึกการ{action}ของคุณแล้ว "
+            f"({time_text}) ห่างจากจุดทำงาน {distance_text}"
         )
     except Exception as e:
         log.warning("แจ้งเตือน LINE ไม่สำเร็จ: %s", e)
