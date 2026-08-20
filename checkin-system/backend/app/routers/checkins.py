@@ -56,15 +56,21 @@ async def create_checkin(
         raise HTTPException(status_code=400, detail="kind ต้องเป็น 'in' หรือ 'out'")
 
     # รองรับหลายสถานที่ — ระบบเลือกที่ที่อยู่ในเขต (หรือใกล้ที่สุดถ้าไม่อยู่ในเขตเลย)
-    distance_km, within, office = evaluate_location(latitude, longitude)
+    checkout_only = kind == "out"
+    distance_km, within, office = evaluate_location(
+        latitude, longitude, work_only=checkout_only
+    )
 
-    # เงื่อนไข: ต้องอยู่ในรัศมี และต้องตรวจพบใบหน้า
+    # เงื่อนไข: ต้องอยู่ในรัศมีทั้งตอนเข้างานและออกงาน
+    # ตรวจที่ backend เสมอ เพื่อป้องกัน client เก่าหรือการส่ง request ข้าม UI
     if not within:
+        action = "ออกงาน" if kind == "out" else "เข้างาน"
         raise HTTPException(
             status_code=422,
-            detail=f"อยู่นอกเขตที่กำหนด — ใกล้สุดคือ {office['name']} "
+            detail=f"ไม่สามารถ{action}ได้ เพราะอยู่นอกเขตที่กำหนด — "
+            f"ใกล้สุดคือ {office['name']} "
             f"ห่าง {distance_km:.2f} กม. (อนุญาตไม่เกิน {office['radius_km']} กม.) "
-            f"| สถานที่ทั้งหมด: {describe_offices()}",
+            f"| สถานที่ที่อนุญาต: {describe_offices(work_only=checkout_only)}",
         )
     if not face_detected:
         raise HTTPException(

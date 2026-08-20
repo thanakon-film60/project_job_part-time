@@ -26,8 +26,8 @@ export default defineConfig({
         "icon-maskable-512.png",
       ],
       manifest: {
-        name: "THANAKON-BOX เช็คอินเข้างาน",
-        short_name: "THANAKON-BOX",
+        name: "THANAKON-ROOM เช็คอินเข้างาน",
+        short_name: "THANAKON-ROOM",
         description: "ระบบเช็คอินเข้างานด้วย GPS และสแกนใบหน้า",
         lang: "th",
         theme_color: "#1565c0",

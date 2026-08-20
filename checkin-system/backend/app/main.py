@@ -10,7 +10,7 @@ Base.metadata.create_all(bind=engine)
 # เติมคอลัมน์ที่เพิ่มทีหลังให้ฐานข้อมูลเดิม (create_all ไม่ทำให้)
 apply_pending_migrations()
 
-app = FastAPI(title="ระบบเช็คอินเข้างาน THANAKON-BOX", version="1.0.0")
+app = FastAPI(title="ระบบเช็คอินเข้างาน THANAKON-ROOM", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

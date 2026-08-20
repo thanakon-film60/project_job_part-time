@@ -1,12 +1,18 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { getToken } from "./api";
+import { getEmployee, getToken } from "./api";
 import LoginPage from "./pages/LoginPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import FaceRecordsPage from "./pages/FaceRecordsPage.jsx";
+import EmployeesPage from "./pages/EmployeesPage.jsx";
 
 function RequireAuth({ children }) {
   return getToken() ? children : <Navigate to="/login" replace />;
+}
+
+function RequireBoss({ children }) {
+  if (!getToken()) return <Navigate to="/login" replace />;
+  return getEmployee()?.is_manager ? children : <Navigate to="/" replace />;
 }
 
 export default function App() {
@@ -23,6 +29,14 @@ export default function App() {
       />
       {/* ใช้ /face-records ไม่ใช่ /faces เพราะ /faces เป็น path ของ API
           (เว็บกับ API อยู่โดเมนเดียวกัน จึงห้ามชนกัน) */}
+      <Route
+        path="/employees"
+        element={
+          <RequireBoss>
+            <EmployeesPage />
+          </RequireBoss>
+        }
+      />
       <Route
         path="/face-records"
         element={

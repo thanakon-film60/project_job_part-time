@@ -17,6 +17,7 @@ class EmployeeOut(BaseModel):
     full_name: str
     email: EmailStr
     is_manager: bool
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -82,6 +83,7 @@ class OfficeInfo(BaseModel):
     lat: float
     lng: float
     radius_km: float
+    allow_checkout: bool = True
 
 
 class GeofenceInfo(BaseModel):

@@ -70,6 +70,7 @@ class Settings(BaseSettings):
                             "lat": float(it["lat"]),
                             "lng": float(it["lng"]),
                             "radius_km": float(it.get("radius_km", self.geofence_radius_km)),
+                            "allow_checkout": bool(it.get("allow_checkout", True)),
                         }
                     )
                 except (KeyError, TypeError, ValueError):
@@ -83,6 +84,7 @@ class Settings(BaseSettings):
                 "lat": self.office_lat,
                 "lng": self.office_lng,
                 "radius_km": self.geofence_radius_km,
+                "allow_checkout": True,
             }
         ]
 

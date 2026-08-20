@@ -16,7 +16,14 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def evaluate_location(lat: float, lon: float) -> tuple[float, bool, dict]:
+def _is_work_office(office: dict) -> bool:
+    """จุดติดตามสถานะอาจไม่ใช่สถานที่ที่อนุญาตให้ออกงาน"""
+    return bool(office.get("allow_checkout", True))
+
+
+def evaluate_location(
+    lat: float, lon: float, *, work_only: bool = False
+) -> tuple[float, bool, dict]:
     """ตรวจว่าพิกัดที่ส่งมาอยู่ในเขตของสถานที่ใดหรือไม่
 
     รองรับหลายสถานที่ (ดู OFFICES ใน .env)
@@ -27,6 +34,10 @@ def evaluate_location(lat: float, lon: float) -> tuple[float, bool, dict]:
     คืนค่า (ระยะจากสถานที่ที่เลือก กม., อยู่ในเขตหรือไม่, ข้อมูลสถานที่)
     """
     offices = settings.offices_list
+    if work_only:
+        offices = [office for office in offices if _is_work_office(office)]
+        if not offices:
+            raise RuntimeError("ยังไม่ได้กำหนดสถานที่ทำงานสำหรับการออกงาน")
 
     # คำนวณระยะไปทุกที่ แล้วเรียงตาม (อยู่ในเขตก่อน, ระยะใกล้ก่อน)
     scored = []
@@ -40,8 +51,11 @@ def evaluate_location(lat: float, lon: float) -> tuple[float, bool, dict]:
     return dist, (not outside), office
 
 
-def describe_offices() -> str:
+def describe_offices(*, work_only: bool = False) -> str:
     """ข้อความสรุปสถานที่ทั้งหมด ใช้ในข้อความ error ตอนเช็คอินไม่ผ่าน"""
+    offices = settings.offices_list
+    if work_only:
+        offices = [office for office in offices if _is_work_office(office)]
     return ", ".join(
-        f"{o['name']} (รัศมี {o['radius_km']} กม.)" for o in settings.offices_list
+        f"{o['name']} (รัศมี {o['radius_km']} กม.)" for o in offices
     )

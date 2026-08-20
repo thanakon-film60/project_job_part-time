@@ -67,7 +67,7 @@ async def webhook(request: Request, x_line_signature: str | None = Header(None))
             if reply_token:
                 reply_ok = reply_text(
                     reply_token,
-                    "สวัสดีครับ ผมคือบอทแจ้งเตือนเข้างาน THANAKON-BOX\n\n"
+                    "สวัสดีครับ ผมคือบอทแจ้งเตือนเข้างาน THANAKON-ROOM\n\n"
                     f"ID ของห้องนี้คือ:\n{sid}\n\n"
                     "เอาค่านี้ไปใส่ LINE_TARGET_ID ใน .env ของระบบ "
                     "แล้ว restart backend เป็นอันเสร็จ",
@@ -115,7 +115,7 @@ def send_test(_: Employee = Depends(require_manager)):
             "และ LINE_TARGET_ID ใน .env แล้ว restart backend",
         }
     ok = push_text(
-        "🔔 ทดสอบการแจ้งเตือนจากระบบเช็คอิน THANAKON-BOX\n"
+        "🔔 ทดสอบการแจ้งเตือนจากระบบเช็คอิน THANAKON-ROOM\n"
         "ถ้าเห็นข้อความนี้ในกลุ่ม แปลว่าตั้งค่าเรียบร้อยแล้วครับ"
     )
     return {

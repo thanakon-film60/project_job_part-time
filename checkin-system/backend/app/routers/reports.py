@@ -88,3 +88,73 @@ def calendar(
         "month": month,
         "days": sorted(by_day.values(), key=lambda x: x["date"]),
     }
+
+
+def _location_label(office_name: str | None, within_geofence: bool) -> str:
+    """แปลงชื่อสถานที่ภายในให้เป็นข้อความสั้นที่ใช้บนปฏิทิน"""
+    name = (office_name or "").strip()
+    if "บ้าน" in name:
+        return "อยู่ที่บ้าน"
+    if name:
+        return name
+    return "ในออฟฟิศ" if within_geofence else "นอกเขต"
+
+
+@router.get("/team-calendar")
+def team_calendar(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    _: Employee = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
+    """สรุปว่าแต่ละวันมีพนักงานคนใดลงเวลา เพื่อใช้ในปฏิทินรวมของ Boss"""
+    rows = (
+        db.query(CheckIn, Employee)
+        .join(Employee, Employee.id == CheckIn.employee_id)
+        .filter(
+            Employee.is_manager.is_(False),
+            extract("year", CheckIn.timestamp) == year,
+            extract("month", CheckIn.timestamp) == month,
+        )
+        .order_by(CheckIn.timestamp)
+        .all()
+    )
+
+    people_by_day: dict[str, dict[int, dict]] = defaultdict(dict)
+    for checkin, employee in rows:
+        day = checkin.timestamp.strftime("%Y-%m-%d")
+        person = people_by_day[day].setdefault(
+            employee.id,
+            {
+                "employee_id": employee.id,
+                "employee_code": employee.employee_code,
+                "full_name": employee.full_name,
+                "first_in": None,
+                "last_out": None,
+                "locations": [],
+                "count": 0,
+            },
+        )
+        person["count"] += 1
+        timestamp = checkin.timestamp.isoformat()
+        if checkin.kind == "in" and (
+            person["first_in"] is None or timestamp < person["first_in"]
+        ):
+            person["first_in"] = timestamp
+        elif checkin.kind == "out" and (
+            person["last_out"] is None or timestamp > person["last_out"]
+        ):
+            person["last_out"] = timestamp
+
+        location = _location_label(checkin.office_name, checkin.within_geofence)
+        if location not in person["locations"]:
+            person["locations"].append(location)
+
+    days = [
+        {
+            "date": day,
+            "people": sorted(people.values(), key=lambda item: item["full_name"]),
+        }
+        for day, people in sorted(people_by_day.items())
+    ]
+    return {"year": year, "month": month, "days": days}

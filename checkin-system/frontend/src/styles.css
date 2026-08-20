@@ -14,3 +14,271 @@ body { font-family: "Sarabun", -apple-system, "Segoe UI", sans-serif; }
 .cal-cell { min-height: 46px; font-size: 12px; }
 .cal-cell .t-in { color: #237804; }
 .cal-cell .t-out { color: #ad4e00; }
+
+/* โครงหน้าหลัก */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-inline: 24px;
+}
+.header-brand {
+  color: #fff;
+  font-size: 18px;
+  white-space: nowrap;
+}
+.header-page-title {
+  color: #fff;
+  font-size: 17px;
+}
+.app-content,
+.boss-content {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* Sidebar สำหรับ Boss */
+.boss-sidebar {
+  box-shadow: 4px 0 18px rgba(0, 21, 41, 0.18);
+  z-index: 10;
+}
+.sidebar-brand {
+  min-height: 92px;
+  padding: 20px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.sidebar-brand-icon {
+  color: #f7c948;
+  font-size: 28px;
+}
+.sidebar-brand-name {
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+}
+.sidebar-brand-role {
+  color: #8fa8c2;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  margin-top: 3px;
+}
+.boss-menu {
+  padding-top: 14px;
+}
+.boss-menu .ant-menu-item {
+  height: 48px;
+  line-height: 48px;
+  margin-block: 6px;
+}
+.boss-header {
+  background: #fff;
+  border-bottom: 1px solid #edf0f4;
+  box-shadow: 0 2px 10px rgba(15, 35, 55, 0.06);
+}
+.boss-header .header-page-title {
+  color: #172b4d;
+}
+.boss-header .ant-typography {
+  color: #52667a !important;
+}
+.boss-header .ant-btn-background-ghost {
+  color: #245c9c;
+  border-color: #7da4ce;
+}
+
+/* หน้ารายชื่อพนักงาน */
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+.employee-stats {
+  margin-bottom: 16px;
+}
+.employee-stats .ant-card,
+.employee-card {
+  box-shadow: 0 5px 18px rgba(23, 43, 77, 0.07);
+}
+.employee-card {
+  overflow: hidden;
+}
+.employee-main-face {
+  width: 100%;
+  height: 220px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #eef2f6;
+}
+.employee-face.featured {
+  width: 100% !important;
+  height: 220px !important;
+  object-fit: cover;
+}
+.employee-face {
+  width: 72px !important;
+  height: 72px !important;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.employee-face-placeholder {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #8c8c8c;
+  background: #f2f4f7;
+  border: 1px dashed #c8d0da;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.employee-face-placeholder.featured {
+  width: 100%;
+  height: 220px;
+  font-size: 14px;
+}
+.employee-face-placeholder.featured .anticon {
+  font-size: 42px;
+}
+.face-skeleton .ant-skeleton-image {
+  width: 72px !important;
+  height: 72px !important;
+}
+.face-skeleton.featured,
+.face-skeleton.featured .ant-skeleton-image {
+  width: 100% !important;
+  height: 220px !important;
+}
+.employee-details {
+  display: grid;
+  gap: 7px;
+}
+.employee-face-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 7px;
+}
+.face-updated-at {
+  font-size: 12px;
+}
+
+/* ปฏิทินรวมพนักงานของ Boss */
+.calendar-stats {
+  margin-bottom: 16px;
+}
+.calendar-stats .ant-card,
+.team-calendar-card {
+  box-shadow: 0 5px 18px rgba(23, 43, 77, 0.07);
+}
+.team-cal-cell {
+  display: grid;
+  gap: 5px;
+  min-height: 64px;
+  padding-top: 3px;
+}
+.calendar-person {
+  min-width: 0;
+  padding: 4px 5px;
+  background: #f3f7fc;
+  border-left: 3px solid #3578c5;
+  border-radius: 4px;
+}
+.calendar-person-name {
+  overflow: hidden;
+  color: #173b66;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calendar-person .ant-tag {
+  max-width: 100%;
+  margin: 3px 0 0;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 17px;
+  text-overflow: ellipsis;
+}
+.more-people {
+  font-size: 11px;
+}
+.attendance-person-row {
+  padding-block: 16px !important;
+}
+.attendance-details {
+  display: grid;
+  gap: 9px;
+  margin-top: 5px;
+}
+.attendance-locations {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.attendance-locations .ant-tag {
+  margin: 0;
+}
+.time-in {
+  color: #237804;
+}
+.time-out {
+  color: #ad4e00;
+}
+
+@media (max-width: 767px) {
+  .app-header {
+    padding-inline: 12px;
+    gap: 8px;
+  }
+  .app-content,
+  .boss-content {
+    padding: 14px;
+  }
+  .boss-header .header-page-title {
+    display: none;
+  }
+  .mobile-brand {
+    color: #172b4d;
+    font-size: 15px;
+  }
+  .employee-main-face,
+  .employee-face.featured,
+  .employee-face-placeholder.featured,
+  .face-skeleton.featured,
+  .face-skeleton.featured .ant-skeleton-image {
+    height: 260px !important;
+  }
+  .calendar-heading .ant-typography-secondary {
+    font-size: 13px;
+  }
+  .team-calendar-card .ant-card-body {
+    padding: 8px;
+  }
+  .team-calendar-card .ant-picker-calendar-header {
+    padding-inline: 4px;
+  }
+  .team-cal-cell {
+    min-height: 52px;
+  }
+  .calendar-person {
+    padding: 3px;
+  }
+  .calendar-person-name {
+    font-size: 10px;
+  }
+  .calendar-person .ant-tag {
+    display: none;
+  }
+}

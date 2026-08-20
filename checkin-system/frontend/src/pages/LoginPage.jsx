@@ -36,7 +36,7 @@ export default function LoginPage() {
       <Col xs={24} sm={18} md={12} lg={9} xl={7}>
         <Card>
           <Title level={3} style={{ marginBottom: 0 }}>
-            THANAKON-BOX เช็คอิน
+            THANAKON-ROOM เช็คอิน
           </Title>
           <Paragraph type="secondary">
             เข้าสู่ระบบเพื่อดูปฏิทินและจัดการประวัติใบหน้า

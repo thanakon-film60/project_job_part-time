@@ -1,20 +1,17 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import '../services/location_service.dart';
 import '../services/api_service.dart';
 import '../services/face_service.dart';
 
 /// หน้าจอสแกนใบหน้า: เปิดกล้องหน้า ตรวจ liveness แล้วถ่ายรูปส่งเช็คอิน
 class CheckInScreen extends StatefulWidget {
   final String kind; // "in" หรือ "out"
-  final double latitude;
-  final double longitude;
 
   const CheckInScreen({
     super.key,
     required this.kind,
-    required this.latitude,
-    required this.longitude,
   });
 
   @override
@@ -89,12 +86,49 @@ class _CheckInScreenState extends State<CheckInScreen> {
   Future<void> _capture() async {
     if (!_faceOk || _controller == null) return;
     setState(() => _submitting = true);
+
+    // ห้ามใช้พิกัดที่ส่งมาจากหน้าแรก เพราะผู้ใช้อาจเดินออกนอกเขต
+    // ระหว่างสแกนใบหน้า ต้องอ่าน GPS ใหม่ทุกครั้งก่อนบันทึกจริง
+    late final double currentLatitude;
+    late final double currentLongitude;
+    try {
+      final position = await LocationService.current();
+      final (office, distanceKm, within) = LocationService.nearestOffice(
+        position.latitude,
+        position.longitude,
+        workOnly: widget.kind == 'out',
+      );
+      if (!within) {
+        if (!mounted) return;
+        setState(() {
+          _submitting = false;
+          _hint = widget.kind == 'out'
+              ? 'ออกงานไม่ได้: อยู่นอกเขต ${office.name} '
+                  '(ห่าง ${distanceKm.toStringAsFixed(2)} กม. / '
+                  'กำหนด ${office.radiusKm.toStringAsFixed(2)} กม.)'
+              : 'เข้างานไม่ได้: อยู่นอกเขต ${office.name} '
+                  '(ห่าง ${distanceKm.toStringAsFixed(2)} กม. / '
+                  'กำหนด ${office.radiusKm.toStringAsFixed(2)} กม.)';
+        });
+        return;
+      }
+      currentLatitude = position.latitude;
+      currentLongitude = position.longitude;
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _hint = 'ตรวจสอบ GPS ไม่ได้ กรุณาเปิดตำแหน่งแล้วลองใหม่';
+      });
+      return;
+    }
+
     await _controller!.stopImageStream();
     final shot = await _controller!.takePicture();
 
     final result = await ApiService.checkIn(
-      lat: widget.latitude,
-      lng: widget.longitude,
+      lat: currentLatitude,
+      lng: currentLongitude,
       kind: widget.kind,
       faceDetected: true,
       photo: File(shot.path),

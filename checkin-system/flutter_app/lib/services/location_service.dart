@@ -50,12 +50,19 @@ class LocationService {
 
   /// หาสถานที่ที่ "เข้าเขตแล้ว" ก่อน ถ้าไม่เข้าเลยก็เอาที่ใกล้ที่สุด
   /// คืน (สถานที่, ระยะทาง กม., อยู่ในเขตหรือไม่)
-  static (Office, double, bool) nearestOffice(double lat, double lng) {
+  static (Office, double, bool) nearestOffice(
+    double lat,
+    double lng, {
+    bool workOnly = false,
+  }) {
     Office? best;
     double bestDist = double.infinity;
     bool bestInside = false;
 
-    for (final o in Config.offices) {
+    final offices = workOnly
+        ? Config.offices.where((office) => office.allowCheckout)
+        : Config.offices;
+    for (final o in offices) {
       final d = _haversineKm(lat, lng, o.lat, o.lng);
       final inside = d <= o.radiusKm;
       // เลือกที่อยู่ในเขตก่อนเสมอ ถ้าสถานะเท่ากันค่อยดูว่าใกล้กว่า
@@ -68,7 +75,10 @@ class LocationService {
         bestInside = inside;
       }
     }
-    return (best!, bestDist, bestInside);
+    if (best == null) {
+      throw StateError('ยังไม่ได้กำหนดสถานที่ทำงานสำหรับการออกงาน');
+    }
+    return (best, bestDist, bestInside);
   }
 
   /// ระยะจากสถานที่ที่ใกล้ที่สุด (กม.)

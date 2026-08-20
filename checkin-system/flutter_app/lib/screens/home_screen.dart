@@ -18,7 +18,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Position? _pos;
   double? _distanceKm;
+  double? _allowedRadiusKm;
+  double? _workDistanceKm;
+  String? _nearestOfficeName;
   bool _within = false;
+  bool _withinWork = false;
   String _status = 'กำลังหาตำแหน่ง...';
   StreamSubscription<Position>? _positionSub;
 
@@ -49,10 +53,20 @@ class _HomeScreenState extends State<HomeScreen> {
       // รองรับหลายสถานที่ — เลือกที่ที่เข้าเขตแล้ว หรือที่ใกล้ที่สุดถ้ายังไม่เข้า
       final (office, dist, within) =
           LocationService.nearestOffice(pos.latitude, pos.longitude);
+      final (workOffice, workDistance, withinWork) =
+          LocationService.nearestOffice(
+        pos.latitude,
+        pos.longitude,
+        workOnly: true,
+      );
       setState(() {
         _pos = pos;
         _distanceKm = dist;
+        _allowedRadiusKm = workOffice.radiusKm;
+        _workDistanceKm = workDistance;
+        _nearestOfficeName = workOffice.name;
         _within = within;
+        _withinWork = withinWork;
         _status = within
             ? 'อยู่ในเขต ${office.name} พร้อมเช็คอิน'
             : 'อยู่นอกเขต — ใกล้สุดคือ ${office.name} '
@@ -78,8 +92,6 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (_) => CheckInScreen(
           kind: kind,
-          latitude: _pos!.latitude,
-          longitude: _pos!.longitude,
         ),
       ),
     );
@@ -155,15 +167,29 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
-              onPressed: _within ? () => _goCheckIn('out') : null,
+              onPressed: _withinWork ? () => _goCheckIn('out') : null,
               icon: const Icon(Icons.logout),
               label: const Text('ออกงาน (สแกนหน้า)'),
               style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16)),
             ),
+            if (_pos != null && !_withinWork) ...[
+              const SizedBox(height: 10),
+              Text(
+                'ไม่สามารถออกงานได้ ต้องอยู่ภายในรัศมี '
+                '${_allowedRadiusKm?.toStringAsFixed(2) ?? '-'} กม. '
+                'ของ ${_nearestOfficeName ?? 'สถานที่ทำงาน'} '
+                '(ขณะนี้ห่าง ${_workDistanceKm?.toStringAsFixed(2) ?? '-'} กม.)',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
             const Spacer(),
             const Text(
-              'ต้องอยู่ในรัศมี 2 กม. รอบออฟฟิศ และสแกนใบหน้าผ่าน จึงจะเช็คอินได้',
+              'ระบบจะตรวจ GPS อีกครั้งตอนกดยืนยัน ต้องอยู่ในเขตที่กำหนดและสแกนใบหน้าผ่าน จึงจะเข้างานหรือออกงานได้',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.black45, fontSize: 12),
             ),

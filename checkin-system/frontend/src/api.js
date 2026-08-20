@@ -72,6 +72,8 @@ export const getEmployees = () => req("/reports/employees");
 export const getGeofence = () => req("/reports/geofence");
 export const getCalendar = (employeeId, year, month) =>
   req(`/reports/calendar?employee_id=${employeeId}&year=${year}&month=${month}`);
+export const getTeamCalendar = (year, month) =>
+  req(`/reports/team-calendar?year=${year}&month=${month}`);
 
 // ===== faces (ประวัติใบหน้า) =====
 export const getMyFaces = () => req("/faces/me");

@@ -15,9 +15,9 @@
 param(
     [string]$BackendDir = "",
     [int]$Port          = 8001,
-    [string]$TaskName   = "ThanakonBoxCheckinAPI",
+    [string]$TaskName   = "MardodiCheckinAPI",
     # ใช้ SQLite (ไม่ต้องติดตั้ง PostgreSQL) — เปลี่ยนเป็น postgresql://... ได้ถ้ามี DB จริง
-    [string]$DatabaseUrl = "sqlite:///./checkin.db",
+    [string]$DatabaseUrl = "",
     [string]$SecretKey   = "",
     # โดเมนที่อนุญาตให้เรียก API จากเบราว์เซอร์
     [string]$AllowedOrigins = "https://thanakronpart-time.com,https://www.thanakronpart-time.com,https://api.thanakronpart-time.com",
@@ -61,6 +61,20 @@ try {
     # --- 2) ไฟล์ .env ------------------------------------------------
     Step "เขียนไฟล์ .env"
     $envPath = Join-Path $BackendDir ".env"
+
+    # Preserve the selected database during reinstalls. Falling back to SQLite
+    # is only appropriate for a brand-new installation with no .env file.
+    if ([string]::IsNullOrWhiteSpace($DatabaseUrl) -and (Test-Path $envPath)) {
+        $databaseLine = Get-Content $envPath |
+            Where-Object { $_ -match '^DATABASE_URL=' } |
+            Select-Object -First 1
+        if ($databaseLine) {
+            $DatabaseUrl = $databaseLine.Substring('DATABASE_URL='.Length)
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($DatabaseUrl)) {
+        $DatabaseUrl = "sqlite:///./checkin.db"
+    }
 
     # Keep the current signing key when reinstalling/updating. Rotating this
     # key invalidates every JWT that is still stored in users' browsers.
