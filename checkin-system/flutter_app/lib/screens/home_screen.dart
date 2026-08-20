@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
+import '../services/background_service.dart';
 import '../services/location_service.dart';
 import 'checkin_screen.dart';
 import 'login_screen.dart';
@@ -17,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   double? _distanceKm;
   bool _within = false;
   String _status = 'กำลังหาตำแหน่ง...';
+  StreamSubscription<Position>? _positionSub;
 
   @override
   void initState() {
@@ -26,11 +30,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _watch() async {
     final ok = await LocationService.ensurePermission();
+    if (!mounted) return;
     if (!ok) {
       setState(() => _status = 'กรุณาเปิด GPS และอนุญาตตำแหน่ง');
       return;
     }
-    LocationService.stream().listen((pos) {
+    try {
+      final serviceStarted = await initBackgroundService();
+      if (!serviceStarted) {
+        debugPrint('Background service skipped: notification permission denied');
+      }
+    } catch (err) {
+      debugPrint('Background service failed to start: $err');
+    }
+    await _positionSub?.cancel();
+    _positionSub = LocationService.stream().listen((pos) {
+      if (!mounted) return;
       // รองรับหลายสถานที่ — เลือกที่ที่เข้าเขตแล้ว หรือที่ใกล้ที่สุดถ้ายังไม่เข้า
       final (office, dist, within) =
           LocationService.nearestOffice(pos.latitude, pos.longitude);
@@ -43,7 +58,16 @@ class _HomeScreenState extends State<HomeScreen> {
             : 'อยู่นอกเขต — ใกล้สุดคือ ${office.name} '
                 'ห่าง ${dist.toStringAsFixed(2)} กม.';
       });
+    }, onError: (_) {
+      if (!mounted) return;
+      setState(() => _status = 'ไม่สามารถอ่านตำแหน่งได้');
     });
+  }
+
+  @override
+  void dispose() {
+    _positionSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _goCheckIn(String kind) async {
@@ -78,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
+              await stopBackgroundService();
               await ApiService.logout();
               if (!context.mounted) return;
               Navigator.of(context).pushReplacement(

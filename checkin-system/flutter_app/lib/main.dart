@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'services/api_service.dart';
-import 'services/background_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ApiService.loadToken();
-  await initBackgroundService(); // เริ่มติดตาม GPS ต่อเนื่อง
   runApp(const MardodiApp());
 }
 
