@@ -16,13 +16,15 @@ class Config {
   // static const String apiBase = "http://10.0.2.2:8002";
 
   // ---------------------------------------------------------------
-  // สถานที่ที่เช็คอินได้ (ใช้แสดงผล/ตรวจเบื้องต้นบนเครื่องเท่านั้น)
+  // สถานที่ fallback ถ้าโหลด /reports/geofence จาก backend ไม่ได้
   //
-  // ⚠️ ตัวตัดสินจริงคือ backend — ถ้าแก้รายการนี้ต้องแก้ OFFICES ใน backend/.env ให้ตรงกันด้วย
+  // ตัวตัดสินจริงคือ backend และแอปจะพยายามดึง OFFICES ล่าสุดตอนเปิดหน้าแรก/ก่อนกดยืนยัน
   // ---------------------------------------------------------------
   static const List<Office> offices = [
-    Office(name: "THANAKON-BOX", lat: 13.9231953, lng: 100.5195808, radiusKm: 2.0),
-    Office(name: "BJH Bangkok", lat: 13.8918358, lng: 100.563443, radiusKm: 1.0),
+    Office(
+        name: "THANAKON-BOX", lat: 13.9231953, lng: 100.5195808, radiusKm: 2.0),
+    Office(
+        name: "BJH Bangkok", lat: 13.8918358, lng: 100.563443, radiusKm: 1.0),
     Office(
       name: "ถึงบ้านแล้ว",
       lat: 13.8865664,
@@ -41,7 +43,6 @@ class Config {
   static const int pingIntervalSeconds = 60;
 }
 
-
 /// สถานที่ที่เช็คอินได้ 1 แห่ง
 class Office {
   final String name;
@@ -57,4 +58,16 @@ class Office {
     required this.radiusKm,
     this.allowCheckout = true,
   });
+
+  factory Office.fromJson(Map<String, dynamic> json) {
+    return Office(
+      name: json['name']?.toString() ?? '-',
+      lat: (json['lat'] as num).toDouble(),
+      lng: (json['lng'] as num).toDouble(),
+      radiusKm: (json['radius_km'] as num).toDouble(),
+      allowCheckout: json['allow_checkout'] is bool
+          ? json['allow_checkout'] as bool
+          : true,
+    );
+  }
 }

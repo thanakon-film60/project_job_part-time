@@ -92,6 +92,11 @@ class _CheckInScreenState extends State<CheckInScreen> {
     late final double currentLatitude;
     late final double currentLongitude;
     try {
+      try {
+        await LocationService.refreshOfficesFromServer();
+      } catch (err) {
+        debugPrint('Using bundled geofence settings before submit: $err');
+      }
       final position = await LocationService.current();
       final (office, distanceKm, within) = LocationService.nearestOffice(
         position.latitude,

@@ -8,7 +8,7 @@ import datetime
 import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
-os.environ["OFFICES"] = '[{"name":"THANAKON-BOX","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},{"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0},{"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2}]'
+os.environ["OFFICES"] = '[{"name":"THANAKON-BOX","lat":13.9231953,"lng":100.5195808,"radius_km":2.0,"category":"work"},{"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0,"category":"hospital"},{"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2,"category":"home"}]'
 if os.path.exists("test.db"):
     os.remove("test.db")
 
@@ -39,12 +39,25 @@ def run():
 
     r = c.post("/checkins", headers=h, data={"latitude": "13.9231953", "longitude": "100.5195808", "kind": "in", "face_detected": "true"})
     assert r.status_code == 200 and r.json()["within_geofence"] is True
-    assert line_messages[-1].startswith("ตอนนี้ฉันได้บันทึกการเข้างานของคุณแล้ว")
-    assert "ห่างจากจุดทำงาน" in line_messages[-1]
+    msg = line_messages[-1]
+    assert msg.startswith("Thanakon ได้ทำการเข้างานแล้ว (")
+    assert "ประเภทสถานที่: ที่ทำงาน" in msg
+    assert "สถานที่ใกล้สุด: THANAKON-BOX" in msg
+    assert "ระยะห่างจากที่ทำงาน" in msg
 
     r = c.post("/checkins", headers=h, data={"latitude": "13.8865664", "longitude": "100.5066278", "kind": "out", "face_detected": "true"})
     assert r.status_code == 200 and r.json()["office_name"] == "ถึงบ้านแล้ว"
-    assert line_messages[-1].startswith("ตอนนี้ฉันได้บันทึกการออกงานของคุณแล้ว")
+    msg = line_messages[-1]
+    assert msg.startswith("Thanakon ได้ทำการออกจากงานแล้ว (")
+    assert "ประเภทสถานที่: บ้าน" in msg
+    assert "สถานที่ใกล้สุด: ถึงบ้านแล้ว" in msg
+
+    r = c.post("/checkins", headers=h, data={"latitude": "13.8918358", "longitude": "100.563443", "kind": "in", "face_detected": "true"})
+    assert r.status_code == 200 and r.json()["office_name"] == "BJH Bangkok"
+    msg = line_messages[-1]
+    assert msg.startswith("Thanakon ได้ทำการเข้างานแล้ว (")
+    assert "ประเภทสถานที่: โรงพยาบาล" in msg
+    assert "สถานที่ใกล้สุด: BJH Bangkok" in msg
 
     r = c.post("/checkins", headers=h, data={"latitude": "13.9232875", "longitude": "100.4167031", "kind": "in", "face_detected": "true"})
     assert r.status_code == 422  # นอกเขต 11 กม.

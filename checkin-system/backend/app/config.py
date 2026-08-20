@@ -16,9 +16,9 @@ class Settings(BaseSettings):
 
     # --- รองรับหลายสถานที่ ---
     # ตั้งใน .env เป็น JSON บรรทัดเดียว เช่น
-    #   OFFICES=[{"name":"THANAKON-BOX","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},
-    #            {"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0},
-    #            {"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2}]
+    #   OFFICES=[{"name":"THANAKON-BOX","lat":13.9231953,"lng":100.5195808,"radius_km":2.0,"category":"work"},
+    #            {"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0,"category":"hospital"},
+    #            {"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2,"category":"home"}]
     # ถ้าเว้นว่างไว้ ระบบจะใช้ office_* ด้านบนเป็นสถานที่เดียว (เข้ากันได้กับของเดิม)
     offices: str = ""
 
@@ -71,6 +71,12 @@ class Settings(BaseSettings):
                             "lng": float(it["lng"]),
                             "radius_km": float(it.get("radius_km", self.geofence_radius_km)),
                             "allow_checkout": bool(it.get("allow_checkout", True)),
+                            "category": str(
+                                it.get("category")
+                                or it.get("type")
+                                or it.get("location_type")
+                                or ""
+                            ),
                         }
                     )
                 except (KeyError, TypeError, ValueError):
@@ -85,6 +91,7 @@ class Settings(BaseSettings):
                 "lng": self.office_lng,
                 "radius_km": self.geofence_radius_km,
                 "allow_checkout": True,
+                "category": "work",
             }
         ]
 

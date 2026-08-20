@@ -8,7 +8,12 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
-from ..geofence import describe_offices, evaluate_location
+from ..geofence import (
+    describe_offices,
+    evaluate_location,
+    location_category_label,
+    office_by_name,
+)
 from ..models import CheckIn, Employee
 from ..notify_line import push_text
 from ..schemas import CheckInOut
@@ -18,7 +23,19 @@ router = APIRouter(prefix="/checkins", tags=["checkins"])
 log = logging.getLogger("checkins")
 
 
-def notify_checkin(emp: Employee, record: CheckIn) -> None:
+def _distance_text(distance_km: float) -> str:
+    return (
+        f"{distance_km * 1000:.0f} เมตร"
+        if distance_km < 1
+        else f"{distance_km:.2f} กม."
+    )
+
+
+def _employee_display_name(emp: Employee) -> str:
+    return (emp.full_name or "").strip() or emp.employee_code
+
+
+def notify_checkin(emp: Employee, record: CheckIn, office: dict | None = None) -> None:
     """แจ้งเข้ากลุ่ม LINE ว่ามีคนเช็คอิน/เช็คเอาท์
 
     ห่อ try ทั้งก้อน — ถ้า LINE มีปัญหาต้องไม่ทำให้การเช็คอินล้มเหลว
@@ -27,16 +44,17 @@ def notify_checkin(emp: Employee, record: CheckIn) -> None:
         local_time = record.timestamp + timedelta(
             hours=settings.timezone_offset_hours
         )
-        action = "เข้างาน" if record.kind == "in" else "ออกงาน"
+        action = "เข้างาน" if record.kind == "in" else "ออกจากงาน"
         time_text = local_time.strftime("%H:%M น. %d/%m/%Y")
-        distance_text = (
-            f"{record.distance_km * 1000:.0f} เมตร"
-            if record.distance_km < 1
-            else f"{record.distance_km:.2f} กม."
-        )
+        distance_text = _distance_text(record.distance_km)
+        office_info = office or office_by_name(record.office_name)
+        category_label = location_category_label(office_info)
+        office_name = record.office_name or (office_info or {}).get("name") or "-"
         push_text(
-            f"ตอนนี้ฉันได้บันทึกการ{action}ของคุณแล้ว "
-            f"({time_text}) ห่างจากจุดทำงาน {distance_text}"
+            f"{_employee_display_name(emp)} ได้ทำการ{action}แล้ว ({time_text})\n"
+            f"ประเภทสถานที่: {category_label}\n"
+            f"สถานที่ใกล้สุด: {office_name}\n"
+            f"ระยะห่างจาก{category_label}: {distance_text}"
         )
     except Exception as e:
         log.warning("แจ้งเตือน LINE ไม่สำเร็จ: %s", e)
@@ -104,7 +122,7 @@ async def create_checkin(
     db.refresh(record)
 
     # แจ้งเข้ากลุ่ม LINE — ทำหลัง commit และห้ามให้พังจนกระทบการเช็คอิน
-    notify_checkin(emp, record)
+    notify_checkin(emp, record, office)
 
     return record
 

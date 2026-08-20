@@ -84,6 +84,7 @@ class OfficeInfo(BaseModel):
     lng: float
     radius_km: float
     allow_checkout: bool = True
+    category: str | None = None
 
 
 class GeofenceInfo(BaseModel):

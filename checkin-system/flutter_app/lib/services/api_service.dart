@@ -80,6 +80,35 @@ class ApiService {
     );
   }
 
+  /// อ่านเงื่อนไข geofence จาก backend เพื่อให้แอปตรงกับ OFFICES ล่าสุด
+  static Future<List<Office>> fetchOffices() async {
+    final res = await http.get(
+      Uri.parse('${Config.apiBase}/reports/geofence'),
+      headers: _commonHeaders,
+    );
+    if (res.statusCode != 200) {
+      throw HttpException('โหลดข้อมูลสถานที่ไม่สำเร็จ (${res.statusCode})');
+    }
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final rawOffices = data['offices'];
+    if (rawOffices is List && rawOffices.isNotEmpty) {
+      return rawOffices
+          .whereType<Map<String, dynamic>>()
+          .map(Office.fromJson)
+          .toList(growable: false);
+    }
+
+    return [
+      Office(
+        name: data['office_name']?.toString() ?? '-',
+        lat: (data['office_lat'] as num).toDouble(),
+        lng: (data['office_lng'] as num).toDouble(),
+        radiusKm: (data['radius_km'] as num).toDouble(),
+      ),
+    ];
+  }
+
   /// เช็คอิน/เช็คเอาต์ พร้อมแนบรูปใบหน้า
   static Future<CheckInResult> checkIn({
     required double lat,

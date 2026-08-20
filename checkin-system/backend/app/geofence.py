@@ -2,6 +2,12 @@ import math
 
 from .config import settings
 
+LOCATION_CATEGORY_LABELS = {
+    "home": "บ้าน",
+    "work": "ที่ทำงาน",
+    "hospital": "โรงพยาบาล",
+}
+
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """ระยะทางระหว่างสองพิกัด (กิโลเมตร) ด้วยสูตร Haversine"""
@@ -19,6 +25,50 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def _is_work_office(office: dict) -> bool:
     """จุดติดตามสถานะอาจไม่ใช่สถานที่ที่อนุญาตให้ออกงาน"""
     return bool(office.get("allow_checkout", True))
+
+
+def _normalize_location_category(value: object, office_name: str = "") -> str:
+    """แปลง category/name ให้เหลือหมวดมาตรฐานสำหรับข้อความแจ้งเตือน"""
+    explicit = str(value or "").strip().lower()
+    if explicit in ("home", "house", "บ้าน"):
+        return "home"
+    if explicit in ("hospital", "clinic", "โรงพยาบาล", "โรงบาล", "รพ"):
+        return "hospital"
+    if explicit in ("work", "office", "workplace", "ที่ทำงาน", "ออฟฟิศ", "บริษัท"):
+        return "work"
+
+    text = f"{explicit} {office_name}".lower()
+    if any(word in text for word in ("บ้าน", "home", "house")):
+        return "home"
+    if any(
+        word in text
+        for word in ("โรงพยาบาล", "โรงบาล", "hospital", "clinic", "bjh", "รพ.")
+    ):
+        return "hospital"
+    return "work"
+
+
+def location_category(office: dict | None) -> str:
+    if not office:
+        return "work"
+    return _normalize_location_category(
+        office.get("category"), str(office.get("name") or "")
+    )
+
+
+def location_category_label(office: dict | None) -> str:
+    return LOCATION_CATEGORY_LABELS[location_category(office)]
+
+
+def office_by_name(name: str | None) -> dict | None:
+    """หา config ของสถานที่จากชื่อที่บันทึกไว้ใน checkins.office_name"""
+    target = (name or "").strip()
+    if not target:
+        return None
+    for office in settings.offices_list:
+        if str(office.get("name") or "").strip() == target:
+            return office
+    return {"name": target}
 
 
 def evaluate_location(

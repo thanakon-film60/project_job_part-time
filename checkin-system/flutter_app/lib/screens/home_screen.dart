@@ -42,36 +42,56 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final serviceStarted = await initBackgroundService();
       if (!serviceStarted) {
-        debugPrint('Background service skipped: notification permission denied');
+        debugPrint(
+            'Background service skipped: notification permission denied');
       }
     } catch (err) {
       debugPrint('Background service failed to start: $err');
     }
+    try {
+      await LocationService.refreshOfficesFromServer();
+    } catch (err) {
+      debugPrint('Using bundled geofence settings: $err');
+    }
     await _positionSub?.cancel();
     _positionSub = LocationService.stream().listen((pos) {
       if (!mounted) return;
-      // รองรับหลายสถานที่ — เลือกที่ที่เข้าเขตแล้ว หรือที่ใกล้ที่สุดถ้ายังไม่เข้า
-      final (office, dist, within) =
-          LocationService.nearestOffice(pos.latitude, pos.longitude);
-      final (workOffice, workDistance, withinWork) =
-          LocationService.nearestOffice(
-        pos.latitude,
-        pos.longitude,
-        workOnly: true,
-      );
-      setState(() {
-        _pos = pos;
-        _distanceKm = dist;
-        _allowedRadiusKm = workOffice.radiusKm;
-        _workDistanceKm = workDistance;
-        _nearestOfficeName = workOffice.name;
-        _within = within;
-        _withinWork = withinWork;
-        _status = within
-            ? 'อยู่ในเขต ${office.name} พร้อมเช็คอิน'
-            : 'อยู่นอกเขต — ใกล้สุดคือ ${office.name} '
-                'ห่าง ${dist.toStringAsFixed(2)} กม.';
-      });
+      try {
+        // รองรับหลายสถานที่ — เลือกที่ที่เข้าเขตแล้ว หรือที่ใกล้ที่สุดถ้ายังไม่เข้า
+        final (office, dist, within) =
+            LocationService.nearestOffice(pos.latitude, pos.longitude);
+        final (workOffice, workDistance, withinWork) =
+            LocationService.nearestOffice(
+          pos.latitude,
+          pos.longitude,
+          workOnly: true,
+        );
+        setState(() {
+          _pos = pos;
+          _distanceKm = dist;
+          _allowedRadiusKm = workOffice.radiusKm;
+          _workDistanceKm = workDistance;
+          _nearestOfficeName = workOffice.name;
+          _within = within;
+          _withinWork = withinWork;
+          _status = within
+              ? 'อยู่ในเขต ${office.name} พร้อมเช็คอิน'
+              : 'อยู่นอกเขต — ใกล้สุดคือ ${office.name} '
+                  'ห่าง ${dist.toStringAsFixed(2)} กม.';
+        });
+      } catch (err) {
+        debugPrint('Cannot evaluate geofence: $err');
+        setState(() {
+          _pos = pos;
+          _distanceKm = null;
+          _allowedRadiusKm = null;
+          _workDistanceKm = null;
+          _nearestOfficeName = null;
+          _within = false;
+          _withinWork = false;
+          _status = 'ยังไม่ได้กำหนดสถานที่ทำงานสำหรับออกงาน';
+        });
+      }
     }, onError: (_) {
       if (!mounted) return;
       setState(() => _status = 'ไม่สามารถอ่านตำแหน่งได้');
