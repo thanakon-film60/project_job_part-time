@@ -8,7 +8,7 @@ import datetime
 import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
-os.environ["OFFICES"] = '[{"name":"MARDODI","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},{"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0},{"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2}]'
+os.environ["OFFICES"] = '[{"name":"THANAKON-BOX","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},{"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0},{"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2}]'
 if os.path.exists("test.db"):
     os.remove("test.db")
 

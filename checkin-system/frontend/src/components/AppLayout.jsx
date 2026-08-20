@@ -47,7 +47,7 @@ export default function AppLayout({ children }) {
         }}
       >
         <Text strong style={{ color: "#fff", fontSize: 18, whiteSpace: "nowrap" }}>
-          MARDODI
+          THANAKON-BOX
         </Text>
         <Menu
           theme="dark"

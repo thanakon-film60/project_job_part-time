@@ -9,7 +9,7 @@ GUI จะแสดงสถานะของบริการแต่ละ�
 | ส่วน | หน้าที่ | การเริ่มพร้อม Windows |
 |---|---|---|
 | IIS Web Server (`:80`) | ให้บริการหน้าเว็บ React และส่งคำขอ API ต่อไปยัง FastAPI | Windows Service: Automatic |
-| FastAPI (`:8001`) | API, ระบบเช็กอิน และฐานข้อมูล | Scheduled Task: `MardodiCheckinAPI` / AtStartup |
+| FastAPI (`:8001`) | API, ระบบเช็กอิน และฐานข้อมูล | Scheduled Task: `ThanakonBoxCheckinAPI` / AtStartup |
 | Cloudflare Tunnel | เชื่อมเว็บในเครื่องกับโดเมนภายนอกผ่าน HTTPS | Windows Service: Automatic |
 | Dev (`:5173`, `:8002`) | เซิร์ฟเวอร์ทดสอบสำหรับแก้โค้ด | ไม่เปิดอัตโนมัติและไม่กระทบ Production |
 

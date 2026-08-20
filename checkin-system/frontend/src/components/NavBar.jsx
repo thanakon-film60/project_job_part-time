@@ -15,7 +15,7 @@ export default function NavBar() {
   return (
     <header className="top">
       <div className="brand">
-        <strong>MARDODI</strong>
+        <strong>THANAKON-BOX</strong>
         <nav className="tabs">
           <Link className={loc.pathname === "/" ? "active" : ""} to="/">
             ปฏิทินเข้างาน

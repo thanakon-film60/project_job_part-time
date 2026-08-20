@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 
 # ใช้ SQLite ไฟล์เดียว (ทดสอบง่าย ไม่ต้องใช้ psycopg2/PostgreSQL)
 $env:DATABASE_URL     = "sqlite:///./checkin-dev.db"
-$env:OFFICES          = '[{"name":"MARDODI","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},{"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0},{"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2}]'
+$env:OFFICES          = '[{"name":"THANAKON-BOX","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},{"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0},{"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2}]'
 $env:SECRET_KEY       = "local-dev-secret"
 $env:ALLOWED_ORIGINS  = "*"
 # console ของ Windows เป็น cp1252 — บังคับ UTF-8 ไม่งั้น print ภาษาไทยจะพัง

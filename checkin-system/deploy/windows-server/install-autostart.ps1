@@ -37,7 +37,7 @@ if (-not $SkipTunnel) {
 }
 
 Step "Verify automatic startup"
-$task = Get-ScheduledTask -TaskName "MardodiCheckinAPI" -ErrorAction SilentlyContinue
+$task = Get-ScheduledTask -TaskName "ThanakonBoxCheckinAPI" -ErrorAction SilentlyContinue
 $iis = Get-Service -Name "W3SVC" -ErrorAction SilentlyContinue
 $tunnel = Get-Service -Name "cloudflared" -ErrorAction SilentlyContinue
 

@@ -21,7 +21,7 @@ services:
       DATABASE_URL: postgresql://checkin:checkin@db:5432/checkin
       OFFICE_LAT: "13.9231953"
       OFFICE_LNG: "100.5195808"
-      OFFICE_NAME: MARDODI
+      OFFICE_NAME: THANAKON-BOX
       GEOFENCE_RADIUS_KM: "2.0"
       SECRET_KEY: change-this-to-a-long-random-string
     ports:

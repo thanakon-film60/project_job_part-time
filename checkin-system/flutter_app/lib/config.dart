@@ -21,7 +21,7 @@ class Config {
   // ⚠️ ตัวตัดสินจริงคือ backend — ถ้าแก้รายการนี้ต้องแก้ OFFICES ใน backend/.env ให้ตรงกันด้วย
   // ---------------------------------------------------------------
   static const List<Office> offices = [
-    Office(name: "MARDODI", lat: 13.9231953, lng: 100.5195808, radiusKm: 2.0),
+    Office(name: "THANAKON-BOX", lat: 13.9231953, lng: 100.5195808, radiusKm: 2.0),
     Office(name: "BJH Bangkok", lat: 13.8918358, lng: 100.563443, radiusKm: 1.0),
     Office(name: "ถึงบ้านแล้ว", lat: 13.8865664, lng: 100.5066278, radiusKm: 0.2),
   ];

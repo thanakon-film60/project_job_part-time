@@ -35,7 +35,7 @@ IIS :80  ┬─ React ที่ build แล้ว (static)
 | config ของ service | `C:\ProgramData\Cloudflare\cloudflared\config.yml` |
 | log | `F:\Game\cloudflared.log` |
 | เว็บไซต์ IIS | `checkin` → `C:\inetpub\checkin` พอร์ต 80 |
-| backend | Scheduled Task `MardodiCheckinAPI` → uvicorn `127.0.0.1:8001` |
+| backend | Scheduled Task `ThanakonBoxCheckinAPI` → uvicorn `127.0.0.1:8001` |
 
 > ⚠️ ไฟล์ `.json` และ `cert.pem` เป็นความลับ **ห้าม push ขึ้น Git**
 
@@ -75,7 +75,7 @@ cd F:\GitHub\project_job_part-time\checkin-system\deploy
 | ดู log | `Get-Content F:\Game\cloudflared.log -Tail 40 -Wait` |
 | สถานะ / เริ่ม / หยุด tunnel | `Get-Service cloudflared` · `Start-Service cloudflared` · `Stop-Service cloudflared` |
 | ถอน tunnel service | `.\cloudflare\uninstall-tunnel.ps1` |
-| สถานะ / เริ่ม / หยุด backend | `Get-ScheduledTaskInfo -TaskName MardodiCheckinAPI` · `Start-ScheduledTask ...` · `Stop-ScheduledTask ...` |
+| สถานะ / เริ่ม / หยุด backend | `Get-ScheduledTaskInfo -TaskName ThanakonBoxCheckinAPI` · `Start-ScheduledTask ...` · `Stop-ScheduledTask ...` |
 | รีสตาร์ต IIS | `iisreset` |
 | เช็คพอร์ตที่เปิดอยู่ | `netstat -ano \| findstr LISTENING` |
 

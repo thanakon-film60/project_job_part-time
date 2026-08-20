@@ -184,7 +184,7 @@ function Show-Menu {
     Clear-Host
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║       ระบบเช็คอินเข้างาน MARDODI                  ║" -ForegroundColor Cyan
+    Write-Host "  ║       ระบบเช็คอินเข้างาน THANAKON-BOX             ║" -ForegroundColor Cyan
     Write-Host "  ╚══════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "   ทำงานบนเครื่องตัวเอง" -ForegroundColor DarkGray

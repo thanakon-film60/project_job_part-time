@@ -1,5 +1,5 @@
 # ===================================================================
-# Cloudflare Tunnel config — โปรเจ็กต์ checkin-system (MARDODI)
+# Cloudflare Tunnel config — โปรเจ็กต์ checkin-system (THANAKON-BOX)
 #
 # ปลายทาง: IIS พอร์ต 80 บนเครื่องนี้
 #   IIS เสิร์ฟ React (static) + reverse proxy ไป uvicorn 127.0.0.1:8001

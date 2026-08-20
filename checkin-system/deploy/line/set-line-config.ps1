@@ -109,13 +109,13 @@ Ok "Saved (backup at .env.bak)"
 
 # ---------- restart ----------
 Head "Restarting backend"
-Stop-ScheduledTask -TaskName MardodiCheckinAPI -ErrorAction SilentlyContinue
+Stop-ScheduledTask -TaskName ThanakonBoxCheckinAPI -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 3
 Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -like "*--port 8001*" } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
-Start-ScheduledTask -TaskName MardodiCheckinAPI
+Start-ScheduledTask -TaskName ThanakonBoxCheckinAPI
 
 $ready = $false
 foreach ($i in 1..20) {
@@ -151,7 +151,7 @@ from app.notify_line import push_text, is_configured
 if not is_configured():
     print('  [!] Config incomplete')
 else:
-    ok = push_text('Test notification from MARDODI check-in system.\nIf you can see this in the group, setup is complete.')
+    ok = push_text('Test notification from THANAKON-BOX check-in system.\nIf you can see this in the group, setup is complete.')
     print('  [OK] Sent' if ok else '  [!] Failed - check token / Group ID')
 "@
     } finally { Pop-Location }

@@ -43,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const Icon(Icons.badge, size: 64, color: Color(0xFF3B5BDB)),
               const SizedBox(height: 12),
-              const Text('MARDODI เช็คอินเข้างาน',
+              const Text('THANAKON-BOX เช็คอินเข้างาน',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               const SizedBox(height: 24),
               TextField(

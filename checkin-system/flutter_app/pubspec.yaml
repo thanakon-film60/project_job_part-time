@@ -1,5 +1,5 @@
-name: mardodi_checkin
-description: แอปเช็คอินเข้างาน MARDODI (GPS + สแกนใบหน้า)
+name: thanakon_box_checkin
+description: แอปเช็คอินเข้างาน THANAKON-BOX (GPS + สแกนใบหน้า)
 publish_to: "none"
 version: 1.0.0+1
 

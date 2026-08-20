@@ -23,7 +23,7 @@ Future<bool> initBackgroundService() async {
       onStart: onStart,
       autoStart: false,
       isForegroundMode: true,
-      initialNotificationTitle: 'MARDODI เช็คอิน',
+      initialNotificationTitle: 'THANAKON-BOX เช็คอิน',
       initialNotificationContent: 'กำลังติดตามตำแหน่งเพื่อการเข้างาน',
     ),
     iosConfiguration: IosConfiguration(

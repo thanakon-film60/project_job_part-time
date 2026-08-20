@@ -8,12 +8,12 @@
 #     .\install-daily-summary-task.ps1 -Time "17:30"
 #
 # ทดสอบส่งทันทีโดยไม่ต้องรอ:
-#     Start-ScheduledTask -TaskName MardodiDailySummary
+#     Start-ScheduledTask -TaskName ThanakonBoxDailySummary
 # ===================================================================
 [CmdletBinding()]
 param(
     [string]$Time     = "18:00",
-    [string]$TaskName = "MardodiDailySummary",
+    [string]$TaskName = "ThanakonBoxDailySummary",
     [string]$BackendDir = ""
 )
 

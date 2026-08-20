@@ -1,5 +1,5 @@
 ﻿# ===================================================================
-# หน้าต่างควบคุมระบบเช็คอิน MARDODI (GUI)
+# หน้าต่างควบคุมระบบเช็คอิน THANAKON-BOX (GUI)
 #
 # ทำไมต้องเป็น GUI: หน้าต่าง cmd/PowerShell ของ Windows ใช้ฟอนต์ที่ไม่มี
 # ตัวอักษรไทย ภาษาไทยเลยกลายเป็น ??? — หน้าต่างโปรแกรมจริง (WinForms)
@@ -43,7 +43,7 @@ $WEB_PORT   = 5173
 $PROD_PORT  = 8001
 $SITE       = "https://thanakronpart-time.com"
 $DEV_MARKER = "CHECKIN_DEV_A7F3"
-$PROD_TASK  = "MardodiCheckinAPI"
+$PROD_TASK  = "ThanakonBoxCheckinAPI"
 
 # ---------- ธีมสี ----------
 $cBg     = [Drawing.Color]::FromArgb(24, 26, 32)
@@ -65,7 +65,7 @@ $fontLog   = New-Object Drawing.Font("Consolas", 9)
 # หน้าต่างหลัก
 # ===================================================================
 $form = New-Object Windows.Forms.Form
-$form.Text            = "ระบบเช็คอินเข้างาน MARDODI — แผงควบคุม"
+$form.Text            = "ระบบเช็คอินเข้างาน THANAKON-BOX — แผงควบคุม"
 $workArea = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $initialWidth  = [Math]::Min(900, [Math]::Max(680, $workArea.Width - 30))
 $initialHeight = [Math]::Min(700, [Math]::Max(520, $workArea.Height - 30))
@@ -85,7 +85,7 @@ $header.BackColor = $cPanel
 $form.Controls.Add($header)
 
 $title = New-Object Windows.Forms.Label
-$title.Text      = "ระบบเช็คอินเข้างาน MARDODI"
+$title.Text      = "ระบบเช็คอินเข้างาน THANAKON-BOX"
 $title.Font      = $fontHead
 $title.ForeColor = $cText
 $title.AutoSize  = $true
@@ -343,9 +343,9 @@ function Update-LineStatus {
         }
     }
 
-    $lineTask = Get-ScheduledTask -TaskName "MardodiDailySummary" -ErrorAction SilentlyContinue
+    $lineTask = Get-ScheduledTask -TaskName "ThanakonBoxDailySummary" -ErrorAction SilentlyContinue
     if ($lineTask) {
-        $lineInfo = Get-ScheduledTaskInfo -TaskName "MardodiDailySummary" -ErrorAction SilentlyContinue
+        $lineInfo = Get-ScheduledTaskInfo -TaskName "ThanakonBoxDailySummary" -ErrorAction SilentlyContinue
         $next = if ($lineInfo -and $lineInfo.NextRunTime.Year -gt 2000) {
             $lineInfo.NextRunTime.ToString("dd/MM HH:mm")
         } else { "ไม่ทราบเวลา" }

@@ -6,16 +6,16 @@ import 'screens/home_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ApiService.loadToken();
-  runApp(const MardodiApp());
+  runApp(const ThanakonBoxApp());
 }
 
-class MardodiApp extends StatelessWidget {
-  const MardodiApp({super.key});
+class ThanakonBoxApp extends StatelessWidget {
+  const ThanakonBoxApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MARDODI เช็คอิน',
+      title: 'THANAKON-BOX เช็คอิน',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF3B5BDB),

@@ -15,7 +15,7 @@ param(
     [switch]$CheckOnly,
     [switch]$SkipFrontend,
     [string]$SitePath = "C:\inetpub\checkin",
-    [string]$TaskName = "MardodiCheckinAPI",
+    [string]$TaskName = "ThanakonBoxCheckinAPI",
     [string]$Hostname = "thanakronpart-time.com",
     [int]$BackendPort = 8001
 )
