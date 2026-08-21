@@ -129,7 +129,19 @@ class _HomeScreenState extends State<HomeScreen> {
     final color = _within ? Colors.green : Colors.orange;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('เช็คอินเข้างาน'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/logo-checkin.png',
+              width: 34,
+              height: 34,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(width: 8),
+            const Text('เช็คอินเข้างาน'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),

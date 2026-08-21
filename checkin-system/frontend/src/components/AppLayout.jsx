@@ -14,6 +14,7 @@ import { getEmployee, clearSession } from "../api";
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
+const logoSrc = "/logo-checkin.svg";
 
 export default function AppLayout({ children }) {
   const emp = getEmployee();
@@ -84,7 +85,10 @@ export default function AppLayout({ children }) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
         <Header className="app-header">
-          <Text strong className="header-brand">THANAKON-ROOM</Text>
+          <div className="header-brand-wrap">
+            <img className="header-logo" src={logoSrc} alt="" aria-hidden="true" />
+            <Text strong className="header-brand">THANAKON-ROOM</Text>
+          </div>
           <Menu
             theme="dark"
             mode="horizontal"
@@ -108,7 +112,7 @@ export default function AppLayout({ children }) {
         className="boss-sidebar"
       >
         <div className="sidebar-brand">
-          <CrownOutlined className="sidebar-brand-icon" />
+          <img className="sidebar-brand-logo" src={logoSrc} alt="" aria-hidden="true" />
           <div>
             <div className="sidebar-brand-name">THANAKON-ROOM</div>
             <div className="sidebar-brand-role">BOSS CONTROL</div>
@@ -126,9 +130,12 @@ export default function AppLayout({ children }) {
       <Layout>
         <Header className="app-header boss-header">
           {!screens.lg && (
-            <Text strong className="header-brand mobile-brand">
-              THANAKON-ROOM
-            </Text>
+            <div className="header-brand-wrap mobile-brand-wrap">
+              <img className="header-logo" src={logoSrc} alt="" aria-hidden="true" />
+              <Text strong className="header-brand mobile-brand">
+                THANAKON-ROOM
+              </Text>
+            </div>
           )}
           <Text strong className="header-page-title">{pageTitle}</Text>
           <div style={{ marginLeft: "auto" }}>{account}</div>

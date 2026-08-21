@@ -24,6 +24,8 @@ export default defineConfig({
         "icon-192.png",
         "icon-512.png",
         "icon-maskable-512.png",
+        "logo-checkin.svg",
+        "logo-checkin.png",
       ],
       manifest: {
         name: "THANAKON-ROOM เช็คอินเข้างาน",

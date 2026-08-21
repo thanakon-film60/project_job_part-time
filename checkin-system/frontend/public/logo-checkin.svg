@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="THANAKON check-in logo">
+  <defs>
+    <linearGradient id="blueA" x1="180" x2="820" y1="210" y2="840" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#087cff"/>
+      <stop offset="1" stop-color="#0647d8"/>
+    </linearGradient>
+    <linearGradient id="blueB" x1="330" x2="520" y1="310" y2="780" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#086cff"/>
+      <stop offset="1" stop-color="#043fbd"/>
+    </linearGradient>
+    <linearGradient id="greenA" x1="140" x2="360" y1="450" y2="690" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#12eaa6"/>
+      <stop offset="1" stop-color="#04a58f"/>
+    </linearGradient>
+    <linearGradient id="greenB" x1="680" x2="930" y1="610" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#18e077"/>
+      <stop offset="1" stop-color="#07957b"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#07368f" flood-opacity=".18"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#softShadow)">
+    <circle cx="610" cy="470" r="300" fill="url(#blueA)"/>
+    <circle cx="610" cy="470" r="236" fill="#fff"/>
+    <path
+      d="M610 264v34M610 642v62M704 470h56M610 328v142l106 92"
+      fill="none"
+      stroke="#0759df"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="36"
+    />
+    <circle cx="610" cy="470" r="40" fill="#0fc88f"/>
+
+    <rect x="196" y="258" width="300" height="420" rx="56" fill="none" stroke="url(#blueA)" stroke-width="48"/>
+    <path d="M364 368 496 304v456L364 690Z" fill="url(#blueB)"/>
+    <path d="M496 304h86c38 0 68 31 68 68v336c0 38-30 68-68 68h-86Z" fill="url(#blueA)"/>
+    <ellipse cx="452" cy="560" rx="20" ry="34" fill="#fff"/>
+
+    <path
+      d="M96 528h126M104 608h48M186 608h120"
+      fill="none"
+      stroke="url(#greenA)"
+      stroke-linecap="round"
+      stroke-width="40"
+    />
+    <path
+      d="M246 468 350 572 246 676"
+      fill="none"
+      stroke="url(#greenA)"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="72"
+    />
+
+    <circle cx="805" cy="746" r="136" fill="url(#greenB)"/>
+    <path
+      d="M724 742 783 802 898 686"
+      fill="none"
+      stroke="#fff"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="50"
+    />
+  </g>
+</svg>

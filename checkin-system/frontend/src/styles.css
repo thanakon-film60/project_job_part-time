@@ -22,6 +22,20 @@ body { font-family: "Sarabun", -apple-system, "Segoe UI", sans-serif; }
   gap: 16px;
   padding-inline: 24px;
 }
+.header-brand-wrap,
+.brand-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.header-logo {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
 .header-brand {
   color: #fff;
   font-size: 18px;
@@ -52,9 +66,11 @@ body { font-family: "Sarabun", -apple-system, "Segoe UI", sans-serif; }
   gap: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
-.sidebar-brand-icon {
-  color: #f7c948;
-  font-size: 28px;
+.sidebar-brand-logo {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  object-fit: contain;
 }
 .sidebar-brand-name {
   color: #fff;
@@ -236,11 +252,25 @@ body { font-family: "Sarabun", -apple-system, "Segoe UI", sans-serif; }
 .time-out {
   color: #ad4e00;
 }
+.login-logo {
+  display: block;
+  width: 112px;
+  height: 112px;
+  margin: 0 auto 14px;
+  object-fit: contain;
+}
 
 @media (max-width: 767px) {
   .app-header {
     padding-inline: 12px;
     gap: 8px;
+  }
+  .header-logo {
+    width: 30px;
+    height: 30px;
+  }
+  .mobile-brand-wrap {
+    gap: 7px;
   }
   .app-content,
   .boss-content {

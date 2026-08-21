@@ -41,7 +41,12 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.badge, size: 64, color: Color(0xFF3B5BDB)),
+              Image.asset(
+                'assets/images/logo-checkin.png',
+                width: 116,
+                height: 116,
+                fit: BoxFit.contain,
+              ),
               const SizedBox(height: 12),
               const Text('THANAKON-BOX เช็คอินเข้างาน',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),

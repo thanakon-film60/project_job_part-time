@@ -35,6 +35,7 @@ export default function LoginPage() {
     >
       <Col xs={24} sm={18} md={12} lg={9} xl={7}>
         <Card>
+          <img className="login-logo" src="/logo-checkin.svg" alt="THANAKON-ROOM" />
           <Title level={3} style={{ marginBottom: 0 }}>
             THANAKON-ROOM เช็คอิน
           </Title>
