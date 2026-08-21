@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -83,9 +84,24 @@ class _CheckInScreenState extends State<CheckInScreen> {
     }
   }
 
+  Future<void> _restartImageStream() async {
+    final controller = _controller;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        controller.value.isStreamingImages) {
+      return;
+    }
+    try {
+      await controller.startImageStream(_onImage);
+    } catch (err, st) {
+      debugPrint('Restart camera stream failed: $err\n$st');
+    }
+  }
+
   Future<void> _capture() async {
-    if (!_faceOk || _controller == null) return;
+    if (!_faceOk || _controller == null || _submitting) return;
     setState(() => _submitting = true);
+    final controller = _controller!;
 
     // ห้ามใช้พิกัดที่ส่งมาจากหน้าแรก เพราะผู้ใช้อาจเดินออกนอกเขต
     // ระหว่างสแกนใบหน้า ต้องอ่าน GPS ใหม่ทุกครั้งก่อนบันทึกจริง
@@ -97,7 +113,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
       } catch (err) {
         debugPrint('Using bundled geofence settings before submit: $err');
       }
-      final position = await LocationService.current();
+      final position =
+          await LocationService.current().timeout(const Duration(seconds: 20));
       final (office, distanceKm, within) = LocationService.nearestOffice(
         position.latitude,
         position.longitude,
@@ -128,32 +145,48 @@ class _CheckInScreenState extends State<CheckInScreen> {
       return;
     }
 
-    await _controller!.stopImageStream();
-    final shot = await _controller!.takePicture();
+    try {
+      if (controller.value.isStreamingImages) {
+        await controller.stopImageStream();
+      }
+      final shot =
+          await controller.takePicture().timeout(const Duration(seconds: 15));
 
-    final result = await ApiService.checkIn(
-      lat: currentLatitude,
-      lng: currentLongitude,
-      kind: widget.kind,
-      faceDetected: true,
-      photo: File(shot.path),
-    );
+      final result = await ApiService.checkIn(
+        lat: currentLatitude,
+        lng: currentLongitude,
+        kind: widget.kind,
+        faceDetected: true,
+        photo: File(shot.path),
+      );
 
-    if (!mounted) return;
-    if (result.success) {
-      await _controller?.dispose();
       if (!mounted) return;
+      if (result.success) {
+        await controller.dispose();
+        if (!mounted) return;
+        setState(() {
+          _controller = null;
+          _submitting = false;
+          _savedResult = result;
+        });
+      } else {
+        setState(() {
+          _submitting = false;
+          _hint = result.message;
+        });
+        await _restartImageStream();
+      }
+    } catch (err, st) {
+      debugPrint('Submit check-in failed: $err\n$st');
+      if (!mounted) return;
+      final message = err is TimeoutException
+          ? 'บันทึกนานเกินไป กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่'
+          : 'บันทึกไม่สำเร็จ กรุณาลองใหม่';
       setState(() {
-        _controller = null;
         _submitting = false;
-        _savedResult = result;
+        _hint = message;
       });
-    } else {
-      setState(() {
-        _submitting = false;
-        _hint = result.message;
-      });
-      _controller!.startImageStream(_onImage);
+      await _restartImageStream();
     }
   }
 

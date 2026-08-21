@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:thanakon_box_checkin/main.dart';
+import 'package:thanakon_box_checkin/services/api_service.dart';
 import 'package:thanakon_box_checkin/services/location_service.dart';
 
 void main() {
@@ -25,5 +26,22 @@ void main() {
     expect(workOffice.allowCheckout, isTrue);
     expect(workOffice.name, isNot('ถึงบ้านแล้ว'));
     expect(workWithin, isFalse);
+  });
+
+  test('server timestamps without timezone are treated as UTC', () {
+    final parsed = ApiService.parseServerTimestamp('2026-08-21T04:41:00');
+
+    expect(parsed, isNotNull);
+    expect(parsed!.isUtc, isTrue);
+    expect(parsed.toUtc().hour, 4);
+    expect(parsed.toUtc().minute, 41);
+  });
+
+  test('server timestamps with timezone keep their absolute instant', () {
+    final parsed = ApiService.parseServerTimestamp('2026-08-21T11:41:00+07:00');
+
+    expect(parsed, isNotNull);
+    expect(parsed!.toUtc().hour, 4);
+    expect(parsed.toUtc().minute, 41);
   });
 }
