@@ -27,3 +27,6 @@ flutter_app/build/
 flutter_app/android/
 flutter_app/ios/
 flutter_app/.flutter-plugins*
+# ไฟล์ติดตั้งที่ build มาจากเครื่อง dev — ตัวจริงอยู่ที่ backend/storage/app
+# (ใหญ่ ~70 MB ห้ามให้หลุดขึ้น git) วางด้วย deploy\windows-server\publish-apk.ps1
+*.apk
