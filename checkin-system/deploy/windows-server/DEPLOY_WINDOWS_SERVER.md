@@ -88,7 +88,7 @@ cd C:\apps\checkin-system\deploy\windows-server
 ทดสอบ:
 ```powershell
 curl http://127.0.0.1:8000/health      # ควรได้ {"status":"ok"}
-Get-Service MardodiCheckinAPI          # ควรเป็น Running
+Get-Service ThanakonBoxCheckinAPI          # ควรเป็น Running
 ```
 Service จะสตาร์ตอัตโนมัติเมื่อรีบูตเครื่อง
 
@@ -147,7 +147,7 @@ flutter build apk --release     # ได้ไฟล์ .apk ไปติดต�
 | แอป Flutter บนมือถือ (4G/นอกวง LAN) | เช็คอินได้เมื่ออยู่ในรัศมี 2 กม. |
 
 ## ดูแลรักษา
-- อัปเดตโค้ด backend: วางไฟล์ใหม่ แล้ว `nssm restart MardodiCheckinAPI`
+- อัปเดตโค้ด backend: วางไฟล์ใหม่ แล้ว `nssm restart ThanakonBoxCheckinAPI`
 - อัปเดต React: `npm run build` ใหม่ แล้วทับโฟลเดอร์ `dist`
 - log ของ API: `C:\apps\checkin-system\backend\logs\api-*.log`
 - สำรอง DB: `pg_dump -U checkin checkin > backup.sql` (ตั้ง Task Scheduler ให้รันรายวัน)

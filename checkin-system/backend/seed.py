@@ -31,7 +31,7 @@ def get_or_create(code, name, email, pw, manager):
 
 
 emp = get_or_create("EMP001", "Thanakon", "thanakon.film60@gmail.com", "password123", False)
-boss = get_or_create("BOSS001", "หัวหน้า", "boss@mardodi.co.th", "boss12345", True)
+boss = get_or_create("BOSS001", "หัวหน้า", "boss@thanakon-box.co.th", "boss12345", True)
 
 # เช็คอินตัวอย่างในเขตออฟฟิศ 5 วันย้อนหลัง
 office = (13.9231953, 100.5195808)

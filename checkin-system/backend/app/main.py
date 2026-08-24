@@ -10,7 +10,7 @@ Base.metadata.create_all(bind=engine)
 # เติมคอลัมน์ที่เพิ่มทีหลังให้ฐานข้อมูลเดิม (create_all ไม่ทำให้)
 apply_pending_migrations()
 
-app = FastAPI(title="ระบบเช็คอินเข้างาน MARDODI", version="1.0.0")
+app = FastAPI(title="ระบบเช็คอินเข้างาน THANAKON-ROOM", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,7 +31,7 @@ app.include_router(reports.router)
 @app.get("/")
 def root():
     return {
-        "service": "checkin-mardodi",
+        "service": "checkin-thanakon-box",
         "offices": settings.offices_list,
         # ของเดิม เก็บไว้ให้ client เก่ายังอ่านได้
         "office": settings.office_name,

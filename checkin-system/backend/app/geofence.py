@@ -2,6 +2,12 @@ import math
 
 from .config import settings
 
+LOCATION_CATEGORY_LABELS = {
+    "home": "บ้าน",
+    "work": "ที่ทำงาน",
+    "hospital": "โรงพยาบาล",
+}
+
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """ระยะทางระหว่างสองพิกัด (กิโลเมตร) ด้วยสูตร Haversine"""
@@ -16,7 +22,58 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def evaluate_location(lat: float, lon: float) -> tuple[float, bool, dict]:
+def _is_work_office(office: dict) -> bool:
+    """จุดติดตามสถานะอาจไม่ใช่สถานที่ที่อนุญาตให้ออกงาน"""
+    return bool(office.get("allow_checkout", True))
+
+
+def _normalize_location_category(value: object, office_name: str = "") -> str:
+    """แปลง category/name ให้เหลือหมวดมาตรฐานสำหรับข้อความแจ้งเตือน"""
+    explicit = str(value or "").strip().lower()
+    if explicit in ("home", "house", "บ้าน"):
+        return "home"
+    if explicit in ("hospital", "clinic", "โรงพยาบาล", "โรงบาล", "รพ"):
+        return "hospital"
+    if explicit in ("work", "office", "workplace", "ที่ทำงาน", "ออฟฟิศ", "บริษัท"):
+        return "work"
+
+    text = f"{explicit} {office_name}".lower()
+    if any(word in text for word in ("บ้าน", "home", "house")):
+        return "home"
+    if any(
+        word in text
+        for word in ("โรงพยาบาล", "โรงบาล", "hospital", "clinic", "bjh", "รพ.")
+    ):
+        return "hospital"
+    return "work"
+
+
+def location_category(office: dict | None) -> str:
+    if not office:
+        return "work"
+    return _normalize_location_category(
+        office.get("category"), str(office.get("name") or "")
+    )
+
+
+def location_category_label(office: dict | None) -> str:
+    return LOCATION_CATEGORY_LABELS[location_category(office)]
+
+
+def office_by_name(name: str | None) -> dict | None:
+    """หา config ของสถานที่จากชื่อที่บันทึกไว้ใน checkins.office_name"""
+    target = (name or "").strip()
+    if not target:
+        return None
+    for office in settings.offices_list:
+        if str(office.get("name") or "").strip() == target:
+            return office
+    return {"name": target}
+
+
+def evaluate_location(
+    lat: float, lon: float, *, work_only: bool = False
+) -> tuple[float, bool, dict]:
     """ตรวจว่าพิกัดที่ส่งมาอยู่ในเขตของสถานที่ใดหรือไม่
 
     รองรับหลายสถานที่ (ดู OFFICES ใน .env)
@@ -27,6 +84,10 @@ def evaluate_location(lat: float, lon: float) -> tuple[float, bool, dict]:
     คืนค่า (ระยะจากสถานที่ที่เลือก กม., อยู่ในเขตหรือไม่, ข้อมูลสถานที่)
     """
     offices = settings.offices_list
+    if work_only:
+        offices = [office for office in offices if _is_work_office(office)]
+        if not offices:
+            raise RuntimeError("ยังไม่ได้กำหนดสถานที่ทำงานสำหรับการออกงาน")
 
     # คำนวณระยะไปทุกที่ แล้วเรียงตาม (อยู่ในเขตก่อน, ระยะใกล้ก่อน)
     scored = []
@@ -40,8 +101,11 @@ def evaluate_location(lat: float, lon: float) -> tuple[float, bool, dict]:
     return dist, (not outside), office
 
 
-def describe_offices() -> str:
+def describe_offices(*, work_only: bool = False) -> str:
     """ข้อความสรุปสถานที่ทั้งหมด ใช้ในข้อความ error ตอนเช็คอินไม่ผ่าน"""
+    offices = settings.offices_list
+    if work_only:
+        offices = [office for office in offices if _is_work_office(office)]
     return ", ".join(
-        f"{o['name']} (รัศมี {o['radius_km']} กม.)" for o in settings.offices_list
+        f"{o['name']} (รัศมี {o['radius_km']} กม.)" for o in offices
     )

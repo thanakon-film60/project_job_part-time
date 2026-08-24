@@ -1,8 +1,13 @@
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import '../config.dart';
+import 'api_service.dart';
 
 class LocationService {
+  static List<Office> _offices = Config.offices;
+
+  static List<Office> get offices => List.unmodifiable(_offices);
+
   /// ขอสิทธิ์และตรวจว่า GPS เปิดอยู่
   static Future<bool> ensurePermission() async {
     bool enabled = await Geolocator.isLocationServiceEnabled();
@@ -35,6 +40,13 @@ class LocationService {
     );
   }
 
+  static Future<void> refreshOfficesFromServer() async {
+    final latest = await ApiService.fetchOffices();
+    if (latest.isNotEmpty) {
+      _offices = latest;
+    }
+  }
+
   /// ระยะทางจากออฟฟิศ (กม.) ด้วยสูตร Haversine
   /// ระยะทางระหว่างสองพิกัด (กม.) ด้วยสูตร Haversine
   static double _haversineKm(
@@ -43,19 +55,25 @@ class LocationService {
     final p1 = _rad(lat1), p2 = _rad(lat2);
     final dPhi = _rad(lat2 - lat1);
     final dLambda = _rad(lng2 - lng1);
-    final a = pow(sin(dPhi / 2), 2) +
-        cos(p1) * cos(p2) * pow(sin(dLambda / 2), 2);
+    final a =
+        pow(sin(dPhi / 2), 2) + cos(p1) * cos(p2) * pow(sin(dLambda / 2), 2);
     return 2 * r * asin(sqrt(a.toDouble()));
   }
 
   /// หาสถานที่ที่ "เข้าเขตแล้ว" ก่อน ถ้าไม่เข้าเลยก็เอาที่ใกล้ที่สุด
   /// คืน (สถานที่, ระยะทาง กม., อยู่ในเขตหรือไม่)
-  static (Office, double, bool) nearestOffice(double lat, double lng) {
+  static (Office, double, bool) nearestOffice(
+    double lat,
+    double lng, {
+    bool workOnly = false,
+  }) {
     Office? best;
     double bestDist = double.infinity;
     bool bestInside = false;
 
-    for (final o in Config.offices) {
+    final offices =
+        workOnly ? _offices.where((office) => office.allowCheckout) : _offices;
+    for (final o in offices) {
       final d = _haversineKm(lat, lng, o.lat, o.lng);
       final inside = d <= o.radiusKm;
       // เลือกที่อยู่ในเขตก่อนเสมอ ถ้าสถานะเท่ากันค่อยดูว่าใกล้กว่า
@@ -68,7 +86,10 @@ class LocationService {
         bestInside = inside;
       }
     }
-    return (best!, bestDist, bestInside);
+    if (best == null) {
+      throw StateError('ยังไม่ได้กำหนดสถานที่ทำงานสำหรับการออกงาน');
+    }
+    return (best, bestDist, bestInside);
   }
 
   /// ระยะจากสถานที่ที่ใกล้ที่สุด (กม.)

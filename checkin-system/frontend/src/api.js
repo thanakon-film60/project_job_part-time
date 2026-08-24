@@ -26,6 +26,14 @@ export function clearSession() {
   localStorage.removeItem("employee");
 }
 
+function sessionExpired() {
+  clearSession();
+  if (window.location.pathname !== "/login") {
+    window.location.replace("/login?expired=1");
+  }
+  throw new Error("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
+}
+
 function authHeaders(extra = {}) {
   const h = { ...SKIP, ...extra };
   if (token) h["Authorization"] = `Bearer ${token}`;
@@ -38,8 +46,7 @@ async function req(path, opts = {}) {
     headers: authHeaders(opts.headers),
   });
   if (res.status === 401) {
-    clearSession();
-    throw new Error("หมดเวลาเข้าสู่ระบบ กรุณาล็อกอินใหม่");
+    sessionExpired();
   }
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
   return res.json();
@@ -65,6 +72,8 @@ export const getEmployees = () => req("/reports/employees");
 export const getGeofence = () => req("/reports/geofence");
 export const getCalendar = (employeeId, year, month) =>
   req(`/reports/calendar?employee_id=${employeeId}&year=${year}&month=${month}`);
+export const getTeamCalendar = (year, month) =>
+  req(`/reports/team-calendar?year=${year}&month=${month}`);
 
 // ===== faces (ประวัติใบหน้า) =====
 export const getMyFaces = () => req("/faces/me");
@@ -81,7 +90,11 @@ export async function enrollFace(blob, note = "") {
     headers: authHeaders(), // อย่าตั้ง Content-Type เอง ให้ browser ใส่ boundary
     body: fd,
   });
-  if (!res.ok) throw new Error(`บันทึกใบหน้าไม่สำเร็จ (${res.status})`);
+  if (res.status === 401) sessionExpired();
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`บันทึกใบหน้าไม่สำเร็จ (${res.status}): ${detail}`);
+  }
   return res.json();
 }
 
@@ -90,6 +103,7 @@ export async function fetchFacePhoto(recordId) {
   const res = await fetch(`${BASE}/faces/${recordId}/photo`, {
     headers: authHeaders(),
   });
+  if (res.status === 401) sessionExpired();
   if (!res.ok) throw new Error("โหลดรูปไม่สำเร็จ");
   const blob = await res.blob();
   return URL.createObjectURL(blob);

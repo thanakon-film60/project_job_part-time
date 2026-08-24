@@ -11,13 +11,14 @@ class Settings(BaseSettings):
     # --- ออฟฟิศหลัก (ของเดิม ใช้เป็นค่า fallback ถ้าไม่ได้ตั้ง OFFICES) ---
     office_lat: float = 13.9231953
     office_lng: float = 100.5195808
-    office_name: str = "MARDODI"
+    office_name: str = "THANAKON-BOX"
     geofence_radius_km: float = 2.0
 
     # --- รองรับหลายสถานที่ ---
     # ตั้งใน .env เป็น JSON บรรทัดเดียว เช่น
-    #   OFFICES=[{"name":"MARDODI","lat":13.9231953,"lng":100.5195808,"radius_km":2.0},
-    #            {"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0}]
+    #   OFFICES=[{"name":"THANAKON-BOX","lat":13.9231953,"lng":100.5195808,"radius_km":2.0,"category":"work"},
+    #            {"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0,"category":"hospital"},
+    #            {"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2,"category":"home"}]
     # ถ้าเว้นว่างไว้ ระบบจะใช้ office_* ด้านบนเป็นสถานที่เดียว (เข้ากันได้กับของเดิม)
     offices: str = ""
 
@@ -69,6 +70,13 @@ class Settings(BaseSettings):
                             "lat": float(it["lat"]),
                             "lng": float(it["lng"]),
                             "radius_km": float(it.get("radius_km", self.geofence_radius_km)),
+                            "allow_checkout": bool(it.get("allow_checkout", True)),
+                            "category": str(
+                                it.get("category")
+                                or it.get("type")
+                                or it.get("location_type")
+                                or ""
+                            ),
                         }
                     )
                 except (KeyError, TypeError, ValueError):
@@ -82,6 +90,8 @@ class Settings(BaseSettings):
                 "lat": self.office_lat,
                 "lng": self.office_lng,
                 "radius_km": self.geofence_radius_km,
+                "allow_checkout": True,
+                "category": "work",
             }
         ]
 

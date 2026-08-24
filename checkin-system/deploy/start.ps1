@@ -1,5 +1,5 @@
 ﻿# ===================================================================
-# เมนูเดียวจบ — ดับเบิลคลิก START.bat แล้วเลือกตัวเลข
+# เมนูเดียวจบ — ดับเบิลคลิก START_PART_TIME.bat แล้วเลือกตัวเลข
 # ไม่ต้องจำคำสั่ง ไม่ต้องเปิด VS Code
 # ===================================================================
 $ErrorActionPreference = "Stop"
@@ -184,7 +184,7 @@ function Show-Menu {
     Clear-Host
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║       ระบบเช็คอินเข้างาน MARDODI                  ║" -ForegroundColor Cyan
+    Write-Host "  ║       ระบบเช็คอินเข้างาน THANAKON-ROOM            ║" -ForegroundColor Cyan
     Write-Host "  ╚══════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "   ทำงานบนเครื่องตัวเอง" -ForegroundColor DarkGray

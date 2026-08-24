@@ -32,10 +32,10 @@
 
    | ช่อง | ใส่อะไร |
    |---|---|
-   | **ชื่อบัญชี** | `MARDODI เช็คอิน` ← ชื่อนี้จะโชว์เป็นชื่อบอทในกลุ่ม |
+   | **ชื่อบัญชี** | `THANAKON-BOX เช็คอิน` ← ชื่อนี้จะโชว์เป็นชื่อบอทในกลุ่ม |
    | **อีเมล** | อีเมลของคุณ |
    | **ประเทศที่ตั้งบริษัท** | ไทย |
-   | **ชื่อบริษัท/ธุรกิจ** | `MARDODI` |
+   | **ชื่อบริษัท/ธุรกิจ** | `THANAKON-BOX` |
    | **ประเภทธุรกิจ** | เลือกใกล้เคียง เช่น บริการ → อื่นๆ |
 
 4. กด **ถัดไป** → ตรวจข้อมูล (ขั้น 2) → **เสร็จสิ้นการสมัคร** (ขั้น 3)
@@ -48,7 +48,7 @@
 
 1. ใน LINE Official Account Manager ที่เพิ่งสร้าง → **ตั้งค่า (Settings)** → **Messaging API**
 2. กด **เปิดใช้ Messaging API (Enable Messaging API)**
-3. ระบบจะให้เลือก/สร้าง **Provider** — ตั้งชื่ออะไรก็ได้ เช่น `MARDODI`
+3. ระบบจะให้เลือก/สร้าง **Provider** — ตั้งชื่ออะไรก็ได้ เช่น `THANAKON-BOX`
 4. เสร็จแล้วจะได้ **Channel ID** และ **Channel secret** — จดค่า **Channel secret** ไว้
 
 ---
@@ -111,11 +111,11 @@ LINE_TARGET_ID=
 
 > ⚠️ ต้องบันทึกเป็น **UTF-8 ไม่มี BOM** (ถ้าเปิดด้วย VS Code ในโปรเจ็กต์นี้ตั้งไว้ให้แล้ว)
 
-แล้ว restart backend — กดปุ่ม **อัปขึ้นเว็บจริง** ใน `START.bat` หรือ:
+แล้ว restart backend — กดปุ่ม **อัปขึ้นเว็บจริง** ใน `START_PART_TIME.bat` หรือ:
 
 ```powershell
-Stop-ScheduledTask -TaskName MardodiCheckinAPI
-Start-ScheduledTask -TaskName MardodiCheckinAPI
+Stop-ScheduledTask -TaskName ThanakonBoxCheckinAPI
+Start-ScheduledTask -TaskName ThanakonBoxCheckinAPI
 ```
 
 ---
@@ -129,7 +129,7 @@ Start-ScheduledTask -TaskName MardodiCheckinAPI
 พอบอทเข้ากลุ่ม **บอทจะทักในกลุ่มพร้อมบอก Group ID ให้เลย** หน้าตาประมาณนี้:
 
 ```
-สวัสดีครับ ผมคือบอทแจ้งเตือนเข้างาน MARDODI
+สวัสดีครับ ผมคือบอทแจ้งเตือนเข้างาน THANAKON-BOX
 
 ID ของห้องนี้คือ:
 Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -193,13 +193,13 @@ cd F:\GitHub\project_job_part-time\checkin-system\deploy\line
 
 ✅ มาทำงาน 2 คน
   • Thanakon  08:32–17:05  (BJH Bangkok)
-  • สมชาย  09:01–18:12  (MARDODI)
+  • สมชาย  09:01–18:12  (THANAKON-BOX)
 
 ⛔ ไม่มีบันทึก 1 คน
   • สมหญิง
 ```
 
-ส่งทดสอบทันที: `Start-ScheduledTask -TaskName MardodiDailySummary`
+ส่งทดสอบทันที: `Start-ScheduledTask -TaskName ThanakonBoxDailySummary`
 
 ---
 

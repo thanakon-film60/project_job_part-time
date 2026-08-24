@@ -12,6 +12,7 @@ export default function LoginPage() {
   const nav = useNavigate();
   const loc = useLocation();
   const from = loc.state?.from || "/";
+  const expired = new URLSearchParams(loc.search).get("expired") === "1";
 
   async function onFinish(values) {
     setError("");
@@ -34,16 +35,17 @@ export default function LoginPage() {
     >
       <Col xs={24} sm={18} md={12} lg={9} xl={7}>
         <Card>
+          <img className="login-logo" src="/logo-checkin.svg" alt="THANAKON-ROOM" />
           <Title level={3} style={{ marginBottom: 0 }}>
-            MARDODI เช็คอิน
+            THANAKON-ROOM เช็คอิน
           </Title>
           <Paragraph type="secondary">
             เข้าสู่ระบบเพื่อดูปฏิทินและจัดการประวัติใบหน้า
           </Paragraph>
-          {error && (
+          {(error || expired) && (
             <Alert
               type="error"
-              message={error}
+              message={error || "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่"}
               style={{ marginBottom: 16 }}
               showIcon
             />

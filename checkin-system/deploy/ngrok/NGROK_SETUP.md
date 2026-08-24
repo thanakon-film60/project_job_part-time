@@ -54,7 +54,7 @@ static const String apiBase = "https://a1b2-xxx.ngrok-free.app/api";
 ```
 ALLOWED_ORIGINS=https://a1b2-xxx.ngrok-free.app
 ```
-แล้ว `nssm restart MardodiCheckinAPI`
+แล้ว `nssm restart ThanakonBoxCheckinAPI`
 
 ---
 

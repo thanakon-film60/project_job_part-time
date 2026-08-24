@@ -1,24 +1,42 @@
 import React from "react";
-import { Layout, Menu, Typography, Space, Button, Grid } from "antd";
+import { Layout, Menu, Typography, Space, Button, Grid, Avatar } from "antd";
 import {
   CalendarOutlined,
+  TeamOutlined,
   SmileOutlined,
   LogoutOutlined,
+  CrownOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getEmployee, clearSession } from "../api";
 
-const { Header, Content } = Layout;
+const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 const { useBreakpoint } = Grid;
+const logoSrc = "/logo-checkin.svg";
 
 export default function AppLayout({ children }) {
   const emp = getEmployee();
   const loc = useLocation();
   const nav = useNavigate();
   const screens = useBreakpoint();
+  const isBoss = Boolean(emp?.is_manager);
 
-  const items = [
+  const bossItems = [
+    {
+      key: "/",
+      icon: <CalendarOutlined />,
+      label: <Link to="/">ปฏิทินเข้างาน</Link>,
+    },
+    {
+      key: "/employees",
+      icon: <TeamOutlined />,
+      label: <Link to="/employees">ข้อมูลพนักงาน</Link>,
+    },
+  ];
+
+  const employeeItems = [
     {
       key: "/",
       icon: <CalendarOutlined />,
@@ -31,58 +49,99 @@ export default function AppLayout({ children }) {
     },
   ];
 
+  const selectedKey = loc.pathname.startsWith("/employees")
+    ? "/employees"
+    : loc.pathname.startsWith("/face-records")
+      ? "/face-records"
+      : "/";
+
+  const pageTitle = selectedKey === "/employees"
+    ? "ข้อมูลพนักงาน"
+    : selectedKey === "/face-records"
+      ? "ประวัติใบหน้า"
+      : "ปฏิทินเข้างาน";
+
   function logout() {
     clearSession();
     nav("/login", { replace: true });
   }
 
+  const account = (
+    <Space size="small">
+      <Avatar size="small" icon={isBoss ? <CrownOutlined /> : <UserOutlined />} />
+      {!screens.xs && (
+        <Text style={{ color: "#dbe4f0" }}>
+          {emp?.full_name}
+          {isBoss ? " (Boss)" : ""}
+        </Text>
+      )}
+      <Button size="small" icon={<LogoutOutlined />} onClick={logout} ghost>
+        {screens.xs ? "" : "ออกจากระบบ"}
+      </Button>
+    </Space>
+  );
+
+  if (!isBoss) {
+    return (
+      <Layout style={{ minHeight: "100vh" }}>
+        <Header className="app-header">
+          <div className="header-brand-wrap">
+            <img className="header-logo" src={logoSrc} alt="" aria-hidden="true" />
+            <Text strong className="header-brand">THANAKON-ROOM</Text>
+          </div>
+          <Menu
+            theme="dark"
+            mode="horizontal"
+            selectedKeys={[selectedKey]}
+            items={employeeItems}
+            style={{ flex: 1, minWidth: 0 }}
+          />
+          {account}
+        </Header>
+        <Content className="app-content">{children}</Content>
+      </Layout>
+    );
+  }
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          paddingInline: screens.xs ? 12 : 24,
-        }}
+      <Sider
+        width={250}
+        breakpoint="lg"
+        collapsedWidth="0"
+        className="boss-sidebar"
       >
-        <Text strong style={{ color: "#fff", fontSize: 18, whiteSpace: "nowrap" }}>
-          MARDODI
-        </Text>
+        <div className="sidebar-brand">
+          <img className="sidebar-brand-logo" src={logoSrc} alt="" aria-hidden="true" />
+          <div>
+            <div className="sidebar-brand-name">THANAKON-ROOM</div>
+            <div className="sidebar-brand-role">BOSS CONTROL</div>
+          </div>
+        </div>
         <Menu
           theme="dark"
-          mode="horizontal"
-          selectedKeys={[loc.pathname]}
-          items={items}
-          style={{ flex: 1, minWidth: 0 }}
+          mode="inline"
+          selectedKeys={[selectedKey]}
+          items={bossItems}
+          className="boss-menu"
         />
-        <Space size="small">
-          {!screens.xs && (
-            <Text style={{ color: "#cfd6ff" }}>
-              {emp?.full_name}
-              {emp?.is_manager ? " (ผู้จัดการ)" : ""}
-            </Text>
+      </Sider>
+
+      <Layout>
+        <Header className="app-header boss-header">
+          {!screens.lg && (
+            <div className="header-brand-wrap mobile-brand-wrap">
+              <img className="header-logo" src={logoSrc} alt="" aria-hidden="true" />
+              <Text strong className="header-brand mobile-brand">
+                THANAKON-ROOM
+              </Text>
+            </div>
           )}
-          <Button
-            size="small"
-            icon={<LogoutOutlined />}
-            onClick={logout}
-            ghost
-          >
-            {screens.xs ? "" : "ออกจากระบบ"}
-          </Button>
-        </Space>
-      </Header>
-      <Content
-        style={{
-          padding: screens.xs ? 12 : 24,
-          maxWidth: 1100,
-          width: "100%",
-          margin: "0 auto",
-        }}
-      >
-        {children}
-      </Content>
+          <Text strong className="header-page-title">{pageTitle}</Text>
+          <div style={{ marginLeft: "auto" }}>{account}</div>
+        </Header>
+        <Content className="boss-content">{children}</Content>
+      </Layout>
     </Layout>
   );
 }

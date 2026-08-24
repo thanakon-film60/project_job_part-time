@@ -151,7 +151,7 @@ from app.notify_line import push_text, is_configured
 if not is_configured():
     print('  [!] Config incomplete')
 else:
-    ok = push_text('Test notification from MARDODI check-in system.\nIf you can see this in the group, setup is complete.')
+    ok = push_text('Test notification from THANAKON-ROOM check-in system.\nIf you can see this in the group, setup is complete.')
     print('  [OK] Sent' if ok else '  [!] Failed - check token / Group ID')
 "@
     } finally { Pop-Location }
