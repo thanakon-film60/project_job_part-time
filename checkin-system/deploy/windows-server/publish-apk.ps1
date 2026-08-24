@@ -21,7 +21,9 @@ param(
     [string]$ApkPath,
     # เวอร์ชันที่จะโชว์บนเว็บ (ไม่ใส่ = อ่านจาก flutter_app\pubspec.yaml)
     [string]$Version,
-    [string]$MinAndroid = "6.0 (API 23)"
+    # API level ต่ำสุดที่ APK ตัวนี้รองรับ — build-flutter-apk.ps1 อ่านค่าจริงจาก
+    # build.gradle มาส่งให้ ถ้ารันเองบนเซิร์ฟเวอร์ให้ใส่ตามที่ build มา
+    [int]$MinSdk = 24
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,10 +83,22 @@ Copy-Item $src.FullName $dest -Force
 $builtAt = $src.LastWriteTimeUtc.ToString(
     "yyyy-MM-ddTHH:mm:ssZ", [System.Globalization.CultureInfo]::InvariantCulture)
 
+# แปลง API level เป็นชื่อเวอร์ชัน Android ที่พนักงานอ่านรู้เรื่อง
+$androidNames = @{
+    21 = "5.0"; 22 = "5.1"; 23 = "6.0"; 24 = "7.0"; 25 = "7.1"; 26 = "8.0"
+    27 = "8.1"; 28 = "9";   29 = "10";  30 = "11";  31 = "12";  32 = "12L"
+    33 = "13";  34 = "14";  35 = "15";  36 = "16"
+}
+$minAndroid = if ($androidNames.ContainsKey($MinSdk)) {
+    "$($androidNames[$MinSdk]) (API $MinSdk)"
+} else {
+    "API $MinSdk"
+}
+
 $json = @{
     version     = $Version
     built_at    = $builtAt
-    min_android = $MinAndroid
+    min_android = $minAndroid
 } | ConvertTo-Json
 
 # เขียนเป็น UTF-8 ไม่มี BOM — Set-Content -Encoding UTF8 ของ PowerShell 5.1 ใส่ BOM
@@ -93,7 +107,7 @@ $json = @{
     (Join-Path $outDir "release.json"), $json, (New-Object System.Text.UTF8Encoding($false)))
 
 $sizeMb = [math]::Round((Get-Item $dest).Length / 1MB, 1)
-Ok "$($src.Name) -> $dest ($sizeMb MB, เวอร์ชัน $Version)"
+Ok "$($src.Name) -> $dest ($sizeMb MB, เวอร์ชัน $Version, ต้องใช้ Android $minAndroid)"
 
 Write-Host ""
 Write-Host "  เสร็จแล้ว — พนักงานกดปุ่มดาวน์โหลดที่หน้าแรกของเว็บได้เลย" -ForegroundColor Green

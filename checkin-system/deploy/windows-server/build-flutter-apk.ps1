@@ -100,18 +100,28 @@ try {
         Warn "ไม่พบ AndroidManifest.xml — ข้ามขั้นตอนนี้"
     }
 
-    # --- 3. minSdk 23 (ML Kit + background service ต้องการ) ------------------
+    # --- 3. minSdk --------------------------------------------------------------
+    # ML Kit + background service ต้องการอย่างน้อย API 23 ส่วน Flutter 3.38 ตั้ง
+    # ค่าเริ่มต้น (flutter.minSdkVersion) ไว้ที่ 24 อยู่แล้ว จึงปักเป็นตัวเลขตรง ๆ
+    # ให้ build ที่เครื่องไหนก็ได้ APK ที่รองรับรุ่นเดียวกัน
+    #
+    # แล้วอ่านค่าจริงกลับมาส่งให้ publish-apk.ps1 เขียนลง release.json — หน้าเว็บ
+    # จะได้บอกพนักงานถูกว่าต้องใช้ Android รุ่นไหน (ของเดิม hardcode ว่า 6.0 ทั้งที่
+    # ไฟล์จริงต้องการ 7.0 คนใช้เครื่องเก่าจะโหลดไปแล้วติดตั้งไม่ได้ งงว่าพังตรงไหน)
+    $minSdk = 24
     foreach ($name in @("android\app\build.gradle.kts", "android\app\build.gradle")) {
         $gradle = Join-Path $appDir $name
         if (-not (Test-Path $gradle)) { continue }
         $g = Get-Content $gradle -Raw
         $before = $g
-        $g = $g -replace "minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = 23"
-        $g = $g -replace "minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion 23"
+        $g = $g -replace "minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = $minSdk"
+        $g = $g -replace "minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion $minSdk"
         if ($g -ne $before) {
             Set-Content $gradle $g -Encoding UTF8 -NoNewline
-            Ok "ตั้ง minSdk = 23 ใน $name"
+            Ok "ตั้ง minSdk = $minSdk ใน $name"
         }
+        # เผื่อมีคนแก้เป็นเลขอื่นไว้เอง — ยึดค่าที่อยู่ในไฟล์จริง
+        if ($g -match "minSdk(?:Version)?\s*=?\s*(\d+)") { $minSdk = [int]$Matches[1] }
     }
 
     if ($Clean) {
@@ -144,4 +154,4 @@ finally { Pop-Location }
 # --- 6. วางไฟล์ให้ backend แจก ------------------------------------------------
 # ใช้สคริปต์ตัวเดียวกับที่เครื่อง production ใช้ตอนรับ APK ที่ build มาจากที่อื่น
 # (เขียน release.json + ตรวจไฟล์ ที่เดียว จะได้ไม่หลุดกันคนละแบบ)
-& (Join-Path $here "publish-apk.ps1") -ApkPath $apk
+& (Join-Path $here "publish-apk.ps1") -ApkPath $apk -MinSdk $minSdk

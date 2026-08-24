@@ -81,6 +81,8 @@ export default function AppDownloadCard() {
             <Tag color="green" icon={<AndroidOutlined />}>Android</Tag>
             {info.version && <Tag>เวอร์ชัน {info.version}</Tag>}
             {info.size_bytes ? <Tag>{prettySize(info.size_bytes)}</Tag> : null}
+            {/* บอกรุ่นขั้นต่ำไว้ด้วย — เครื่องเก่ากว่านี้โหลดไปก็ติดตั้งไม่ได้ */}
+            {info.min_android && <Tag>ต้องใช้ Android {info.min_android} ขึ้นไป</Tag>}
             {info.built_at && (
               <Tag>
                 อัปเดต{" "}

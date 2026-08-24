@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'config.dart';
 import 'services/api_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -21,7 +22,13 @@ class ThanakonBoxApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFF3B5BDB),
         useMaterial3: true,
       ),
-      home: ApiService.isLoggedIn ? const HomeScreen() : const LoginScreen(),
+      home: ApiService.isLoggedIn
+          ? const HomeScreen()
+          : LoginScreen(
+              notice: ApiService.sessionExpiredOnStart
+                  ? Config.sessionExpiredMessage
+                  : null,
+            ),
     );
   }
 }

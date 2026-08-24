@@ -3,7 +3,10 @@ import '../services/api_service.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  /// ข้อความบอกสาเหตุที่ถูกพากลับมาหน้านี้ (เช่น หมดเวลาใช้งานประจำวัน)
+  final String? notice;
+
+  const LoginScreen({super.key, this.notice});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -51,6 +54,24 @@ class _LoginScreenState extends State<LoginScreen> {
               const Text('THANAKON-BOX เช็คอินเข้างาน',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               const SizedBox(height: 24),
+              if (widget.notice != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.schedule, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(widget.notice!)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               TextField(
                 controller: _user,
                 decoration: const InputDecoration(
