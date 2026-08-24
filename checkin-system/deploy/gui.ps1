@@ -343,9 +343,9 @@ function Update-LineStatus {
         }
     }
 
-    $lineTask = Get-ScheduledTask -TaskName "ThanakonBoxDailySummary" -ErrorAction SilentlyContinue
+    $lineTask = Get-ScheduledTask -TaskName "MardodiDailySummary" -ErrorAction SilentlyContinue
     if ($lineTask) {
-        $lineInfo = Get-ScheduledTaskInfo -TaskName "ThanakonBoxDailySummary" -ErrorAction SilentlyContinue
+        $lineInfo = Get-ScheduledTaskInfo -TaskName "MardodiDailySummary" -ErrorAction SilentlyContinue
         $next = if ($lineInfo -and $lineInfo.NextRunTime.Year -gt 2000) {
             $lineInfo.NextRunTime.ToString("dd/MM HH:mm")
         } else { "ไม่ทราบเวลา" }
@@ -403,20 +403,34 @@ function Set-Busy([bool]$busy) {
     [Windows.Forms.Application]::DoEvents()
 }
 
-# รันคำสั่งภายนอกแล้วส่งผลเข้ากล่อง log ทีละบรรทัด
+# รันคำสั่งภายนอกแล้วส่งผลเข้ากล่อง log ทีละบรรทัด — คืน $true ถ้าสำเร็จจริง
+#
+# ข้อควรระวัง: npm/git/cloudflared เขียน "คำเตือน" ลง stderr เป็นปกติ ถ้าปล่อยให้
+# $ErrorActionPreference = "Stop" มีผลตอนอ่าน stderr เหล่านั้น PowerShell 5.1 จะ
+# แปลงคำเตือนเป็น error แล้วหยุดกลางคัน (เช่น "npm warn allow-scripts ...")
+# จึงลดเป็น Continue เฉพาะช่วงนี้ แล้วแยกสี warn/error ตามข้อความแทน
 function Invoke-Logged([scriptblock]$block) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $ok = $true
     try {
         & $block 2>&1 | ForEach-Object {
             # npm/vite emit ANSI terminal colors; RichTextBox does not interpret them.
             $line = ("$_" -replace '\x1B\[[0-9;?]*[ -/]*[@-~]', '')
+            if ($line.Trim().Length -eq 0) { return }
             $c = $cText
             if ($line -match '\[OK\]|สำเร็จ|พร้อม|เรียบร้อย|เสร็จ') { $c = $cGreen }
-            elseif ($line -match '\[!\]|ERROR|error|ล้มเหลว|ไม่ได้|ไม่พบ')  { $c = $cAmber }
+            elseif ($line -match '(?i)\[!\]|warn|ERROR|ล้มเหลว|ไม่ได้|ไม่พบ')  { $c = $cAmber }
             Write-Log "  $line" $c
         }
     } catch {
+        # ถึงตรงนี้แปลว่าสคริปต์ throw จริง (เช่น build พัง) ไม่ใช่แค่คำเตือน
         Write-Log "  ผิดพลาด: $($_.Exception.Message)" $cRed
+        $ok = $false
+    } finally {
+        $ErrorActionPreference = $prev
     }
+    return $ok
 }
 
 function Ensure-Dependencies {
@@ -428,15 +442,15 @@ function Ensure-Dependencies {
     if ($needPy) {
         Push-Location $backend
         try {
-            if (-not (Test-Path "venv")) { Invoke-Logged { python -m venv venv } }
-            Invoke-Logged { .\venv\Scripts\python -m pip install --quiet --upgrade pip }
-            Invoke-Logged { .\venv\Scripts\pip install --quiet -r requirements-base.txt }
+            if (-not (Test-Path "venv")) { Invoke-Logged { python -m venv venv } | Out-Null }
+            Invoke-Logged { .\venv\Scripts\python -m pip install --quiet --upgrade pip } | Out-Null
+            Invoke-Logged { .\venv\Scripts\pip install --quiet -r requirements-base.txt } | Out-Null
         } finally { Pop-Location }
         Write-Log "  [OK] ไลบรารี Python พร้อม" $cGreen
     }
     if ($needJs) {
         Push-Location $frontend
-        try { Invoke-Logged { npm install --no-fund --no-audit } } finally { Pop-Location }
+        try { Invoke-Logged { npm install --no-fund --no-audit } | Out-Null } finally { Pop-Location }
         Write-Log "  [OK] ไลบรารี Node พร้อม" $cGreen
     }
 }
@@ -449,7 +463,7 @@ function Ensure-DevDatabase {
         $env:DATABASE_URL     = "sqlite:///./checkin-dev.db"
         $env:SECRET_KEY       = "local-dev-secret"
         $env:PYTHONIOENCODING = "utf-8"
-        Invoke-Logged { .\venv\Scripts\python seed.py }
+        Invoke-Logged { .\venv\Scripts\python seed.py } | Out-Null
     } finally { Pop-Location }
     Write-Log "  [OK] สร้างบัญชีตัวอย่างแล้ว" $cGreen
 }
@@ -564,8 +578,12 @@ function Action-Deploy {
     Set-Busy $true
     Write-Head "อัปโค้ดขึ้นเว็บจริง"
     try {
-        Invoke-Logged { & (Join-Path $here "windows-server\deploy-update.ps1") }
-        Write-Log "  เสร็จแล้ว" $cGreen
+        # บอกผลตามจริง — เมื่อก่อนขึ้น "เสร็จแล้ว" ทุกครั้งแม้ deploy จะพังกลางทาง
+        if (Invoke-Logged { & (Join-Path $here "windows-server\deploy-update.ps1") }) {
+            Write-Log "  เสร็จแล้ว" $cGreen
+        } else {
+            Write-Log "  อัปขึ้นเว็บจริงไม่สำเร็จ — เว็บยังเป็นโค้ดเวอร์ชันเดิม" $cRed
+        }
     } finally {
         Set-Busy $false
         Update-Status
@@ -576,7 +594,7 @@ function Action-Check {
     Set-Busy $true
     Write-Head "ตรวจสถานะเว็บจริง"
     try {
-        Invoke-Logged { & (Join-Path $here "windows-server\deploy-update.ps1") -CheckOnly }
+        Invoke-Logged { & (Join-Path $here "windows-server\deploy-update.ps1") -CheckOnly } | Out-Null
     } finally {
         Set-Busy $false
         Update-Status
@@ -686,7 +704,7 @@ function Action-InstallAutoStart {
     Set-Busy $true
     Write-Head "ติดตั้งระบบเริ่มอัตโนมัติ"
     try {
-        Invoke-Logged { & (Join-Path $here "windows-server\install-autostart.ps1") }
+        Invoke-Logged { & (Join-Path $here "windows-server\install-autostart.ps1") } | Out-Null
         Write-Log "  ตรวจสอบสถานะ Auto-start ได้จากแถบด้านบน" $cGreen
     } finally {
         Set-Busy $false
@@ -717,7 +735,7 @@ function Action-InstallLineScheduler {
     Set-Busy $true
     Write-Head "ติดตั้ง LINE Scheduler"
     try {
-        Invoke-Logged { & (Join-Path $here "line\install-daily-summary-task.ps1") }
+        Invoke-Logged { & (Join-Path $here "line\install-daily-summary-task.ps1") } | Out-Null
     } finally {
         Set-Busy $false
         Update-Status
@@ -737,11 +755,11 @@ function Action-Reinstall {
     Write-Head "ติดตั้งระบบใหม่ทั้งหมด"
     try {
         Write-Log "  [1/3] IIS + หน้าเว็บ" $cBlue
-        Invoke-Logged { & (Join-Path $here "windows-server\install-iis-site.ps1") }
+        Invoke-Logged { & (Join-Path $here "windows-server\install-iis-site.ps1") } | Out-Null
         Write-Log "  [2/3] backend" $cBlue
-        Invoke-Logged { & (Join-Path $here "windows-server\install-backend-task.ps1") }
+        Invoke-Logged { & (Join-Path $here "windows-server\install-backend-task.ps1") } | Out-Null
         Write-Log "  [3/3] Cloudflare Tunnel" $cBlue
-        Invoke-Logged { & (Join-Path $here "cloudflare\setup-tunnel.ps1") -InstallService }
+        Invoke-Logged { & (Join-Path $here "cloudflare\setup-tunnel.ps1") -InstallService } | Out-Null
         Write-Log "  เสร็จแล้ว" $cGreen
     } finally {
         Set-Busy $false
@@ -760,7 +778,7 @@ New-Button "↻   รีสตาร์ต Production" "รีสตาร์ต
 New-Button "■   หยุด Production" "หยุด API และ Tunnel ชั่วคราว" $cGrey 166 { Action-StopProduction } | Out-Null
 New-Button "⚙   ติดตั้ง Auto-start" "เปิดเซิร์ฟเวอร์เองทุกครั้งที่เปิดเครื่อง" ([Drawing.Color]::FromArgb(125, 85, 180)) 244 { Action-InstallAutoStart } | Out-Null
 New-Button "◆   ตั้งค่า LINE" "ใส่ Token / Secret / Group ID" ([Drawing.Color]::FromArgb(30, 170, 90)) 790 { Action-ConfigureLine } | Out-Null
-New-Button "◷   ติดตั้ง LINE Scheduler" "ส่งสรุปทุกวันเวลา 18:00" ([Drawing.Color]::FromArgb(30, 140, 110)) 868 { Action-InstallLineScheduler } | Out-Null
+New-Button "◷   ติดตั้ง LINE Scheduler" "ส่งสรุปทุกวันเวลา 20:00" ([Drawing.Color]::FromArgb(30, 140, 110)) 868 { Action-InstallLineScheduler } | Out-Null
 
 New-Button "▶   รันบนเครื่องนี้"     "แก้โค้ดแล้วเห็นผลทันที"        $cGreen $y1 { Action-StartDev } | Out-Null
 New-Button "■   หยุดที่รันบนเครื่อง" "ไม่กระทบเว็บจริง"              $cGrey  $y2 { Action-StopDev }  | Out-Null

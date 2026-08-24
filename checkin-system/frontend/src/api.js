@@ -75,6 +75,11 @@ export const getCalendar = (employeeId, year, month) =>
 export const getTeamCalendar = (year, month) =>
   req(`/reports/team-calendar?year=${year}&month=${month}`);
 
+// ===== locations (แผนที่ติดตามพนักงาน — เฉพาะหัวหน้า) =====
+export const getLiveLocations = () => req("/locations/live");
+export const getLocationTrail = (employeeId, hours = 6) =>
+  req(`/locations/trail/${employeeId}?hours=${hours}`);
+
 // ===== faces (ประวัติใบหน้า) =====
 export const getMyFaces = () => req("/faces/me");
 export const getEmployeeFaces = (employeeId) =>
@@ -108,3 +113,10 @@ export async function fetchFacePhoto(recordId) {
   const blob = await res.blob();
   return URL.createObjectURL(blob);
 }
+
+// ===== ไฟล์ติดตั้งแอป Flutter (APK) =====
+// ไม่ต้องแนบ token — ตั้งใจให้เปิด/สแกน QR จากมือถือแล้วโหลดได้เลย
+export const getAppInfo = () => req("/app/info");
+// URL เต็ม เพื่อให้ QR ที่สแกนจากมือถือชี้กลับมาที่เซิร์ฟเวอร์ถูกตัว
+export const appDownloadUrl = () =>
+  new URL(`${BASE}/app/download`, window.location.origin).href;

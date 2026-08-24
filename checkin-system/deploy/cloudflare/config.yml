@@ -10,6 +10,11 @@
 #   www.thanakronpart-time.com
 #   api.thanakronpart-time.com
 #
+# ⚠️ ไฟล์นี้เป็น config เดียวของ tunnel "Film_Part-Time" — ห้ามมีไฟล์ config
+#    อื่นที่ใช้ tunnel ID เดียวกันรันพร้อมกันเด็ดขาด ถ้ามีสองตัวรันพร้อมกัน
+#    Cloudflare จะสุ่มส่งคำขอไปหาทั้งคู่ ทำให้เว็บสลับไปมาระหว่างสองระบบ
+#    มีแอปใหม่ที่อยากเปิดออกเน็ต ให้ "เพิ่ม ingress ในไฟล์นี้" ไม่ใช่สร้างไฟล์ใหม่
+#
 # วิธีใช้:
 #   คัดลอกไฟล์นี้ไปวางเป็น F:\Game\config.yml แล้วสั่ง
 #     .\cloudflared-windows-amd64.exe tunnel --config F:\Game\config.yml run Film_Part-Time
@@ -56,6 +61,20 @@ ingress:
       httpHostHeader: localhost
       connectTimeout: 30s
       noTLSVerify: true
+
+  # ---------------------------------------------------------------
+  # rider.thanakronpart-time.com -> แอป "บันทึกเส้นทางไรเดอร์" (คนละโปรเจ็กต์)
+  #
+  # แอปนั้นอยู่ที่ F:\GitHub\frontend_film_dev — FastAPI :8000 เสิร์ฟทั้งเว็บ
+  # ที่ build แล้วและ API ในตัวเอง จึงชี้ตรงไป :8000 ไม่ผ่าน IIS
+  # (เปิดแอปนั้นด้วย F:\GitHub\start-production.bat)
+  #
+  # ไม่ต้องใส่ httpHostHeader เพราะ FastAPI ไม่ได้ผูก host แบบ IIS
+  # ---------------------------------------------------------------
+  - hostname: rider.thanakronpart-time.com
+    service: http://localhost:8000
+    originRequest:
+      connectTimeout: 30s
 
   # ---------------------------------------------------------------
   # ทุกอย่างที่เหลือ -> 404

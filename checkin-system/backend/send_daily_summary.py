@@ -25,6 +25,19 @@ def local_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None) + TZ
 
 
+def format_attendance_line(emp: Employee, recs: list[CheckIn]) -> str:
+    """จัดรูปแบบพนักงานหนึ่งคน รวมข้อความเตือนเมื่อยังไม่สแกนออก"""
+    ins = [record for record in recs if record.kind == "in"]
+    outs = [record for record in recs if record.kind == "out"]
+    first_in = (ins[0].timestamp + TZ).strftime("%H:%M") if ins else "-"
+    last_out = (
+        (outs[-1].timestamp + TZ).strftime("%H:%M")
+        if outs
+        else "ยังไม่สแกนออกงาน"
+    )
+    return f"  • {emp.full_name}  {first_in}–{last_out}"
+
+
 def build_summary(day: datetime.date) -> str:
     """สร้างข้อความสรุปของวันที่กำหนด (วันตามเวลาไทย)"""
     # ฐานข้อมูลเก็บเป็น UTC — แปลงช่วงวันไทยกลับเป็น UTC ก่อน query
@@ -33,7 +46,13 @@ def build_summary(day: datetime.date) -> str:
 
     db = SessionLocal()
     try:
-        employees = db.query(Employee).order_by(Employee.full_name).all()
+        # บัญชี Boss ใช้ดูรายงาน ไม่ต้องนำมานับเป็นพนักงานขาดงาน
+        employees = (
+            db.query(Employee)
+            .filter(Employee.is_manager.is_(False))
+            .order_by(Employee.full_name)
+            .all()
+        )
         rows = (
             db.query(CheckIn)
             .filter(CheckIn.timestamp >= start_utc, CheckIn.timestamp < end_utc)
@@ -50,27 +69,16 @@ def build_summary(day: datetime.date) -> str:
 
     lines = [f"📋 สรุปการเข้างาน {day.strftime('%d/%m/%Y')}", ""]
 
-    present, absent = [], []
+    present = []
     for emp in employees:
         recs = by_emp.get(emp.id, [])
         if not recs:
-            absent.append(emp)
             continue
 
-        ins = [r for r in recs if r.kind == "in"]
-        outs = [r for r in recs if r.kind == "out"]
-        first_in = (ins[0].timestamp + TZ).strftime("%H:%M") if ins else "-"
-        last_out = (outs[-1].timestamp + TZ).strftime("%H:%M") if outs else "-"
-        office = next((r.office_name for r in recs if r.office_name), "-")
-        present.append(f"  • {emp.full_name}  {first_in}–{last_out}  ({office})")
+        present.append(format_attendance_line(emp, recs))
 
     lines.append(f"✅ มาทำงาน {len(present)} คน")
     lines.extend(present or ["  (ไม่มี)"])
-
-    if absent:
-        lines.append("")
-        lines.append(f"⛔ ไม่มีบันทึก {len(absent)} คน")
-        lines.extend(f"  • {e.full_name}" for e in absent)
 
     return "\n".join(lines)
 

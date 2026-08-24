@@ -23,8 +23,10 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def _is_work_office(office: dict) -> bool:
-    """จุดติดตามสถานะอาจไม่ใช่สถานที่ที่อนุญาตให้ออกงาน"""
-    return bool(office.get("allow_checkout", True))
+    """ออกงานได้เฉพาะจุดที่เปิดสิทธิ์และเป็นบริษัท/โรงพยาบาล"""
+    return bool(office.get("allow_checkout", True)) and location_category(
+        office
+    ) in {"work", "hospital"}
 
 
 def _normalize_location_category(value: object, office_name: str = "") -> str:

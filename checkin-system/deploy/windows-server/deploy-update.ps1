@@ -29,6 +29,23 @@ function Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Ok($msg)   { Write-Host "    [OK] $msg" -ForegroundColor Green }
 function Warn($msg) { Write-Host "    [!]  $msg" -ForegroundColor Yellow }
 
+# เรียกโปรแกรมภายนอก (npm ฯลฯ) แล้วตัดสินผลจาก exit code เท่านั้น
+#
+# npm เขียนคำเตือน (npm warn ...) ลง stderr เป็นเรื่องปกติ แต่ PowerShell 5.1
+# กับ $ErrorActionPreference = "Stop" จะแปลง stderr ของโปรแกรมภายนอกเป็น error
+# แล้วหยุดสคริปต์กลางคัน — deploy จะตายตั้งแต่ npm install ทั้งที่ยังไม่มีอะไรพัง
+# ตรงนี้จึงลด ErrorActionPreference ชั่วคราวเฉพาะตอนเรียกโปรแกรมภายนอก
+function Invoke-Native($exe, $arguments, $failMessage) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $exe @arguments
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+    if ($LASTEXITCODE -ne 0) { throw $failMessage }
+}
+
 function Test-Url($label, $url) {
     try {
         $r = Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 25
@@ -78,11 +95,13 @@ if (-not $SkipFrontend) {
     Step "build React"
     Push-Location (Join-Path $root "frontend")
     try {
-        if (-not (Test-Path "node_modules")) { npm install --no-fund --no-audit }
+        # รัน npm install ทุกครั้ง ไม่ใช่เฉพาะตอนไม่มี node_modules --
+        # ถ้ามีการเพิ่มไลบรารีใหม่ใน package.json (เช่น leaflet) แล้วข้ามขั้นนี้
+        # build จะพังเพราะ resolve import ไม่เจอ npm ไม่ทำอะไรถ้าครบอยู่แล้ว
+        Invoke-Native "npm" @("install", "--no-fund", "--no-audit") "npm install ล้มเหลว"
         # ปล่อยว่าง = เรียก API ที่โดเมนเดียวกัน (ไม่มี /api นำหน้าแล้ว)
         $env:VITE_API_BASE = ""
-        npm run build
-        if ($LASTEXITCODE -ne 0) { throw "npm run build ล้มเหลว" }
+        Invoke-Native "npm" @("run", "build") "npm run build ล้มเหลว"
     } finally { Pop-Location }
     Ok "build เสร็จ"
 

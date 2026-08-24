@@ -198,12 +198,12 @@ export default function EmployeesPage() {
       </div>
 
       <Row gutter={[16, 16]} className="employee-stats">
-        <Col xs={24} sm={12} lg={8}>
+        <Col xs={12} sm={12} lg={8}>
           <Card bordered={false}>
             <Statistic title="พนักงานทั้งหมด" value={staff.length} suffix="คน" prefix={<TeamOutlined />} />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={8}>
+        <Col xs={12} sm={12} lg={8}>
           <Card bordered={false}>
             <Statistic
               title="บัญชี Boss"

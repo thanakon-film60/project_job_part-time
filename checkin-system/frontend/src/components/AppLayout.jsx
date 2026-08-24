@@ -1,5 +1,5 @@
-import React from "react";
-import { Layout, Menu, Typography, Space, Button, Grid, Avatar } from "antd";
+import React, { useEffect, useState } from "react";
+import { Layout, Menu, Typography, Space, Button, Grid, Avatar, Drawer } from "antd";
 import {
   CalendarOutlined,
   TeamOutlined,
@@ -7,6 +7,8 @@ import {
   LogoutOutlined,
   CrownOutlined,
   UserOutlined,
+  EnvironmentOutlined,
+  MenuOutlined,
 } from "@ant-design/icons";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getEmployee, clearSession } from "../api";
@@ -23,6 +25,18 @@ export default function AppLayout({ children }) {
   const screens = useBreakpoint();
   const isBoss = Boolean(emp?.is_manager);
 
+  // จอกว้างพอ (>= lg) ค่อยโชว์ sidebar ถาวร ที่แคบกว่านั้นใช้เมนูแบบดึงออกมา
+  // (มือถือ/แท็บเล็ตแนวตั้ง) — เดิม sider ยุบเหลือ 0 โดยไม่มีปุ่มเปิด ทำให้
+  // หัวหน้าเปิดจากมือถือแล้วกดเข้าเมนูอื่นไม่ได้เลย
+  const isWide = Boolean(screens.lg);
+  const [navOpen, setNavOpen] = useState(false);
+
+  // เปลี่ยนหน้าแล้วปิดเมนูเอง ไม่ต้องกดกากบาททุกครั้ง
+  useEffect(() => setNavOpen(false), [loc.pathname]);
+  useEffect(() => {
+    if (isWide) setNavOpen(false);
+  }, [isWide]);
+
   const bossItems = [
     {
       key: "/",
@@ -33,6 +47,11 @@ export default function AppLayout({ children }) {
       key: "/employees",
       icon: <TeamOutlined />,
       label: <Link to="/employees">ข้อมูลพนักงาน</Link>,
+    },
+    {
+      key: "/live-map",
+      icon: <EnvironmentOutlined />,
+      label: <Link to="/live-map">แผนที่ติดตามพนักงาน</Link>,
     },
   ];
 
@@ -51,15 +70,19 @@ export default function AppLayout({ children }) {
 
   const selectedKey = loc.pathname.startsWith("/employees")
     ? "/employees"
-    : loc.pathname.startsWith("/face-records")
-      ? "/face-records"
-      : "/";
+    : loc.pathname.startsWith("/live-map")
+      ? "/live-map"
+      : loc.pathname.startsWith("/face-records")
+        ? "/face-records"
+        : "/";
 
   const pageTitle = selectedKey === "/employees"
     ? "ข้อมูลพนักงาน"
-    : selectedKey === "/face-records"
-      ? "ประวัติใบหน้า"
-      : "ปฏิทินเข้างาน";
+    : selectedKey === "/live-map"
+      ? "แผนที่ติดตามพนักงาน"
+      : selectedKey === "/face-records"
+        ? "ประวัติใบหน้า"
+        : "ปฏิทินเข้างาน";
 
   function logout() {
     clearSession();
@@ -103,33 +126,61 @@ export default function AppLayout({ children }) {
     );
   }
 
+  const sidebarBrand = (
+    <div className="sidebar-brand">
+      <img className="sidebar-brand-logo" src={logoSrc} alt="" aria-hidden="true" />
+      <div>
+        <div className="sidebar-brand-name">THANAKON-ROOM</div>
+        <div className="sidebar-brand-role">BOSS CONTROL</div>
+      </div>
+    </div>
+  );
+
+  const bossMenu = (
+    <Menu
+      theme="dark"
+      mode="inline"
+      selectedKeys={[selectedKey]}
+      items={bossItems}
+      className="boss-menu"
+    />
+  );
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider
-        width={250}
-        breakpoint="lg"
-        collapsedWidth="0"
-        className="boss-sidebar"
+      {isWide && (
+        <Sider width={250} className="boss-sidebar">
+          {sidebarBrand}
+          {bossMenu}
+        </Sider>
+      )}
+
+      {/* จอแคบ: เมนูเดียวกันแต่ดึงออกมาจากขอบซ้าย */}
+      <Drawer
+        placement="left"
+        open={!isWide && navOpen}
+        onClose={() => setNavOpen(false)}
+        closable={false}
+        width={260}
+        className="boss-nav-drawer"
+        styles={{ body: { padding: 0, background: "#001529" } }}
       >
-        <div className="sidebar-brand">
-          <img className="sidebar-brand-logo" src={logoSrc} alt="" aria-hidden="true" />
-          <div>
-            <div className="sidebar-brand-name">THANAKON-ROOM</div>
-            <div className="sidebar-brand-role">BOSS CONTROL</div>
-          </div>
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          items={bossItems}
-          className="boss-menu"
-        />
-      </Sider>
+        {sidebarBrand}
+        {bossMenu}
+      </Drawer>
 
       <Layout>
         <Header className="app-header boss-header">
-          {!screens.lg && (
+          {!isWide && (
+            <Button
+              type="text"
+              className="nav-toggle"
+              aria-label="เปิดเมนู"
+              icon={<MenuOutlined />}
+              onClick={() => setNavOpen(true)}
+            />
+          )}
+          {!isWide && (
             <div className="header-brand-wrap mobile-brand-wrap">
               <img className="header-logo" src={logoSrc} alt="" aria-hidden="true" />
               <Text strong className="header-brand mobile-brand">

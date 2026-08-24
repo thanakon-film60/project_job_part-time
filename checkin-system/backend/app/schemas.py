@@ -65,6 +65,49 @@ class LocationPingOut(BaseModel):
         from_attributes = True
 
 
+class LiveLocationOut(BaseModel):
+    """ตำแหน่งล่าสุดของพนักงานหนึ่งคน สำหรับหน้าแผนที่ของหัวหน้า
+
+    พนักงานที่ยังไม่เคยส่งพิกัดมาเลยก็จะอยู่ในรายการนี้ด้วย (status="no_data")
+    เพื่อให้หัวหน้าเห็นว่ามีใครที่แอปยังไม่ส่งตำแหน่งบ้าง
+    """
+
+    employee_id: int
+    employee_code: str
+    full_name: str
+    is_manager: bool
+
+    latitude: float | None = None
+    longitude: float | None = None
+    distance_km: float | None = None
+    within_geofence: bool | None = None
+    office_name: str | None = None
+
+    timestamp: datetime | None = None
+    # อายุของพิกัดคิดจากฝั่งเซิร์ฟเวอร์ ป้องกันปัญหา timezone ของเครื่อง client
+    seconds_ago: int | None = None
+    # online = สดใหม่ / stale = เก่าแล้ว / offline = นานมาก / no_data = ไม่เคยส่ง
+    status: str
+
+
+class LiveLocationsResponse(BaseModel):
+    server_time: datetime
+    online_threshold_seconds: int
+    stale_threshold_seconds: int
+    employees: list[LiveLocationOut]
+
+
+class TrailPointOut(BaseModel):
+    timestamp: datetime
+    latitude: float
+    longitude: float
+    within_geofence: bool
+    office_name: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
 class FaceProfileOut(BaseModel):
     id: int
     employee_id: int

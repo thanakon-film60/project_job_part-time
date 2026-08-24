@@ -5,7 +5,12 @@ const WEEKDAYS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 function timeOnly(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  // ระบุ timeZone ไว้ชัดเจน ไม่งั้นจะแสดงตาม timezone ของเครื่องที่เปิดดู
+  return d.toLocaleTimeString("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Bangkok",
+  });
 }
 
 export default function Calendar({ year, month, days }) {

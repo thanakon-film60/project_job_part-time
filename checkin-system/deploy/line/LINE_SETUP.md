@@ -182,7 +182,7 @@ GET https://thanakronpart-time.com/line/status
 
 ```powershell
 cd F:\GitHub\project_job_part-time\checkin-system\deploy\line
-.\install-daily-summary-task.ps1            # ส่งทุกวัน 18:00
+.\install-daily-summary-task.ps1            # ส่งทุกวัน 20:00
 .\install-daily-summary-task.ps1 -Time "17:30"
 ```
 
@@ -199,7 +199,7 @@ cd F:\GitHub\project_job_part-time\checkin-system\deploy\line
   • สมหญิง
 ```
 
-ส่งทดสอบทันที: `Start-ScheduledTask -TaskName ThanakonBoxDailySummary`
+ส่งทดสอบทันที: `Start-ScheduledTask -TaskName MardodiDailySummary`
 
 ---
 
