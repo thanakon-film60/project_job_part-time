@@ -5,6 +5,7 @@ import LoginPage from "./pages/LoginPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import FaceRecordsPage from "./pages/FaceRecordsPage.jsx";
 import EmployeesPage from "./pages/EmployeesPage.jsx";
+import LiveMapPage from "./pages/LiveMapPage.jsx";
 
 function RequireAuth({ children }) {
   return getToken() ? children : <Navigate to="/login" replace />;
@@ -34,6 +35,15 @@ export default function App() {
         element={
           <RequireBoss>
             <EmployeesPage />
+          </RequireBoss>
+        }
+      />
+      {/* แผนที่ติดตามพนักงาน — เฉพาะหัวหน้า (API /locations/live ก็กันไว้อีกชั้น) */}
+      <Route
+        path="/live-map"
+        element={
+          <RequireBoss>
+            <LiveMapPage />
           </RequireBoss>
         }
       />

@@ -24,11 +24,24 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
 import "dayjs/locale/th";
 import { getEmployee, getTeamCalendar } from "../api";
 import AppLayout from "../components/AppLayout.jsx";
+import AppDownloadCard from "../components/AppDownloadCard.jsx";
 
 dayjs.locale("th");
+dayjs.extend(utc);
+
+// เวลาไทย = UTC+7 (นาที) — ฝั่ง API ส่ง ISO ที่ติด offset มาแล้ว ตรงนี้บังคับอีกชั้น
+// เพื่อให้เห็นเวลาไทยเหมือนกันหมด ต่อให้เปิดจากเครื่อง/มือถือที่ตั้ง timezone อื่นไว้
+const THAI_OFFSET_MINUTES = 7 * 60;
+
+function thaiTime(iso) {
+  if (!iso) return "–";
+  return dayjs(iso).utcOffset(THAI_OFFSET_MINUTES).format("HH:mm");
+}
+
 const { Text, Title } = Typography;
 
 function locationColor(location) {
@@ -102,12 +115,15 @@ export default function DashboardPage() {
     );
   }
 
+  // หน้าแรกของพนักงานทั่วไป — สิ่งแรกที่ต้องเห็นคือปุ่มโหลดแอปสำหรับเช็คอิน
   if (!me?.is_manager) {
     return (
       <AppLayout>
+        <AppDownloadCard />
         <Alert
           type="info"
           showIcon
+          style={{ marginTop: 16 }}
           message="หน้าปฏิทินรวมสำหรับ Boss เท่านั้น"
           description="พนักงานทั่วไปใช้แอป Flutter เพื่อเช็กอิน และดูประวัติใบหน้าของตนเอง"
         />
@@ -125,7 +141,7 @@ export default function DashboardPage() {
       </div>
 
       <Row gutter={[16, 16]} className="calendar-stats">
-        <Col xs={24} sm={12} lg={8}>
+        <Col xs={12} sm={12} lg={8}>
           <Card bordered={false}>
             <Statistic
               title={`พนักงานที่ลงเวลา (${value.format("MMMM YYYY")})`}
@@ -135,7 +151,7 @@ export default function DashboardPage() {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={8}>
+        <Col xs={12} sm={12} lg={8}>
           <Card bordered={false}>
             <Statistic
               title="วันที่มีการลงเวลา"
@@ -164,6 +180,11 @@ export default function DashboardPage() {
         onCancel={() => setSelectedDay(null)}
         footer={null}
         width={680}
+        centered
+        className="attendance-modal"
+        // จอเล็กกว่า 680px ต้องหดตามจอ ไม่งั้นเนื้อหาล้นออกนอกขอบ
+        style={{ maxWidth: "calc(100vw - 24px)" }}
+        styles={{ body: { maxHeight: "70vh", overflowY: "auto" } }}
       >
         {!selectedDay?.people?.length ? (
           <Empty description="ไม่มีผู้ลงเวลาในวันนี้" />
@@ -185,10 +206,10 @@ export default function DashboardPage() {
                     <div className="attendance-details">
                       <Space wrap size={[16, 6]}>
                         <Text className="time-in">
-                          <LoginOutlined /> เข้า {person.first_in ? dayjs(person.first_in).format("HH:mm") : "–"}
+                          <LoginOutlined /> เข้า {thaiTime(person.first_in)}
                         </Text>
                         <Text className="time-out">
-                          <LogoutOutlined /> ออก {person.last_out ? dayjs(person.last_out).format("HH:mm") : "–"}
+                          <LogoutOutlined /> ออก {thaiTime(person.last_out)}
                         </Text>
                         <Text type="secondary">
                           <ClockCircleOutlined /> ลงเวลาทั้งหมด {person.count} ครั้ง

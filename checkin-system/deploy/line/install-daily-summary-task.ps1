@@ -4,16 +4,16 @@
 # ต้องรัน PowerShell แบบ "Run as Administrator"
 # วิธีใช้:
 #     cd F:\GitHub\project_job_part-time\checkin-system\deploy\line
-#     .\install-daily-summary-task.ps1              # ส่งทุกวัน 18:00
+#     .\install-daily-summary-task.ps1              # ส่งทุกวัน 20:00
 #     .\install-daily-summary-task.ps1 -Time "17:30"
 #
 # ทดสอบส่งทันทีโดยไม่ต้องรอ:
-#     Start-ScheduledTask -TaskName ThanakonBoxDailySummary
+#     Start-ScheduledTask -TaskName MardodiDailySummary
 # ===================================================================
 [CmdletBinding()]
 param(
-    [string]$Time     = "18:00",
-    [string]$TaskName = "ThanakonBoxDailySummary",
+    [string]$Time     = "20:00",
+    [string]$TaskName = "MardodiDailySummary",
     [string]$BackendDir = ""
 )
 

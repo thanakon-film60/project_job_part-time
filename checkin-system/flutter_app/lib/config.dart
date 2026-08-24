@@ -22,7 +22,7 @@ class Config {
   // ---------------------------------------------------------------
   static const List<Office> offices = [
     Office(
-        name: "THANAKON-BOX", lat: 13.9231953, lng: 100.5195808, radiusKm: 2.0),
+        name: "MARDODI", lat: 13.9231953, lng: 100.5195808, radiusKm: 2.0),
     Office(
         name: "BJH Bangkok", lat: 13.8918358, lng: 100.563443, radiusKm: 1.0),
     Office(

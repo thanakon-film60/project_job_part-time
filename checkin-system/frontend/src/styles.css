@@ -260,6 +260,69 @@ body { font-family: "Sarabun", -apple-system, "Segoe UI", sans-serif; }
   object-fit: contain;
 }
 
+/* ปุ่มเปิดเมนู (โผล่เฉพาะจอที่ไม่มี sidebar ถาวร) */
+.nav-toggle {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  color: #172b4d;
+  font-size: 18px;
+}
+.boss-nav-drawer .ant-drawer-body {
+  display: flex;
+  flex-direction: column;
+}
+.boss-nav-drawer .boss-menu {
+  flex: 1;
+}
+
+/* หน้าแผนที่ติดตามพนักงาน */
+.live-map-frame {
+  /* สูงตามจอแต่ไม่เตี้ยจนใช้งานไม่ได้ และไม่สูงจนต้องเลื่อนหารายชื่อ */
+  height: clamp(320px, 60vh, 620px);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.live-people-card .ant-card-body {
+  max-height: clamp(320px, 60vh, 620px);
+  overflow-y: auto;
+  /* ให้นิ้วเลื่อนในลิสต์ได้ลื่นบน iOS โดยไม่ไปลากแผนที่ */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ตารางกว้างๆ ให้เลื่อนในกล่องตัวเอง ไม่ดันทั้งหน้าให้เลื่อนแนวนอน */
+.app-content .ant-table-wrapper,
+.boss-content .ant-table-wrapper {
+  overflow-x: auto;
+}
+
+/* ---------------- แท็บเล็ต (768 - 991px) ----------------
+   ช่วงนี้ไม่มี sidebar ถาวรแล้ว (ใช้เมนูดึง) เนื้อหาจึงกินความกว้างได้เต็มขึ้น */
+@media (min-width: 768px) and (max-width: 991px) {
+  .app-content,
+  .boss-content {
+    padding: 18px;
+  }
+  /* ช่วงนี้ชื่อหน้าแสดงอยู่แล้ว ไม่ต้องมีชื่อแบรนด์ซ้ำอีก (แบรนด์อยู่ในเมนูดึง) */
+  .boss-header .mobile-brand-wrap {
+    display: none;
+  }
+  .live-map-frame,
+  .live-people-card .ant-card-body {
+    height: 52vh;
+    max-height: 52vh;
+  }
+}
+
+/* ---------------- จอใหญ่ ---------------- */
+@media (min-width: 1600px) {
+  .app-content,
+  .boss-content {
+    max-width: 1400px;
+  }
+}
+
 @media (max-width: 767px) {
   .app-header {
     padding-inline: 12px;
@@ -283,13 +346,6 @@ body { font-family: "Sarabun", -apple-system, "Segoe UI", sans-serif; }
     color: #172b4d;
     font-size: 15px;
   }
-  .employee-main-face,
-  .employee-face.featured,
-  .employee-face-placeholder.featured,
-  .face-skeleton.featured,
-  .face-skeleton.featured .ant-skeleton-image {
-    height: 260px !important;
-  }
   .calendar-heading .ant-typography-secondary {
     font-size: 13px;
   }
@@ -302,6 +358,24 @@ body { font-family: "Sarabun", -apple-system, "Segoe UI", sans-serif; }
   .team-cal-cell {
     min-height: 52px;
   }
+  /* วันที่ไม่มีใครลงเวลาไม่ต้องกินพื้นที่เท่าวันที่มีข้อมูล */
+  .team-calendar-card .ant-picker-calendar-date {
+    min-height: 56px;
+    padding: 2px 4px;
+  }
+  .team-calendar-card .ant-picker-calendar-date-value {
+    font-size: 13px;
+  }
+  /* การ์ดตัวเลขสรุปวางสองใบต่อแถว — หัวข้อยาวให้ตัดบรรทัดได้ */
+  .calendar-stats .ant-card-body,
+  .employee-stats .ant-card-body {
+    padding: 14px 12px;
+  }
+  .calendar-stats .ant-statistic-title,
+  .employee-stats .ant-statistic-title {
+    font-size: 12px;
+    line-height: 1.35;
+  }
   .calendar-person {
     padding: 3px;
   }
@@ -310,5 +384,121 @@ body { font-family: "Sarabun", -apple-system, "Segoe UI", sans-serif; }
   }
   .calendar-person .ant-tag {
     display: none;
+  }
+
+  /* หัวข้อหน้ากับปุ่มด้านขวาให้ตกบรรทัดแทนที่จะเบียดกัน */
+  .page-heading {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .page-heading h2.ant-typography {
+    font-size: 22px;
+  }
+
+  /* กล่องรายละเอียดการลงเวลา — จอแคบให้เต็มจอกว่าเดิม อ่านง่ายกว่า */
+  .attendance-modal .ant-modal-body {
+    max-height: 72vh;
+  }
+  .attendance-person-row {
+    padding-block: 12px !important;
+  }
+  .attendance-person-row .ant-list-item-meta-avatar {
+    margin-inline-end: 10px;
+  }
+  .attendance-details {
+    gap: 7px;
+  }
+
+  /* แผนที่: มือถือจอสูง เอาแผนที่ใหญ่หน่อยแล้วเลื่อนลงไปดูรายชื่อ */
+  .live-map-frame {
+    height: 46vh;
+    min-height: 280px;
+  }
+  .live-people-card .ant-card-body {
+    max-height: 60vh;
+  }
+
+  /* รูปใบหน้าในการ์ดพนักงานไม่ต้องสูงเท่าจอ */
+  .employee-main-face,
+  .employee-face.featured,
+  .employee-face-placeholder.featured,
+  .face-skeleton.featured,
+  .face-skeleton.featured .ant-skeleton-image {
+    height: 220px !important;
+  }
+}
+
+/* ---------------- มือถือจอเล็ก (<= 400px) ---------------- */
+@media (max-width: 400px) {
+  .app-content,
+  .boss-content {
+    padding: 10px;
+  }
+  .app-header {
+    padding-inline: 8px;
+    gap: 6px;
+  }
+  .mobile-brand {
+    font-size: 13px;
+  }
+  .header-logo {
+    width: 26px;
+    height: 26px;
+  }
+  .page-heading h2.ant-typography {
+    font-size: 19px;
+  }
+  /* การ์ดตัวเลขสรุปวางเรียงกันได้โดยตัวเลขไม่ล้น */
+  .calendar-stats .ant-statistic-content,
+  .employee-stats .ant-statistic-content {
+    font-size: 19px;
+  }
+}
+
+/* ---------------- การ์ดดาวน์โหลดแอป (หน้าแรกของพนักงาน) ---------------- */
+.app-download-card {
+  border: 1px solid #d6e4ff;
+  background: linear-gradient(135deg, #f5f9ff 0%, #ffffff 60%);
+}
+.app-download-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.app-download-logo {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  object-fit: contain;
+}
+.app-download-meta {
+  margin-bottom: 14px;
+}
+.app-download-actions {
+  margin-bottom: 10px;
+}
+.app-download-steps {
+  margin-bottom: 0 !important;
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+@media (max-width: 400px) {
+  .app-download-logo {
+    width: 44px;
+    height: 44px;
+  }
+  /* ปุ่มดาวน์โหลดควรกดง่ายบนมือถือ — ยืดเต็มความกว้าง */
+  .app-download-actions .ant-btn {
+    width: 100%;
+  }
+  .app-download-actions.ant-space {
+    width: 100%;
+  }
+  .app-download-actions .ant-space-item {
+    width: 100%;
   }
 }

@@ -22,8 +22,30 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  # สร้างไอคอนแอปจากรูปเดียวกับเว็บ — ดูหัวข้อ flutter_launcher_icons ท้ายไฟล์
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/logo-checkin.png
+
+# ===================================================================
+# ไอคอนแอป (Android/iOS) — ใช้โลโก้ตัวเดียวกับเว็บ
+#
+#   assets/icon/app-icon.png            = frontend/public/logo-checkin.png วางบนพื้นขาว
+#   assets/icon/app-icon-foreground.png = โลโก้เดิมย่อให้อยู่ในโซนปลอดภัยของ adaptive icon
+#
+# สร้างไฟล์ไอคอนจริงด้วย:
+#     flutter pub get
+#     dart run flutter_launcher_icons
+# (deploy\windows-server\build-flutter-apk.ps1 เรียกให้อัตโนมัติอยู่แล้ว)
+# ===================================================================
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app-icon.png"
+  min_sdk_android: 23
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app-icon-foreground.png"
+  remove_alpha_ios: true

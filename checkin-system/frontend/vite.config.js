@@ -52,6 +52,8 @@ export default defineConfig({
       workbox: {
         // path ของ API — ห้ามให้ service worker ไปตอบแทนเด็ดขาด
         navigateFallbackDenylist: [
+          // /app = ดาวน์โหลดไฟล์ติดตั้งแอป Flutter (ของ backend ไม่ใช่หน้าเว็บ)
+          /^\/app/,
           /^\/auth/,
           /^\/checkins/,
           /^\/faces/,
