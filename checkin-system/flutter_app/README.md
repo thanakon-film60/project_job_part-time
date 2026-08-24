@@ -5,7 +5,7 @@
 
 ## build เป็นไฟล์ APK ให้พนักงานโหลดจากเว็บ
 
-รันบนเครื่องเซิร์ฟเวอร์ (ต้องมี Flutter SDK + Android SDK):
+รันบนเครื่องที่มี Flutter SDK + Android SDK (เครื่อง production ไม่ต้องมี — ดูหัวข้อถัดไป):
 
 ```powershell
 .\deploy\windows-server\build-flutter-apk.ps1
@@ -25,6 +25,19 @@
 
 หรือสั่งพร้อม deploy เว็บในทีเดียว: `.\BUILD_DEPLOY.ps1 -BuildApk`
 
+## ส่ง APK ขึ้นเครื่อง production
+
+เครื่อง production ไม่มี Flutter SDK และ APK ก็ไม่ได้ commit ลง git (ไฟล์ 70+ MB)
+จึงต้อง copy ไฟล์ `.apk` ไปเอง แล้วสั่งบนเซิร์ฟเวอร์:
+
+```powershell
+.\deploy\windows-server\publish-apk.ps1 -ApkPath D:\thanakon-checkin.apk
+```
+
+สคริปต์จะตรวจว่าไฟล์เป็น APK จริง วางลง `backend/storage/app/` แล้วเขียนเวอร์ชัน/วันที่ build
+ลง `release.json` ให้หน้าเว็บ — ไม่ต้อง restart backend และไม่ต้อง deploy เว็บใหม่
+เช็กผลที่ `https://thanakronpart-time.com/app/info` (ต้องได้ `"available": true`)
+
 ## ไอคอนแอป = โลโก้เดียวกับเว็บ
 
 | ไฟล์ | ที่มา |
@@ -35,6 +48,10 @@
 ตั้งค่าอยู่ในหัวข้อ `flutter_launcher_icons` ท้าย `pubspec.yaml`
 ถ้าเปลี่ยนโลโก้ของเว็บ ให้สร้างสองไฟล์นี้ใหม่จากโลโก้ตัวใหม่ แล้ว build APK อีกครั้ง
 (สคริปต์เรียก `flutter pub run flutter_launcher_icons` ให้อยู่แล้ว)
+
+> ในไฟล์ตั้งค่าเปิดเฉพาะ `android: true` — `ios: false` เพราะ repo นี้ไม่มีโฟลเดอร์ `ios/`
+> ถ้าเปิดไว้ flutter_launcher_icons จะล้มทั้งขั้นตอนตอนหาไฟล์ `Icon-App-*.png` ไม่เจอ
+> (จะทำ iOS เมื่อไหร่ ให้ `flutter create --platforms=ios .` ก่อน แล้วค่อยสลับเป็น true)
 
 ## รันตอนพัฒนา
 

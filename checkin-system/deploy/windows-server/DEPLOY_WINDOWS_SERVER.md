@@ -125,16 +125,33 @@ cd C:\apps\checkin-system\deploy\windows-server
 .\open-firewall.ps1
 ```
 
-## ขั้นที่ 9 — ตั้งค่าแอป Flutter ให้ชี้เซิร์ฟเวอร์
-แก้ `flutter_app\lib\config.dart`:
+## ขั้นที่ 9 — แอปมือถือ (APK) ให้พนักงานโหลดจากหน้าเว็บ
+
+เครื่องเซิร์ฟเวอร์ **ไม่ต้องมี** Flutter/Android SDK — build ที่เครื่อง dev แล้วส่งไฟล์มาวาง
+
+**1) ที่เครื่อง dev** (มี Flutter SDK) เช็กก่อนว่า `flutter_app\lib\config.dart` ชี้โดเมนจริง:
 ```dart
-static const String apiBase = "https://checkin.example.com/api";
+static const String apiBase = "https://checkin.example.com";
 ```
-แล้ว build:
+แล้ว build (สคริปต์จัดการสิทธิ์ + ไอคอน + วางไฟล์ให้ครบ):
 ```powershell
-cd C:\apps\checkin-system\flutter_app
-flutter build apk --release     # ได้ไฟล์ .apk ไปติดตั้งบนมือถือ
+cd <repo>\deploy\windows-server
+.\build-flutter-apk.ps1
 ```
+ได้ไฟล์ที่ `backend\storage\app\thanakon-checkin.apk`
+
+**2) ส่งไฟล์มาที่เซิร์ฟเวอร์** (แชร์โฟลเดอร์ / USB / cloud ก็ได้ — APK ไม่ได้อยู่ใน git) แล้วสั่ง:
+```powershell
+cd C:\apps\checkin-system\deploy\windows-server
+.\publish-apk.ps1 -ApkPath D:\thanakon-checkin.apk
+```
+
+**3) ตรวจ** — เปิด `https://checkin.example.com/app/info` ต้องได้ `"available": true`
+จากนั้นปุ่ม **ดาวน์โหลดแอป (.apk)** จะขึ้นบนหน้าแรกของพนักงานเอง
+
+> ไม่ต้อง restart backend และไม่ต้อง deploy เว็บใหม่ — `/app/info` อ่านไฟล์จากดิสก์ทุกครั้ง
+> ไฟล์อยู่ที่ `backend\storage\app` ซึ่งอยู่นอกโฟลเดอร์ IIS จึงไม่ถูกล้างตอน deploy หน้าเว็บใหม่
+> `/app/info` กับ `/app/download` จงใจเปิดได้โดยไม่ต้องล็อกอิน (ให้สแกน QR จากมือถือแล้วโหลดได้เลย)
 
 ---
 

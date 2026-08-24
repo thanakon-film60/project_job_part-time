@@ -112,16 +112,33 @@ npm run dev
 
 ---
 
-## 3) รัน Flutter (แอปพนักงาน — ทางเลือก)
+## 3) แอปพนักงาน (Flutter APK)
 
-> โค้ด Flutter เขียนไว้ครบและต่อ API ถูกต้องแล้ว แต่ยังไม่ได้ build เป็น APK
-> (เครื่องเซิร์ฟเวอร์ยังไม่มี Flutter SDK / Android SDK)
-> ถ้าใช้ PWA ด้านบนอยู่แล้วก็ไม่จำเป็นต้องใช้ส่วนนี้
+โค้ด Flutter ต่อ API เรียบร้อยแล้ว และ build เป็น APK ให้พนักงานกดโหลดจากหน้าแรกของเว็บได้
+(การ์ด **แอปเช็คอิน THANAKON-ROOM**) — ถ้าใช้ PWA ด้านบนอยู่แล้วก็ไม่จำเป็นต้องใช้ส่วนนี้
 
+**build — ทำที่เครื่องที่มี Flutter SDK + Android SDK**
+```powershell
+cd deploy\windows-server
+.\build-flutter-apk.ps1          # ใส่ -Clean ถ้าเปลี่ยนไอคอนแล้วภาพยังเป็นตัวเก่า
+```
+สคริปต์จะสร้าง `android/` ให้ถ้ายังไม่มี → ใส่สิทธิ์ตาม `PLATFORM_SETUP.md` → สร้างไอคอนจากโลโก้
+ตัวเดียวกับเว็บ → build APK → วางไฟล์ไว้ที่ `backend\storage\app\thanakon-checkin.apk`
+
+**ส่งขึ้นเครื่อง production** (เครื่องนั้นไม่มี Flutter SDK และไม่ต้องมี)
+```powershell
+# copy ไฟล์ .apk จากเครื่อง dev ไปวางบนเซิร์ฟเวอร์ก่อน แล้ว
+cd deploy\windows-server
+.\publish-apk.ps1 -ApkPath D:\thanakon-checkin.apk
+```
+
+> **APK ไม่ได้อยู่ใน git** (ไฟล์ 70+ MB และ build ใหม่ได้เสมอ) — ต้อง copy ไฟล์ไปเอง
+> ไฟล์เก็บไว้นอกโฟลเดอร์ IIS จึงไม่ถูกล้างตอน deploy เว็บใหม่ และไม่ต้อง restart backend
+> เช็กว่าขึ้นแล้วหรือยังที่ `https://thanakronpart-time.com/app/info`
+
+**รันตอนพัฒนา**
 ```bash
 cd flutter_app
-flutter create .            # สร้างโฟลเดอร์ android/ ios/ ครั้งแรก
-# ทำตาม PLATFORM_SETUP.md เพื่อเพิ่มสิทธิ์ location/camera/background
 flutter pub get
 flutter run
 ```

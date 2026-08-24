@@ -25,7 +25,6 @@ $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $here "..\..")).Path
 $appDir = Join-Path $root "flutter_app"
-$outDir = Join-Path $root "backend\storage\app"
 
 function Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Ok($msg)   { Write-Host "    [OK] $msg" -ForegroundColor Green }
@@ -143,27 +142,6 @@ try {
 finally { Pop-Location }
 
 # --- 6. วางไฟล์ให้ backend แจก ------------------------------------------------
-Step "copy APK ไปที่ storage ของ backend"
-if (-not (Test-Path $outDir)) { New-Item -ItemType Directory $outDir -Force | Out-Null }
-$dest = Join-Path $outDir "thanakon-checkin.apk"
-Copy-Item $apk $dest -Force
-
-# เวอร์ชันอ่านจาก pubspec.yaml (บรรทัด version: 1.0.0+1)
-$version = ""
-$verLine = Select-String -Path (Join-Path $appDir "pubspec.yaml") -Pattern '^version:\s*(\S+)' |
-    Select-Object -First 1
-if ($verLine) { $version = $verLine.Matches[0].Groups[1].Value }
-
-@{
-    version     = $version
-    built_at    = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-    min_android = "6.0 (API 23)"
-} | ConvertTo-Json | Set-Content (Join-Path $outDir "release.json") -Encoding UTF8
-
-$sizeMb = [math]::Round((Get-Item $dest).Length / 1MB, 1)
-Ok "วางไฟล์แล้ว ($sizeMb MB) -> $dest"
-
-Write-Host ""
-Write-Host "  เสร็จแล้ว — พนักงานกดโหลดได้ที่หน้าแรกของเว็บ" -ForegroundColor Green
-Write-Host "  ลิงก์ตรง: https://thanakronpart-time.com/app/download" -ForegroundColor Green
-Write-Host ""
+# ใช้สคริปต์ตัวเดียวกับที่เครื่อง production ใช้ตอนรับ APK ที่ build มาจากที่อื่น
+# (เขียน release.json + ตรวจไฟล์ ที่เดียว จะได้ไม่หลุดกันคนละแบบ)
+& (Join-Path $here "publish-apk.ps1") -ApkPath $apk
