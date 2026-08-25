@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { describeWhere, describeWhereShort } from "@/lib/attendance";
 import { cn } from "@/lib/utils";
 
 const REFRESH_SECONDS = 20;
@@ -358,9 +359,7 @@ export default function LiveMapPage() {
                       <br />
                       {statusMeta(person.status).label} — {formatAge(person.seconds_ago)}
                       <br />
-                      {person.within_geofence
-                        ? `อยู่ในเขต ${person.office_name || "ที่ทำงาน"}`
-                        : `นอกเขต ห่าง ${person.distance_km?.toFixed(2)} กม. จาก ${person.office_name || "ที่ทำงาน"}`}
+                      {describeWhere(person)}
                       <br />
                       <a
                         href={`https://www.google.com/maps/dir/?api=1&destination=${person.latitude},${person.longitude}&travelmode=driving`}
@@ -423,9 +422,7 @@ export default function LiveMapPage() {
                             </span>
                             {hasPos && (
                               <span className="text-muted-foreground block text-xs">
-                                {person.within_geofence
-                                  ? `ในเขต ${person.office_name || "ที่ทำงาน"}`
-                                  : `นอกเขต ${person.distance_km?.toFixed(1)} กม.`}
+                                {describeWhereShort(person)}
                               </span>
                             )}
                           </span>

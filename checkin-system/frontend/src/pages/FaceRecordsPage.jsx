@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { thaiDateTime } from "@/lib/attendance";
 
 function FaceThumb({ recordId, note, createdAt }) {
   const [url, setUrl] = useState(null);
@@ -59,7 +60,7 @@ function FaceThumb({ recordId, note, createdAt }) {
       )}
       <div className="space-y-0.5 p-2">
         <p className="text-muted-foreground text-[11px]">
-          {new Date(createdAt).toLocaleString("th-TH")}
+          {thaiDateTime(createdAt)}
         </p>
         {note && <p className="truncate text-xs">{note}</p>}
       </div>
