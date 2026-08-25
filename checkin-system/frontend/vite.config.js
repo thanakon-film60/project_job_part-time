@@ -1,5 +1,7 @@
+import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 // ===================================================================
@@ -16,6 +18,8 @@ import { VitePWA } from "vite-plugin-pwa";
 export default defineConfig({
   plugins: [
     react(),
+    // Tailwind v4 — ฐานของ shadcn/ui (ไม่มี tailwind.config.js แล้ว ตั้งธีมใน src/index.css)
+    tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: [
@@ -74,5 +78,8 @@ export default defineConfig({
       },
     }),
   ],
+  resolve: {
+    alias: { "@": path.resolve(import.meta.dirname, "./src") },
+  },
   server: { port: 5173 },
 });

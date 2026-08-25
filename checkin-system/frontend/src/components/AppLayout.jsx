@@ -1,198 +1,211 @@
-import React, { useEffect, useState } from "react";
-import { Layout, Menu, Typography, Space, Button, Grid, Avatar, Drawer } from "antd";
-import {
-  CalendarOutlined,
-  TeamOutlined,
-  SmileOutlined,
-  LogoutOutlined,
-  CrownOutlined,
-  UserOutlined,
-  EnvironmentOutlined,
-  MenuOutlined,
-} from "@ant-design/icons";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  CalendarDays,
+  Crown,
+  LogOut,
+  MapPin,
+  Menu,
+  Smile,
+  User,
+  Users,
+} from "lucide-react";
 import { getEmployee, clearSession } from "../api";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 
-const { Header, Sider, Content } = Layout;
-const { Text } = Typography;
-const { useBreakpoint } = Grid;
 const logoSrc = "/logo-checkin.svg";
+
+const BOSS_NAV = [
+  { to: "/", label: "ปฏิทินเข้างาน", icon: CalendarDays },
+  { to: "/employees", label: "ข้อมูลพนักงาน", icon: Users },
+  { to: "/live-map", label: "แผนที่ติดตามพนักงาน", icon: MapPin },
+];
+
+const STAFF_NAV = [
+  { to: "/", label: "ปฏิทินเข้างาน", icon: CalendarDays },
+  { to: "/face-records", label: "ประวัติใบหน้า", icon: Smile },
+];
+
+/** path ปัจจุบันตรงกับเมนูไหน — ใช้ทั้งไฮไลต์เมนูและตั้งชื่อหัวข้อหน้า */
+function matchNav(pathname, items) {
+  const hit = items.find((item) => item.to !== "/" && pathname.startsWith(item.to));
+  return hit || items[0];
+}
+
+function SidebarBrand({ isBoss }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-4">
+      <img src={logoSrc} alt="" aria-hidden="true" className="size-10 shrink-0 object-contain" />
+      <div className="min-w-0">
+        <div className="truncate text-sm font-bold tracking-wide text-sidebar-foreground">
+          THANAKON-ROOM
+        </div>
+        <div className="text-[11px] tracking-[0.14em] text-sidebar-foreground/60 uppercase">
+          {isBoss ? "Boss control" : "Employee"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SidebarNav({ items, activeTo, onNavigate }) {
+  return (
+    <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      {items.map(({ to, label, icon: Icon }) => {
+        const active = to === activeTo;
+        return (
+          <Link
+            key={to}
+            to={to}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              active
+                ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            )}
+          >
+            <Icon className="size-4.5 shrink-0" />
+            <span className="truncate">{label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 export default function AppLayout({ children }) {
   const emp = getEmployee();
   const loc = useLocation();
   const nav = useNavigate();
-  const screens = useBreakpoint();
   const isBoss = Boolean(emp?.is_manager);
-
-  // จอกว้างพอ (>= lg) ค่อยโชว์ sidebar ถาวร ที่แคบกว่านั้นใช้เมนูแบบดึงออกมา
-  // (มือถือ/แท็บเล็ตแนวตั้ง) — เดิม sider ยุบเหลือ 0 โดยไม่มีปุ่มเปิด ทำให้
-  // หัวหน้าเปิดจากมือถือแล้วกดเข้าเมนูอื่นไม่ได้เลย
-  const isWide = Boolean(screens.lg);
+  const items = isBoss ? BOSS_NAV : STAFF_NAV;
   const [navOpen, setNavOpen] = useState(false);
+
+  const current = useMemo(() => matchNav(loc.pathname, items), [loc.pathname, items]);
 
   // เปลี่ยนหน้าแล้วปิดเมนูเอง ไม่ต้องกดกากบาททุกครั้ง
   useEffect(() => setNavOpen(false), [loc.pathname]);
-  useEffect(() => {
-    if (isWide) setNavOpen(false);
-  }, [isWide]);
-
-  const bossItems = [
-    {
-      key: "/",
-      icon: <CalendarOutlined />,
-      label: <Link to="/">ปฏิทินเข้างาน</Link>,
-    },
-    {
-      key: "/employees",
-      icon: <TeamOutlined />,
-      label: <Link to="/employees">ข้อมูลพนักงาน</Link>,
-    },
-    {
-      key: "/live-map",
-      icon: <EnvironmentOutlined />,
-      label: <Link to="/live-map">แผนที่ติดตามพนักงาน</Link>,
-    },
-  ];
-
-  const employeeItems = [
-    {
-      key: "/",
-      icon: <CalendarOutlined />,
-      label: <Link to="/">ปฏิทินเข้างาน</Link>,
-    },
-    {
-      key: "/face-records",
-      icon: <SmileOutlined />,
-      label: <Link to="/face-records">ประวัติใบหน้า</Link>,
-    },
-  ];
-
-  const selectedKey = loc.pathname.startsWith("/employees")
-    ? "/employees"
-    : loc.pathname.startsWith("/live-map")
-      ? "/live-map"
-      : loc.pathname.startsWith("/face-records")
-        ? "/face-records"
-        : "/";
-
-  const pageTitle = selectedKey === "/employees"
-    ? "ข้อมูลพนักงาน"
-    : selectedKey === "/live-map"
-      ? "แผนที่ติดตามพนักงาน"
-      : selectedKey === "/face-records"
-        ? "ประวัติใบหน้า"
-        : "ปฏิทินเข้างาน";
 
   function logout() {
     clearSession();
     nav("/login", { replace: true });
   }
 
-  const account = (
-    <Space size="small">
-      <Avatar size="small" icon={isBoss ? <CrownOutlined /> : <UserOutlined />} />
-      {!screens.xs && (
-        <Text style={{ color: "#dbe4f0" }}>
-          {emp?.full_name}
-          {isBoss ? " (Boss)" : ""}
-        </Text>
-      )}
-      <Button size="small" icon={<LogoutOutlined />} onClick={logout} ghost>
-        {screens.xs ? "" : "ออกจากระบบ"}
-      </Button>
-    </Space>
-  );
-
-  if (!isBoss) {
-    return (
-      <Layout style={{ minHeight: "100vh" }}>
-        <Header className="app-header">
-          <div className="header-brand-wrap">
-            <img className="header-logo" src={logoSrc} alt="" aria-hidden="true" />
-            <Text strong className="header-brand">THANAKON-ROOM</Text>
-          </div>
-          <Menu
-            theme="dark"
-            mode="horizontal"
-            selectedKeys={[selectedKey]}
-            items={employeeItems}
-            style={{ flex: 1, minWidth: 0 }}
-          />
-          {account}
-        </Header>
-        <Content className="app-content">{children}</Content>
-      </Layout>
-    );
-  }
-
-  const sidebarBrand = (
-    <div className="sidebar-brand">
-      <img className="sidebar-brand-logo" src={logoSrc} alt="" aria-hidden="true" />
-      <div>
-        <div className="sidebar-brand-name">THANAKON-ROOM</div>
-        <div className="sidebar-brand-role">BOSS CONTROL</div>
+  const sidebarInner = (
+    <>
+      <SidebarBrand isBoss={isBoss} />
+      <SidebarNav items={items} activeTo={current.to} onNavigate={() => setNavOpen(false)} />
+      <div className="border-t border-sidebar-border p-3">
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={logout}
+        >
+          <LogOut />
+          ออกจากระบบ
+        </Button>
       </div>
-    </div>
-  );
-
-  const bossMenu = (
-    <Menu
-      theme="dark"
-      mode="inline"
-      selectedKeys={[selectedKey]}
-      items={bossItems}
-      className="boss-menu"
-    />
+    </>
   );
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      {isWide && (
-        <Sider width={250} className="boss-sidebar">
-          {sidebarBrand}
-          {bossMenu}
-        </Sider>
-      )}
+    <div className="bg-background flex min-h-svh">
+      {/* จอกว้าง (lg ขึ้นไป) เมนูค้างไว้ข้างซ้าย — จอแคบกว่านั้นซ่อนไว้ใน Sheet */}
+      <aside className="bg-sidebar hidden w-64 shrink-0 flex-col border-r border-sidebar-border lg:sticky lg:top-0 lg:flex lg:h-svh">
+        {sidebarInner}
+      </aside>
 
-      {/* จอแคบ: เมนูเดียวกันแต่ดึงออกมาจากขอบซ้าย */}
-      <Drawer
-        placement="left"
-        open={!isWide && navOpen}
-        onClose={() => setNavOpen(false)}
-        closable={false}
-        width={260}
-        className="boss-nav-drawer"
-        styles={{ body: { padding: 0, background: "#001529" } }}
-      >
-        {sidebarBrand}
-        {bossMenu}
-      </Drawer>
+      <Sheet open={navOpen} onOpenChange={setNavOpen}>
+        <SheetContent
+          side="left"
+          className="bg-sidebar gap-0 border-sidebar-border p-0 text-sidebar-foreground"
+        >
+          <SheetTitle className="sr-only">เมนูหลัก</SheetTitle>
+          <SheetDescription className="sr-only">เลือกหน้าที่ต้องการเปิด</SheetDescription>
+          {sidebarInner}
+        </SheetContent>
+      </Sheet>
 
-      <Layout>
-        <Header className="app-header boss-header">
-          {!isWide && (
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="bg-sidebar text-sidebar-foreground sticky top-0 z-30 flex h-14 items-center gap-2 px-3 shadow-sm sm:h-16 sm:gap-3 sm:px-5">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="เปิดเมนู"
+            className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground lg:hidden"
+            onClick={() => setNavOpen(true)}
+          >
+            <Menu />
+          </Button>
+
+          <img
+            src={logoSrc}
+            alt=""
+            aria-hidden="true"
+            className="size-8 shrink-0 object-contain lg:hidden"
+          />
+
+          <h1 className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base">
+            <span className="lg:hidden">THANAKON-ROOM</span>
+            <span className="hidden lg:inline">{current.label}</span>
+          </h1>
+
+          <div className="flex items-center gap-2">
+            <Avatar className="size-8">
+              <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground">
+                {isBoss ? <Crown className="size-4" /> : <User className="size-4" />}
+              </AvatarFallback>
+            </Avatar>
+            <span className="hidden max-w-[180px] truncate text-sm sm:inline">
+              {emp?.full_name}
+              {isBoss ? " (Boss)" : ""}
+            </span>
             <Button
-              type="text"
-              className="nav-toggle"
-              aria-label="เปิดเมนู"
-              icon={<MenuOutlined />}
-              onClick={() => setNavOpen(true)}
-            />
-          )}
-          {!isWide && (
-            <div className="header-brand-wrap mobile-brand-wrap">
-              <img className="header-logo" src={logoSrc} alt="" aria-hidden="true" />
-              <Text strong className="header-brand mobile-brand">
-                THANAKON-ROOM
-              </Text>
-            </div>
-          )}
-          <Text strong className="header-page-title">{pageTitle}</Text>
-          <div style={{ marginLeft: "auto" }}>{account}</div>
-        </Header>
-        <Content className="boss-content">{children}</Content>
-      </Layout>
-    </Layout>
+              variant="ghost"
+              size="sm"
+              onClick={logout}
+              className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hidden sm:inline-flex"
+            >
+              <LogOut />
+              <span className="hidden md:inline">ออกจากระบบ</span>
+            </Button>
+          </div>
+        </header>
+
+        {/* หัวข้อหน้าแยกออกมาสำหรับจอเล็ก (บน header มีแค่ชื่อแบรนด์) */}
+        <main className="safe-bottom mx-auto w-full max-w-[1180px] flex-1 px-3 py-4 pb-20 sm:px-5 sm:py-6 lg:pb-6">
+          <h2 className="mb-3 text-lg font-semibold lg:hidden">{current.label}</h2>
+          {children}
+        </main>
+
+        {/* แถบนำทางด้านล่างสำหรับมือถือ (Mobile Bottom Navigation) */}
+        <nav className="border-border bg-card/95 fixed inset-x-0 bottom-0 z-40 flex h-16 items-center justify-around border-t px-2 shadow-lg backdrop-blur lg:hidden safe-bottom">
+          {items.map(({ to, label, icon: Icon }) => {
+            const active = to === current.to;
+            return (
+              <Link
+                key={to}
+                to={to}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex flex-1 flex-col items-center justify-center gap-1 py-1 text-xs font-medium transition-colors",
+                  active
+                    ? "text-primary font-semibold"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className={cn("size-5 transition-transform", active && "scale-110")} />
+                <span className="max-w-[80px] truncate">{label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
   );
 }

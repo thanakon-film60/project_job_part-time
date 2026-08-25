@@ -1,7 +1,7 @@
 name: thanakon_box_checkin
 description: แอปเช็คอินเข้างาน THANAKON-BOX (GPS + สแกนใบหน้า)
 publish_to: "none"
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -43,7 +43,10 @@ flutter:
 # ===================================================================
 flutter_launcher_icons:
   android: true
-  ios: true
+  # ios/ ไม่ได้อยู่ใน repo นี้ (build เฉพาะ APK) — เปิดเป็น true ไม่ได้
+  # ไม่งั้น flutter_launcher_icons จะล้มทั้งขั้นตอนตอนหาไฟล์ Icon-App-*.png ไม่เจอ
+  # ถ้าจะทำ iOS: flutter create --platforms=ios . ก่อน แล้วค่อยเปลี่ยนเป็น true
+  ios: false
   image_path: "assets/icon/app-icon.png"
   min_sdk_android: 23
   adaptive_icon_background: "#FFFFFF"

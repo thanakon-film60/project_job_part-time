@@ -1,4 +1,4 @@
-"""แจกไฟล์ติดตั้งแอป Flutter (APK) ให้พนักงานโหลดจากหน้าเว็บ
+r"""แจกไฟล์ติดตั้งแอป Flutter (APK) ให้พนักงานโหลดจากหน้าเว็บ
 
 ไฟล์ APK ไม่ได้อยู่ในโฟลเดอร์เว็บ (IIS) เพราะทุกครั้งที่ deploy หน้าเว็บใหม่
 สคริปต์จะล้างโฟลเดอร์นั้นทิ้ง — เก็บไว้ใน storage ของ backend แทน แล้วให้
@@ -33,7 +33,9 @@ APK_MEDIA_TYPE = "application/vnd.android.package-archive"
 def _meta() -> dict:
     """ข้อมูลเวอร์ชันที่สคริปต์ build เขียนไว้ — ไม่มีก็ไม่เป็นไร"""
     try:
-        with open(META_PATH, "r", encoding="utf-8") as f:
+        # utf-8-sig: PowerShell 5.1 (Set-Content -Encoding UTF8) ใส่ BOM ไว้หน้าไฟล์
+        # ถ้าอ่านแบบ utf-8 เฉย ๆ จะ decode ไม่ผ่าน แล้วเวอร์ชันจะหายไปจากหน้าเว็บ
+        with open(META_PATH, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
         return data if isinstance(data, dict) else {}
     except (OSError, json.JSONDecodeError):
@@ -66,7 +68,8 @@ def app_download():
     if not os.path.isfile(APK_PATH):
         raise HTTPException(
             status_code=404,
-            detail="ยังไม่มีไฟล์ติดตั้ง — รัน deploy\windows-server\build-flutter-apk.ps1 ก่อน",
+            # ใส่ r"" เพราะ \b ในเส้นทางไฟล์คือตัวอักษร backspace ถ้าไม่ใส่
+            detail=r"ยังไม่มีไฟล์ติดตั้ง — รัน deploy\windows-server\build-flutter-apk.ps1 ก่อน",
         )
 
     version = _meta().get("version") or ""

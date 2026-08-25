@@ -1,27 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Col,
-  Empty,
-  List,
-  Row,
-  Segmented,
-  Skeleton,
-  Space,
-  Switch,
-  Tag,
-  Typography,
-} from "antd";
-import {
-  AimOutlined,
-  EnvironmentOutlined,
-  ReloadOutlined,
-  CompassOutlined,
-} from "@ant-design/icons";
-import {
   MapContainer,
   TileLayer,
   Marker,
@@ -32,22 +10,30 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { CircleAlert, Compass, Crosshair, Info, MapPin, RefreshCw } from "lucide-react";
 import AppLayout from "../components/AppLayout.jsx";
 import { getGeofence, getLiveLocations, getLocationTrail } from "../api";
-
-const { Title, Text } = Typography;
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 
 const REFRESH_SECONDS = 20;
 const DEFAULT_CENTER = [13.8712, 100.4155]; // บางบัวทอง — ใช้เมื่อยังไม่มีข้อมูลอะไรเลย
 const DEFAULT_ZOOM = 13;
 
 // สี/ข้อความประจำแต่ละสถานะ ใช้ร่วมกันทั้งหมุดบนแผนที่และรายชื่อด้านข้าง
-// เพื่อไม่ให้สองที่นี้เพี้ยนกัน
+// เพื่อไม่ให้สองที่นี้เพี้ยนกัน (สี hex ใช้ตรง ๆ เพราะหมุด leaflet เป็น HTML ดิบ)
 const STATUS_META = {
-  online: { color: "#2e7d32", label: "กำลังส่งตำแหน่ง", badge: "success" },
-  stale: { color: "#f9a825", label: "ไม่อัปเดตสักพัก", badge: "warning" },
-  offline: { color: "#c62828", label: "ขาดการติดต่อ", badge: "error" },
-  no_data: { color: "#9e9e9e", label: "ไม่มีข้อมูล", badge: "default" },
+  online: { color: "#2e7d32", label: "กำลังส่งตำแหน่ง", dot: "bg-success" },
+  stale: { color: "#f9a825", label: "ไม่อัปเดตสักพัก", dot: "bg-warning" },
+  offline: { color: "#c62828", label: "ขาดการติดต่อ", dot: "bg-destructive" },
+  no_data: { color: "#9e9e9e", label: "ไม่มีข้อมูล", dot: "bg-muted-foreground" },
 };
 
 function statusMeta(status) {
@@ -77,7 +63,7 @@ function employeeIcon(person) {
       box-shadow:0 0 4px rgba(0,0,0,0.5);
       color:#fff;font-weight:700;font-size:13px;
       display:flex;align-items:center;justify-content:center;
-      font-family:'Segoe UI','Noto Sans Thai',sans-serif;
+      font-family:'Sarabun','Segoe UI',sans-serif;
     ">${initial}</div>`,
     iconSize: [30, 30],
     iconAnchor: [15, 15],
@@ -220,7 +206,8 @@ export default function LiveMapPage() {
         ]
       : [];
 
-  const mapCenter = allPoints[0] || (offices[0] ? [offices[0].lat, offices[0].lng] : DEFAULT_CENTER);
+  const mapCenter =
+    allPoints[0] || (offices[0] ? [offices[0].lat, offices[0].lng] : DEFAULT_CENTER);
 
   const trailPositions = trail
     .filter((p) => p.latitude != null && p.longitude != null)
@@ -235,102 +222,98 @@ export default function LiveMapPage() {
 
   return (
     <AppLayout>
-      <Space direction="vertical" size={16} style={{ width: "100%" }}>
-        <div>
-          <Title level={4} style={{ margin: 0 }}>
-            <EnvironmentOutlined /> แผนที่ติดตามพนักงาน
-          </Title>
-          <Text type="secondary">
+      <div className="space-y-4">
+        <div className="hidden lg:block">
+          <h2 className="flex items-center gap-2 text-2xl font-bold">
+            <MapPin className="size-6" />
+            แผนที่ติดตามพนักงาน
+          </h2>
+          <p className="text-muted-foreground text-sm">
             ดูว่าตอนนี้พนักงานแต่ละคนอยู่ตรงไหน อัปเดตอัตโนมัติทุก {REFRESH_SECONDS} วินาที
-          </Text>
+          </p>
         </div>
 
-        {error && <Alert type="error" showIcon message={error} />}
+        {error && (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertDescription className="text-foreground">{error}</AlertDescription>
+          </Alert>
+        )}
 
-        <Row gutter={[12, 12]}>
-          {[
-            ["online", counts.online],
-            ["stale", counts.stale],
-            ["offline", counts.offline],
-            ["no_data", counts.no_data],
-          ].map(([status, value]) => {
+        {/* สรุปสถานะ — 2 คอลัมน์บนมือถือ, 4 บนแท็บเล็ตขึ้นไป */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
+          {["online", "stale", "offline", "no_data"].map((status) => {
             const meta = statusMeta(status);
             return (
-              <Col xs={12} md={6} key={status}>
-                <Card size="small" styles={{ body: { padding: 12 } }}>
-                  <Space direction="vertical" size={0}>
-                    <Text type="secondary" style={{ fontSize: "0.78rem" }}>
-                      <Badge status={meta.badge} /> {meta.label}
-                    </Text>
-                    <Text strong style={{ fontSize: "1.5rem", color: meta.color }}>
-                      {value}
-                    </Text>
-                  </Space>
-                </Card>
-              </Col>
+              <Card key={status} className="gap-0 py-3">
+                <CardContent className="px-3">
+                  <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                    <span className={cn("size-2 shrink-0 rounded-full", meta.dot)} />
+                    <span className="truncate">{meta.label}</span>
+                  </div>
+                  <div
+                    className="text-2xl leading-tight font-semibold tabular-nums"
+                    style={{ color: meta.color }}
+                  >
+                    {counts[status]}
+                  </div>
+                </CardContent>
+              </Card>
             );
           })}
-        </Row>
+        </div>
 
-        <Card
-          size="small"
-          styles={{ body: { padding: 12 } }}
-          title={
-            <Space wrap size={12}>
-              <Space size={6}>
-                <ReloadOutlined />
-                <Text style={{ fontSize: "0.85rem" }}>อัปเดตอัตโนมัติ</Text>
-                <Switch size="small" checked={autoRefresh} onChange={setAutoRefresh} />
-              </Space>
-              {lastUpdated && (
-                <Text type="secondary" style={{ fontSize: "0.78rem" }}>
-                  ล่าสุด {lastUpdated.toLocaleTimeString("th-TH")}
-                </Text>
-              )}
-            </Space>
-          }
-          extra={
+        <Card className="gap-0 py-3">
+          <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-3 px-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <RefreshCw className="text-muted-foreground size-4" />
+              อัปเดตอัตโนมัติ
+              <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
+            </label>
+
+            {lastUpdated && (
+              <span className="text-muted-foreground text-xs">
+                ล่าสุด {lastUpdated.toLocaleTimeString("th-TH")}
+              </span>
+            )}
+
             <Button
-              size="small"
-              icon={<ReloadOutlined />}
+              variant="outline"
+              size="sm"
               loading={loading}
               onClick={() => load()}
+              className="ml-auto"
             >
+              <RefreshCw />
               รีเฟรช
             </Button>
-          }
-        >
-          <Space wrap size={10}>
-            <Text style={{ fontSize: "0.85rem" }}>
-              <CompassOutlined /> เส้นทางย้อนหลังของคนที่เลือก:
-            </Text>
-            <Segmented
-              size="small"
-              value={trailHours}
-              onChange={setTrailHours}
-              options={[
-                { label: "ไม่แสดง", value: 0 },
-                { label: "1 ชม.", value: 1 },
-                { label: "6 ชม.", value: 6 },
-                { label: "24 ชม.", value: 24 },
-              ]}
-            />
-            {trailHours > 0 && !selectedId && (
-              <Text type="secondary" style={{ fontSize: "0.78rem" }}>
-                เลือกชื่อพนักงานด้านล่างก่อน
-              </Text>
-            )}
-          </Space>
+
+            <div className="flex w-full flex-wrap items-center gap-2 border-t pt-3">
+              <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                <Compass className="size-4" />
+                เส้นทางย้อนหลัง:
+              </span>
+              <ToggleGroup
+                type="single"
+                value={String(trailHours)}
+                onValueChange={(v) => v && setTrailHours(Number(v))}
+              >
+                <ToggleGroupItem value="0">ไม่แสดง</ToggleGroupItem>
+                <ToggleGroupItem value="1">1 ชม.</ToggleGroupItem>
+                <ToggleGroupItem value="6">6 ชม.</ToggleGroupItem>
+                <ToggleGroupItem value="24">24 ชม.</ToggleGroupItem>
+              </ToggleGroup>
+              {trailHours > 0 && !selectedId && (
+                <span className="text-muted-foreground text-xs">เลือกชื่อพนักงานก่อน</span>
+              )}
+            </div>
+          </CardContent>
         </Card>
 
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={16}>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
             <div className="live-map-frame">
-              <MapContainer
-                center={mapCenter}
-                zoom={DEFAULT_ZOOM}
-                style={{ height: "100%", width: "100%" }}
-              >
+              <MapContainer center={mapCenter} zoom={DEFAULT_ZOOM}>
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -391,95 +374,83 @@ export default function LiveMapPage() {
                 ))}
               </MapContainer>
             </div>
-          </Col>
+          </div>
 
-          <Col xs={24} lg={8}>
-            <Card
-              size="small"
-              className="live-people-card"
-              title={`พนักงานทั้งหมด (${employees.length})`}
-              styles={{ body: { padding: 0 } }}
-            >
+          <Card className="gap-0 py-0 lg:max-h-[640px] lg:overflow-hidden">
+            <div className="border-b px-4 py-3 text-sm font-semibold">
+              พนักงานทั้งหมด ({employees.length})
+            </div>
+            <div className="max-h-[420px] overflow-y-auto lg:max-h-[560px]">
               {loading && !data ? (
-                <div style={{ padding: 16 }}>
-                  <Skeleton active paragraph={{ rows: 6 }} />
+                <div className="space-y-3 p-4">
+                  {[0, 1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
                 </div>
               ) : employees.length === 0 ? (
-                <Empty
-                  description="ยังไม่มีพนักงานในระบบ"
-                  style={{ padding: 24 }}
-                />
+                <EmptyState title="ยังไม่มีพนักงานในระบบ" />
               ) : (
-                <List
-                  dataSource={employees}
-                  renderItem={(person) => {
+                <ul className="divide-border divide-y">
+                  {employees.map((person) => {
                     const meta = statusMeta(person.status);
                     const hasPos = person.latitude != null;
                     const isSelected = person.employee_id === selectedId;
                     return (
-                      <List.Item
-                        onClick={() => selectPerson(person)}
-                        style={{
-                          padding: "10px 14px",
-                          cursor: "pointer",
-                          background: isSelected ? "#eaf2fe" : undefined,
-                        }}
-                        actions={
-                          hasPos
-                            ? [
-                                <Button
-                                  key="focus"
-                                  type="text"
-                                  size="small"
-                                  icon={<AimOutlined />}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    selectPerson(person);
-                                  }}
-                                />,
-                              ]
-                            : undefined
-                        }
-                      >
-                        <List.Item.Meta
-                          avatar={<Badge status={meta.badge} />}
-                          title={
-                            <Space size={6} wrap>
-                              <Text strong>{person.full_name}</Text>
-                              {person.is_manager && <Tag color="gold">Boss</Tag>}
-                            </Space>
-                          }
-                          description={
-                            <Space direction="vertical" size={0}>
-                              <Text style={{ fontSize: "0.78rem", color: meta.color }}>
-                                {meta.label} · {formatAge(person.seconds_ago)}
-                              </Text>
-                              {hasPos && (
-                                <Text type="secondary" style={{ fontSize: "0.75rem" }}>
-                                  {person.within_geofence
-                                    ? `ในเขต ${person.office_name || "ที่ทำงาน"}`
-                                    : `นอกเขต ${person.distance_km?.toFixed(1)} กม.`}
-                                </Text>
-                              )}
-                            </Space>
-                          }
-                        />
-                      </List.Item>
+                      <li key={person.employee_id}>
+                        <button
+                          type="button"
+                          onClick={() => selectPerson(person)}
+                          className={cn(
+                            "hover:bg-accent/60 flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors",
+                            isSelected && "bg-primary/8",
+                          )}
+                        >
+                          <span
+                            className={cn("mt-1.5 size-2 shrink-0 rounded-full", meta.dot)}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <span className="truncate text-sm font-medium">
+                                {person.full_name}
+                              </span>
+                              {person.is_manager && <Badge variant="warning">Boss</Badge>}
+                            </span>
+                            <span
+                              className="block text-xs"
+                              style={{ color: meta.color }}
+                            >
+                              {meta.label} · {formatAge(person.seconds_ago)}
+                            </span>
+                            {hasPos && (
+                              <span className="text-muted-foreground block text-xs">
+                                {person.within_geofence
+                                  ? `ในเขต ${person.office_name || "ที่ทำงาน"}`
+                                  : `นอกเขต ${person.distance_km?.toFixed(1)} กม.`}
+                              </span>
+                            )}
+                          </span>
+                          {hasPos && (
+                            <Crosshair className="text-muted-foreground mt-1 size-4 shrink-0" />
+                          )}
+                        </button>
+                      </li>
                     );
-                  }}
-                />
+                  })}
+                </ul>
               )}
-            </Card>
-          </Col>
-        </Row>
+            </div>
+          </Card>
+        </div>
 
-        <Alert
-          type="info"
-          showIcon
-          message="ตำแหน่งมาจากแอปมือถือของพนักงาน"
-          description="แอปจะส่งพิกัดมาเป็นระยะขณะเปิดใช้งาน ถ้าพนักงานปิดแอป ปิด GPS หรือเน็ตหลุด ตำแหน่งจะค้างอยู่ที่จุดสุดท้ายและสถานะจะเปลี่ยนเป็น 'ขาดการติดต่อ' เอง"
-        />
-      </Space>
+        <Alert variant="info">
+          <Info />
+          <AlertTitle>ตำแหน่งมาจากแอปมือถือของพนักงาน</AlertTitle>
+          <AlertDescription>
+            แอปจะส่งพิกัดมาเป็นระยะขณะเปิดใช้งาน ถ้าพนักงานปิดแอป ปิด GPS หรือเน็ตหลุด
+            ตำแหน่งจะค้างอยู่ที่จุดสุดท้ายและสถานะจะเปลี่ยนเป็น &quot;ขาดการติดต่อ&quot; เอง
+          </AlertDescription>
+        </Alert>
+      </div>
     </AppLayout>
   );
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import '../config.dart';
 import '../services/api_service.dart';
 import '../services/background_service.dart';
 import '../services/location_service.dart';
@@ -15,7 +16,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Position? _pos;
   double? _distanceKm;
   double? _allowedRadiusKm;
@@ -25,11 +26,48 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _withinWork = false;
   String _status = 'กำลังหาตำแหน่ง...';
   StreamSubscription<Position>? _positionSub;
+  Timer? _sessionTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _watch();
+    _armSessionTimer();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Timer ไม่เดินตอนแอปถูกพักไว้ (หรือเครื่องดับไปทั้งคืน)
+    // กลับมาเมื่อไหร่จึงต้องเทียบเวลาใหม่ทุกครั้ง
+    if (state == AppLifecycleState.resumed) _armSessionTimer();
+  }
+
+  /// ตั้งเวลาเด้งออกจากระบบตอน 4 ทุ่ม (ดู Config.sessionEndHour)
+  void _armSessionTimer() {
+    _sessionTimer?.cancel();
+    final left = ApiService.timeLeftInSession;
+    if (left == null || left <= Duration.zero) {
+      // หมดเวลาไปแล้ว — เด้งออกในเฟรมถัดไป (ห้ามสั่ง Navigator กลางการ build)
+      _sessionTimer = Timer(Duration.zero, _forceLogout);
+      return;
+    }
+    _sessionTimer = Timer(left, _forceLogout);
+  }
+
+  Future<void> _forceLogout() async {
+    _sessionTimer?.cancel();
+    await stopBackgroundService();
+    await ApiService.logout();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const LoginScreen(
+          notice: Config.sessionExpiredMessage,
+        ),
+      ),
+      (route) => false,
+    );
   }
 
   Future<void> _watch() async {
@@ -100,6 +138,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _sessionTimer?.cancel();
     _positionSub?.cancel();
     super.dispose();
   }
