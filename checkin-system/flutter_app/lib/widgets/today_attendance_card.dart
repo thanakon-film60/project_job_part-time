@@ -230,7 +230,7 @@ class _RecordTile extends StatelessWidget {
         ),
       ),
       title: Text(
-        '${atHome ? 'ถึงบ้านแล้ว' : (isIn ? 'เข้างาน' : 'ออกงาน')} '
+        '${atHome ? 'อยู่บ้านแล้ว' : (isIn ? 'เข้างาน' : 'ออกงาน')} '
         '${thaiClock(record.timestamp)} น.',
         style: TextStyle(fontWeight: FontWeight.bold, color: color),
       ),

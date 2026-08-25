@@ -66,8 +66,8 @@ def notify_checkin(emp: Employee, record: CheckIn, office: dict | None = None) -
         # อยู่บ้าน = ไม่ได้ไปทำงาน การลงเวลาที่บ้านจึงเป็นแค่ "กลับถึงบ้านแล้ว"
         # ไม่ใช่การเข้างาน และไม่ต้องมีออกงานตามมา
         if location_category(office_info) == "home":
-            headline = f"{_employee_display_name(emp)} กลับถึงบ้านแล้ว ({time_text})"
-            note = "ไม่นับเป็นการเข้างาน (อยู่บ้าน = ไม่ได้ไปทำงาน)"
+            headline = f"{_employee_display_name(emp)} อยู่บ้านแล้ว ({time_text})"
+            note = "อยู่บ้าน = ไม่ได้ไปทำงาน ไม่นับเป็นการเข้างานและไม่มีออกงาน"
         else:
             headline = (
                 f"{_employee_display_name(emp)} ได้ทำการ{action}แล้ว ({time_text})"

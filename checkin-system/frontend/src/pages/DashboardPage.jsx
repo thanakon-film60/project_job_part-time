@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CircleAlert,
   Clock,
+  House,
   Info,
   LogIn,
   LogOut,
@@ -32,18 +33,17 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
+import {
+  describeCheckin,
+  thaiDateTime,
+  thaiTime,
+} from "@/lib/attendance";
 import { cn } from "@/lib/utils";
 
 dayjs.extend(utc);
 
-// เวลาไทย = UTC+7 (นาที) — ฝั่ง API ส่ง ISO ที่ติด offset มาแล้ว ตรงนี้บังคับอีกชั้น
-// เพื่อให้เห็นเวลาไทยเหมือนกันหมด ต่อให้เปิดจากเครื่อง/มือถือที่ตั้ง timezone อื่นไว้
-const THAI_OFFSET_MINUTES = 7 * 60;
-
-function thaiTime(iso) {
-  if (!iso) return "–";
-  return dayjs(iso).utcOffset(THAI_OFFSET_MINUTES).format("HH:mm");
-}
+// การแปลงเวลาไทยและการอ่านว่า "รายการนี้อยู่บ้านหรือที่ทำงาน" อยู่ใน
+// src/lib/attendance.js — ใช้ร่วมกันทั้งเว็บ และตรรกะตรงกับ backend + แอป Flutter
 
 function locationVariant(location) {
   if (location === "อยู่ที่บ้าน") return "purple";
@@ -112,6 +112,11 @@ function EmployeeDashboard({ me }) {
               <Badge variant="secondary">ทั้งหมด {checkins.length} รายการ</Badge>
             </div>
 
+            <p className="text-muted-foreground text-xs">
+              อยู่บ้านคืออยู่บ้าน — ไม่ได้ไปทำงาน จึงไม่มีเข้างาน/ออกงานและไม่นับเป็นเวลาทำงาน
+              แต่ยังต้องเข้าสู่ระบบทุกวัน เพื่อให้ระบบรู้ว่าอยู่ที่ไหนและกำลังทำอะไร
+            </p>
+
             {loading ? (
               <div className="space-y-2">
                 <Skeleton className="h-14 w-full rounded-lg" />
@@ -126,7 +131,10 @@ function EmployeeDashboard({ me }) {
             ) : (
               <ul className="divide-border -mx-1 divide-y px-1">
                 {checkins.slice(0, 10).map((record) => {
-                  const isIn = record.kind === "in";
+                  // อยู่บ้าน = ไม่ได้ไปทำงาน จึงไม่ขึ้นว่า "เข้างาน" และไม่มีออกงานคู่กัน
+                  const entry = describeCheckin(record);
+                  const isHome = entry.kind === "home";
+                  const isIn = entry.kind === "in";
                   return (
                     <li
                       key={record.id}
@@ -136,31 +144,30 @@ function EmployeeDashboard({ me }) {
                         <span
                           className={cn(
                             "flex size-9 shrink-0 items-center justify-center rounded-lg",
-                            isIn
-                              ? "bg-success/10 text-success"
-                              : "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+                            isHome
+                              ? "bg-purple-500/10 text-purple-700 dark:text-purple-300"
+                              : isIn
+                                ? "bg-success/10 text-success"
+                                : "bg-orange-500/10 text-orange-600 dark:text-orange-400",
                           )}
                         >
-                          {isIn ? <LogIn className="size-4.5" /> : <LogOut className="size-4.5" />}
+                          {isHome ? (
+                            <House className="size-4.5" />
+                          ) : isIn ? (
+                            <LogIn className="size-4.5" />
+                          ) : (
+                            <LogOut className="size-4.5" />
+                          )}
                         </span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">
-                              {isIn ? "เข้างาน" : "ออกงาน"}
-                            </span>
-                            <Badge
-                              variant={isIn ? "success" : "warning"}
-                              className="text-[10px]"
-                            >
+                            <span className="text-sm font-medium">{entry.label}</span>
+                            <Badge variant={entry.badge} className="text-[10px]">
                               {record.office_name || (record.within_geofence ? "ในเขต" : "นอกเขต")}
                             </Badge>
                           </div>
                           <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
-                            <span>
-                              {dayjs(record.timestamp)
-                                .utcOffset(THAI_OFFSET_MINUTES)
-                                .format("D MMM YYYY HH:mm น.")}
-                            </span>
+                            <span>{thaiDateTime(record.timestamp)}</span>
                             {record.distance_km != null && (
                               <span>
                                 ห่าง{" "}
@@ -353,12 +360,20 @@ export default function DashboardPage() {
                         <Badge variant="secondary">{person.employee_code}</Badge>
                       </div>
                       <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        <span className="text-success inline-flex items-center gap-1">
-                          <LogIn className="size-3.5" /> เข้า {thaiTime(person.first_in)}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-orange-600 dark:text-orange-400">
-                          <LogOut className="size-3.5" /> ออก {thaiTime(person.last_out)}
-                        </span>
+                        {person.home_only ? (
+                          <span className="inline-flex items-center gap-1 text-purple-700 dark:text-purple-300">
+                            <House className="size-3.5" /> อยู่บ้าน — ไม่ได้ไปทำงาน
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-success inline-flex items-center gap-1">
+                              <LogIn className="size-3.5" /> เข้า {thaiTime(person.first_in)}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                              <LogOut className="size-3.5" /> ออก {thaiTime(person.last_out)}
+                            </span>
+                          </>
+                        )}
                         <span className="inline-flex items-center gap-1">
                           <Clock className="size-3.5" /> ลงเวลาทั้งหมด {person.count} ครั้ง
                         </span>

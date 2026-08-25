@@ -289,8 +289,10 @@ class _CheckInTabState extends State<CheckInTab> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'วันนี้ไม่ได้ไปทำงาน จึงไม่นับเป็นเวลาทำงานและไม่มีออกงาน '
-                      'ระบบยังบันทึกตำแหน่งให้ต่อเนื่องจนกว่าจะออกจากระบบ',
+                      'อยู่บ้านก็คืออยู่บ้าน — ไม่ได้ไปทำงาน จึงไม่นับเป็นเวลาทำงาน '
+                      'และไม่มีออกงาน แต่ยังต้องเข้าสู่ระบบทุกวันเพื่อให้ระบบรู้ว่า '
+                      'อยู่ที่ไหนและกำลังทำอะไร ระบบจะบันทึกตำแหน่งต่อเนื่อง '
+                      'จนกว่าจะออกจากระบบ',
                       style: TextStyle(fontSize: 12, color: Colors.black87),
                     ),
                     if (openWork != null) ...[
@@ -326,8 +328,8 @@ class _CheckInTabState extends State<CheckInTab> {
               icon: const Icon(Icons.home_filled),
               label: Text(
                 homeRecordedAt == null
-                    ? 'บันทึกว่าถึงบ้านแล้ว (สแกนหน้า)'
-                    : 'บันทึกถึงบ้านแล้วเมื่อ '
+                    ? 'บันทึกว่าอยู่บ้าน (สแกนหน้า)'
+                    : 'บันทึกว่าอยู่บ้านแล้วเมื่อ '
                         '${thaiClock(homeRecordedAt.timestamp)} น.',
               ),
               style: FilledButton.styleFrom(
@@ -369,7 +371,7 @@ class _CheckInTabState extends State<CheckInTab> {
           const SizedBox(height: 20),
           Text(
             _atHome
-                ? 'ระบบจะตรวจ GPS อีกครั้งตอนกดยืนยัน — การบันทึกว่าถึงบ้านแล้ว '
+                ? 'ระบบจะตรวจ GPS อีกครั้งตอนกดยืนยัน — การบันทึกว่าอยู่บ้าน '
                     'ไม่นับเป็นการเข้างาน และไม่ต้องกดออกงาน'
                 : 'ระบบจะตรวจ GPS อีกครั้งตอนกดยืนยัน ต้องอยู่ในเขตที่กำหนดและสแกนใบหน้าผ่าน จึงจะเข้างานหรือออกงานได้',
             textAlign: TextAlign.center,

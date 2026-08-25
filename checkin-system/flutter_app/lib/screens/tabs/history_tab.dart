@@ -208,7 +208,7 @@ class _DayCard extends StatelessWidget {
               size: 18,
             ),
             title: Text(
-              '${atHome ? 'ถึงบ้านแล้ว' : (isIn ? 'เข้างาน' : 'ออกงาน')} '
+              '${atHome ? 'อยู่บ้านแล้ว' : (isIn ? 'เข้างาน' : 'ออกงาน')} '
               '${thaiClock(record.timestamp)} น.',
               style: TextStyle(color: color, fontWeight: FontWeight.w600),
             ),

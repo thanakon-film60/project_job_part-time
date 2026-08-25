@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
+from ..geofence import location_category, office_by_name
 from ..models import CheckIn, Employee
 from ..schemas import EmployeeOut, GeofenceInfo
 from ..security import require_manager
@@ -40,6 +41,15 @@ def _local_iso(dt: datetime) -> str:
     ผู้ใช้แล้วแสดงตัวเลขของ UTC ออกมาตรงๆ (เช่น 11:41 กลายเป็น 04:41)
     """
     return _to_local(dt).replace(tzinfo=LOCAL_TZ).isoformat()
+
+
+def _is_home(record: CheckIn) -> bool:
+    """ลงเวลาไว้ที่บ้าน
+
+    อยู่บ้าน = ไม่ได้ไปทำงาน จึงไม่นับเป็นเวลาเข้างาน/ออกงานของวันนั้น
+    (พนักงานยังต้องเข้าสู่ระบบทุกวัน ระบบจึงยังรู้ว่าอยู่ที่ไหน)
+    """
+    return location_category(office_by_name(record.office_name)) == "home"
 
 
 def _month_range_utc(year: int, month: int) -> tuple[datetime, datetime]:
@@ -107,6 +117,8 @@ def calendar(
             "first_in": None,
             "last_out": None,
             "within_geofence": False,
+            # วันนั้นมีแต่การลงเวลาที่บ้าน = ไม่ได้ไปทำงาน
+            "home_only": True,
             "count": 0,
         }
     )
@@ -117,6 +129,12 @@ def calendar(
         d["count"] += 1
         if r.within_geofence:
             d["within_geofence"] = True
+
+        # อยู่บ้านไม่ใช่การเข้างาน จึงไม่เอามาเป็นเวลาเข้า/ออกของวันนั้น
+        if _is_home(r):
+            continue
+        d["home_only"] = False
+
         t = _local_iso(r.timestamp)
         if r.kind == "in":
             if d["first_in"] is None or t < d["first_in"]:
@@ -189,10 +207,22 @@ def team_calendar(
                 "first_in": None,
                 "last_out": None,
                 "locations": [],
+                # วันนั้นมีแต่การลงเวลาที่บ้าน = ไม่ได้ไปทำงาน
+                "home_only": True,
                 "count": 0,
             },
         )
         person["count"] += 1
+
+        location = _location_label(checkin.office_name, checkin.within_geofence)
+        if location not in person["locations"]:
+            person["locations"].append(location)
+
+        # อยู่บ้านไม่ใช่การเข้างาน จึงไม่เอามาเป็นเวลาเข้า/ออกของวันนั้น
+        if _is_home(checkin):
+            continue
+        person["home_only"] = False
+
         timestamp = _local_iso(checkin.timestamp)
         if checkin.kind == "in" and (
             person["first_in"] is None or timestamp < person["first_in"]
@@ -202,10 +232,6 @@ def team_calendar(
             person["last_out"] is None or timestamp > person["last_out"]
         ):
             person["last_out"] = timestamp
-
-        location = _location_label(checkin.office_name, checkin.within_geofence)
-        if location not in person["locations"]:
-            person["locations"].append(location)
 
     # เรียงป้ายสถานที่: ที่ทำงานก่อน แล้วค่อยนอกเขต/ที่บ้าน
     # (sorted ของ Python เสถียร ป้ายที่ระดับเดียวกันจึงยังเรียงตามเวลาที่ลงจริง)

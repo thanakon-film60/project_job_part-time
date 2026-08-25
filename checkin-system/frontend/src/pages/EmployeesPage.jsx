@@ -23,6 +23,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
+import { thaiDateTime } from "@/lib/attendance";
 import { cn } from "@/lib/utils";
 
 function FacePhoto({ record, employeeName, featured = false }) {
@@ -136,7 +137,7 @@ function EmployeeCard({ employee }) {
             </p>
             {employee.created_at && (
               <p className="text-muted-foreground text-xs">
-                ลงทะเบียนเมื่อ {new Date(employee.created_at).toLocaleString("th-TH")}
+                ลงทะเบียนเมื่อ {thaiDateTime(employee.created_at)}
               </p>
             )}
           </div>
@@ -162,7 +163,7 @@ function EmployeeCard({ employee }) {
           {latestFace && (
             <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <CircleCheck className="text-success size-3.5 shrink-0" />
-              รูปล่าสุดบันทึกเมื่อ {new Date(latestFace.created_at).toLocaleString("th-TH")}
+              รูปล่าสุดบันทึกเมื่อ {thaiDateTime(latestFace.created_at)}
             </p>
           )}
         </div>
