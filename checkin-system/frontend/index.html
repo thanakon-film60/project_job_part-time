@@ -25,5 +25,45 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- ตาข่ายกันจอขาว: ถ้าผ่านไป 10 วินาทีแล้ว React ยังไม่ขึ้นอะไรเลย
+         แปลว่าไฟล์ JS โหลดไม่ได้ (เช่นค้าง index.html เก่าที่ชี้ไป asset ที่ถูกลบ
+         ตอน deploy — เคยทำให้พนักงานเจอจอขาวถาวรมาแล้ว 25 ส.ค. 2026)
+         จึงล้าง service worker + cache ทั้งหมดแล้วโหลดใหม่ให้เอง
+         ล็อกด้วย sessionStorage ให้ทำได้ครั้งเดียวต่อการเปิดเว็บ กัน reload วนไม่จบ -->
+    <script>
+      setTimeout(function () {
+        var root = document.getElementById("root");
+        if (root && root.childElementCount > 0) return;
+        if (sessionStorage.getItem("recovered-once")) return;
+        sessionStorage.setItem("recovered-once", "1");
+
+        var reloaded = false;
+        function reloadOnce() {
+          if (reloaded) return;
+          reloaded = true;
+          location.reload();
+        }
+        // ต่อให้ล้าง cache ค้างหรือ error ก็ต้องได้โหลดใหม่ อย่าแขวนไว้เฉย ๆ
+        setTimeout(reloadOnce, 3000);
+
+        var jobs = [];
+        if (window.caches) {
+          jobs.push(
+            caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            })
+          );
+        }
+        if (navigator.serviceWorker) {
+          jobs.push(
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            })
+          );
+        }
+        Promise.all(jobs).catch(function () {}).then(reloadOnce);
+      }, 10000);
+    </script>
   </body>
 </html>
