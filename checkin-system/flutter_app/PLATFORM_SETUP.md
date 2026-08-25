@@ -15,7 +15,15 @@
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+<!-- ติดตามตำแหน่งจนกว่าจะออกจากระบบ: กันโหมดประหยัดแบตฆ่า service ทิ้ง
+     และให้กลับมาส่งพิกัดต่อเองหลังเปิดเครื่อง -->
+<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 ```
+
+> แอปขอ `ACCESS_BACKGROUND_LOCATION` ("อนุญาตตลอดเวลา") ให้เอง หลังได้สิทธิ์
+> ตำแหน่งขั้นแรกแล้ว — Android 11 ขึ้นไปจะพาผู้ใช้ไปกดเองในหน้าตั้งค่าแอป
+> ถ้ายังไม่ได้ หน้าแรกจะทวงซ้ำทุก 10 นาทีจนกว่าจะได้หรือออกจากระบบ
 
 ภายใน `<application>` (สำหรับ flutter_background_service):
 

@@ -1,9 +1,17 @@
 import logging
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -21,6 +29,9 @@ from ..security import get_current_employee
 
 router = APIRouter(prefix="/checkins", tags=["checkins"])
 log = logging.getLogger("checkins")
+
+# ใน DB เก็บเวลาเป็น UTC — ต้องบวกออฟเซ็ตก่อนถึงจะตัด "วันนี้" ตามเวลาไทยได้ถูก
+LOCAL_OFFSET = timedelta(hours=settings.timezone_offset_hours)
 
 
 def _distance_text(distance_km: float) -> str:
@@ -129,11 +140,32 @@ async def create_checkin(
 
 @router.get("/me", response_model=list[CheckInOut])
 def my_checkins(
-    emp: Employee = Depends(get_current_employee), db: Session = Depends(get_db)
+    days: int | None = Query(
+        None,
+        ge=1,
+        le=366,
+        description="ย้อนหลังกี่วัน นับตามเวลาไทย (ไม่ส่ง = ทั้งหมด)",
+    ),
+    limit: int | None = Query(None, ge=1, le=1000),
+    emp: Employee = Depends(get_current_employee),
+    db: Session = Depends(get_db),
 ):
-    return (
-        db.query(CheckIn)
-        .filter(CheckIn.employee_id == emp.id)
-        .order_by(CheckIn.timestamp.desc())
-        .all()
-    )
+    """ประวัติการลงเวลาของตัวเอง — แอปมือถือใช้ days=1 ดึงเฉพาะของวันนี้
+
+    ไม่ส่งพารามิเตอร์มา = พฤติกรรมเดิม (คืนทั้งหมด) เพื่อให้ client รุ่นเก่าไม่พัง
+    """
+    query = db.query(CheckIn).filter(CheckIn.employee_id == emp.id)
+
+    if days is not None:
+        # ตัดวันตามเวลาไทยก่อน แล้วแปลงกลับเป็น UTC ให้ตรงกับที่เก็บใน DB
+        # (days=1 = ตั้งแต่เที่ยงคืนของวันนี้ตามเวลาไทย)
+        today_local = (datetime.utcnow() + LOCAL_OFFSET).date()
+        start_local = datetime.combine(today_local, time.min) - timedelta(
+            days=days - 1
+        )
+        query = query.filter(CheckIn.timestamp >= start_local - LOCAL_OFFSET)
+
+    query = query.order_by(CheckIn.timestamp.desc())
+    if limit is not None:
+        query = query.limit(limit)
+    return query.all()

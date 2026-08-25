@@ -39,7 +39,7 @@ class ApiService {
   /// ถ้าตอนนี้เลย 4 ทุ่มไปแล้วก็เป็น 4 ทุ่มของวันพรุ่งนี้
   static DateTime nextSessionEnd([DateTime? from]) {
     // เลื่อนเป็นเวลาไทยก่อน แล้วค่อยเลื่อนกลับ — จะได้ไม่ขึ้นกับ timezone ของเครื่อง
-    final nowTh = (from ?? DateTime.now()).toUtc().add(Config.thaiUtcOffset);
+    final nowTh = Config.thaiNow(from);
     var endTh = DateTime.utc(
       nowTh.year,
       nowTh.month,
@@ -189,6 +189,34 @@ class ApiService {
         radiusKm: (data['radius_km'] as num).toDouble(),
       ),
     ];
+  }
+
+  /// ประวัติการลงเวลาของตัวเอง (JSON ดิบ — ให้ AttendanceService แปลงต่อ)
+  ///
+  /// [days] = ย้อนหลังกี่วันนับตามเวลาไทย, [limit] = จำกัดจำนวนรายการ
+  /// เซิร์ฟเวอร์รุ่นเก่าที่ยังไม่รู้จักพารามิเตอร์นี้จะส่งมาทั้งหมด
+  /// ไม่เป็นไร เพราะฝั่งแอปกรองเฉพาะวันที่ต้องการอยู่แล้ว
+  static Future<List<Map<String, dynamic>>> fetchMyCheckIns({
+    int days = 1,
+    int limit = 200,
+  }) async {
+    if (!await ensureSession()) {
+      throw const HttpException(Config.sessionExpiredMessage);
+    }
+
+    final uri = Uri.parse('${Config.apiBase}/checkins/me').replace(
+      queryParameters: {'days': '$days', 'limit': '$limit'},
+    );
+    final res = await http.get(uri, headers: _authHeaders).timeout(
+          _requestTimeout,
+        );
+    if (res.statusCode != 200) {
+      throw HttpException('โหลดประวัติการลงเวลาไม่สำเร็จ (${res.statusCode})');
+    }
+
+    final data = jsonDecode(res.body);
+    if (data is! List) return const [];
+    return data.whereType<Map<String, dynamic>>().toList(growable: false);
   }
 
   /// เช็คอิน/เช็คเอาต์ พร้อมแนบรูปใบหน้า

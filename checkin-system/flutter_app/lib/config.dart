@@ -43,6 +43,25 @@ class Config {
   static const int pingIntervalSeconds = 60;
 
   // ---------------------------------------------------------------
+  // การติดตามตำแหน่งตลอดเวลา (ตั้งแต่ล็อกอิน จนกว่าจะออกจากระบบ)
+  //
+  // อยู่บ้าน อยู่ออฟฟิศ หรือยังไม่ได้เช็คอิน ก็ส่งพิกัดเหมือนกันหมด
+  // ระบบต้องรู้ว่าคนที่ล็อกอินค้างไว้ตอนนี้อยู่ตรงไหน
+  // ---------------------------------------------------------------
+
+  /// ping ล่าสุดเก่ากว่านี้ = ถือว่าการติดตามสะดุด (ปิด GPS / เน็ตหลุด / ระบบฆ่าแอป)
+  static const Duration trackingStaleAfter = Duration(minutes: 5);
+
+  /// ยังไม่ได้สิทธิ์ "อนุญาตตลอดเวลา" ให้ทวงซ้ำทุกๆ เท่านี้ จนกว่าจะได้หรือออกจากระบบ
+  static const Duration locationPermissionNagInterval = Duration(minutes: 10);
+
+  /// รีเฟรชรายการลงเวลาของวันนี้อัตโนมัติ
+  static const Duration attendanceRefreshInterval = Duration(minutes: 2);
+
+  /// จังหวะเดินนาฬิกา "รวมเวลาทำงานวันนี้" บนหน้าจอ
+  static const Duration workedClockTick = Duration(seconds: 30);
+
+  // ---------------------------------------------------------------
   // หมดเวลาใช้งานประจำวัน — ทุกคนถูกเด้งออกจากระบบตอน 4 ทุ่ม (22:00 น.)
   // แล้วต้องล็อกอินใหม่ในวันถัดไป
   //
@@ -59,6 +78,15 @@ class Config {
   /// ข้อความที่ขึ้นบนหน้าล็อกอินเมื่อถูกเด้งออกเพราะหมดเวลาประจำวัน
   static const String sessionExpiredMessage =
       'หมดเวลาใช้งานประจำวัน (4 ทุ่ม) กรุณาเข้าสู่ระบบใหม่';
+
+  /// เวลาไทยตอนนี้ — ไม่ขึ้นกับ timezone ที่ตั้งไว้ในเครื่อง
+  /// (เครื่องที่ตั้งเวลาผิดจะได้ตัดวัน/นับชั่วโมงตรงกับฝั่งเซิร์ฟเวอร์)
+  static DateTime thaiNow([DateTime? from]) =>
+      (from ?? DateTime.now()).toUtc().add(thaiUtcOffset);
+
+  /// เวลาที่ backend ส่งมา (UTC) -> เวลาไทย
+  static DateTime toThai(DateTime timestamp) =>
+      timestamp.toUtc().add(thaiUtcOffset);
 }
 
 /// สถานที่ที่เช็คอินได้ 1 แห่ง

@@ -1,28 +1,136 @@
+import 'dart:io';
 import 'dart:math';
+
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 import '../config.dart';
 import 'api_service.dart';
+
+/// ระดับสิทธิ์ตำแหน่งที่แอปได้รับอยู่ตอนนี้
+enum LocationAccess {
+  /// ปิดบริการตำแหน่งไว้ทั้งเครื่อง — ขอสิทธิ์ไปก็ยังอ่านพิกัดไม่ได้
+  serviceOff,
+
+  /// ไม่อนุญาตให้เข้าถึงตำแหน่ง
+  denied,
+
+  /// ปฏิเสธถาวร (กด "ไม่อนุญาต" จนระบบไม่ถามอีก) ต้องไปเปิดเองในหน้าตั้งค่า
+  deniedForever,
+
+  /// อนุญาตเฉพาะตอนเปิดแอปอยู่ — ติดตามต่อเนื่องได้ไม่แน่นอน
+  whileInUse,
+
+  /// อนุญาตตลอดเวลา = ระดับที่ระบบนี้ต้องการ
+  always,
+}
+
+extension LocationAccessInfo on LocationAccess {
+  /// พอจะอ่านพิกัดได้ไหม (ยังไม่ถึงขั้น "ตลอดเวลา" ก็ยังส่ง ping ได้ตอนแอปเปิด)
+  bool get canTrack =>
+      this == LocationAccess.whileInUse || this == LocationAccess.always;
+
+  /// ติดตามได้ต่อเนื่องแม้ปิดหน้าจอ/สลับไปแอปอื่น
+  bool get isAlways => this == LocationAccess.always;
+
+  /// แก้ในแอปไม่ได้แล้ว ต้องพาผู้ใช้ไปหน้าตั้งค่าของระบบ
+  bool get needsSettings =>
+      this == LocationAccess.deniedForever || this == LocationAccess.whileInUse;
+
+  String get message {
+    switch (this) {
+      case LocationAccess.serviceOff:
+        return 'ปิดบริการตำแหน่ง (GPS) อยู่ กรุณาเปิดเพื่อให้ระบบติดตามการเข้างานได้';
+      case LocationAccess.denied:
+        return 'ยังไม่ได้อนุญาตให้เข้าถึงตำแหน่ง กรุณากดอนุญาต';
+      case LocationAccess.deniedForever:
+        return 'ปิดสิทธิ์ตำแหน่งไว้ถาวร กรุณาเปิดในหน้าตั้งค่าแอป';
+      case LocationAccess.whileInUse:
+        return 'อนุญาตเฉพาะตอนเปิดแอป — ต้องเปลี่ยนเป็น "อนุญาตตลอดเวลา" '
+            'ระบบจึงจะติดตามตำแหน่งได้จนกว่าจะออกจากระบบ';
+      case LocationAccess.always:
+        return 'อนุญาตตำแหน่งตลอดเวลาแล้ว';
+    }
+  }
+}
 
 class LocationService {
   static List<Office> _offices = Config.offices;
 
   static List<Office> get offices => List.unmodifiable(_offices);
 
-  /// ขอสิทธิ์และตรวจว่า GPS เปิดอยู่
-  static Future<bool> ensurePermission() async {
-    bool enabled = await Geolocator.isLocationServiceEnabled();
-    if (!enabled) return false;
+  /// ระดับสิทธิ์ตอนนี้ — อ่านอย่างเดียว ไม่เด้งป๊อปอัปขอสิทธิ์
+  static Future<LocationAccess> check() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return LocationAccess.serviceOff;
+    }
+    return _fromPermission(await Geolocator.checkPermission());
+  }
 
-    LocationPermission perm = await Geolocator.checkPermission();
+  /// ขอสิทธิ์ขั้นแรก (ระหว่างใช้แอป) — ต้องผ่านขั้นนี้ก่อนถึงจะขอ "ตลอดเวลา" ได้
+  static Future<LocationAccess> requestWhileInUse() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return LocationAccess.serviceOff;
+    }
+    var perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied) {
       perm = await Geolocator.requestPermission();
     }
-    if (perm == LocationPermission.denied ||
-        perm == LocationPermission.deniedForever) {
-      return false;
-    }
-    return true;
+    return _fromPermission(perm);
   }
+
+  /// ขอสิทธิ์ "อนุญาตตลอดเวลา" (background location)
+  ///
+  /// Android 11 ขึ้นไปเลือกตัวเลือกนี้จากป๊อปอัปตรงๆ ไม่ได้ ระบบบังคับให้ไป
+  /// กดเองในหน้าตั้งค่าแอป ถ้าขอแล้วยังไม่ได้ ให้ฝั่งหน้าจอพาไป openSettings()
+  static Future<LocationAccess> requestAlways() async {
+    final base = await requestWhileInUse();
+    if (!base.canTrack) return base;
+    if (base.isAlways) return base;
+
+    final status = await Permission.locationAlways.request();
+    if (status.isGranted) return LocationAccess.always;
+    return check();
+  }
+
+  /// ขอยกเว้นการประหยัดแบตให้แอปนี้ (Android)
+  ///
+  /// ไม่ขอก็ยังทำงานได้ แต่ระบบประหยัดแบตของเครื่องหลายรุ่นจะฆ่า service
+  /// เบื้องหลังทิ้ง ทำให้พิกัดขาดหายเป็นช่วงๆ — ล้มเหลวได้ ไม่ต้องบล็อกอะไร
+  static Future<void> requestBatteryExemption() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final status = await Permission.ignoreBatteryOptimizations.status;
+      if (status.isGranted) return;
+      await Permission.ignoreBatteryOptimizations.request();
+    } catch (_) {
+      // เครื่องบางรุ่นไม่มีหน้านี้ — ข้ามไป
+    }
+  }
+
+  /// หน้าตั้งค่าสิทธิ์ของแอป (ไว้ให้ผู้ใช้เลือก "อนุญาตตลอดเวลา" เอง)
+  static Future<void> openSettings() => openAppSettings();
+
+  /// หน้าตั้งค่าบริการตำแหน่งของเครื่อง (ไว้เปิด GPS)
+  static Future<void> openLocationSettings() => Geolocator.openLocationSettings();
+
+  static LocationAccess _fromPermission(LocationPermission perm) {
+    switch (perm) {
+      case LocationPermission.always:
+        return LocationAccess.always;
+      case LocationPermission.whileInUse:
+        return LocationAccess.whileInUse;
+      case LocationPermission.deniedForever:
+        return LocationAccess.deniedForever;
+      case LocationPermission.denied:
+      case LocationPermission.unableToDetermine:
+        return LocationAccess.denied;
+    }
+  }
+
+  /// ของเดิม — ยังมีโค้ดส่วนอื่นเรียกใช้อยู่: อ่านพิกัดได้หรือยัง
+  static Future<bool> ensurePermission() async =>
+      (await requestWhileInUse()).canTrack;
 
   static Future<Position> current() {
     return Geolocator.getCurrentPosition(

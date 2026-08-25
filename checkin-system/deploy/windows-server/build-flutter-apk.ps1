@@ -69,7 +69,11 @@ try {
             "android.permission.ACCESS_BACKGROUND_LOCATION",
             "android.permission.FOREGROUND_SERVICE",
             "android.permission.FOREGROUND_SERVICE_LOCATION",
-            "android.permission.POST_NOTIFICATIONS"
+            "android.permission.POST_NOTIFICATIONS",
+            # ติดตามตำแหน่งจนกว่าจะออกจากระบบ: กันโหมดประหยัดแบตฆ่า service ทิ้ง
+            # และกลับมาส่งพิกัดต่อเองหลังเปิดเครื่อง
+            "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+            "android.permission.RECEIVE_BOOT_COMPLETED"
         )
         $missing = $perms | Where-Object { $xml -notmatch [regex]::Escape($_) }
         if ($missing) {

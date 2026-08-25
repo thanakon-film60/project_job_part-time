@@ -60,6 +60,8 @@ port, and a PWA install path so employees on both Android and iOS get the same b
 | **Multi-site geofencing** | Haversine distance against a configurable list of offices; if the user is inside more than one radius, the **nearest** one wins and its name is stored on the record |
 | **Face liveness gate** | Google ML Kit face detection on device; a check-in is rejected if no live face is present |
 | **Continuous location pings** | Flutter background service reports coordinates every 60s to `POST /locations/ping`, so presence is a time series, not a single point |
+| **Tracking from login to logout** | Tracking starts the moment a session opens — before any clock-in, inside the geofence or at home — and stops only on logout or the 22:00 session cut-off. The app escalates to Android's *Allow all the time* location grant and keeps re-asking every 10 minutes until it gets it |
+| **Today's timesheet on the phone** | The employee's own home screen lists every clock-in/out of the current Thai day with place and distance, plus first-in, last-out, and a live running total of hours worked |
 | **Role-separated auth** | JWT (bcrypt-hashed passwords); manager-only endpoints for employee lists, calendar reports, and other employees' face records |
 | **Manager calendar** | React + Ant Design monthly grid of in/out times and in-geofence status per employee |
 | **Face enrollment gallery** | Webcam capture stored as a per-employee reference history, streamed back only to the owner or a manager |
@@ -151,7 +153,7 @@ are in [`checkin-system/README.md`](checkin-system/README.md).
 |---|---|---|
 | `POST` | `/auth/register` · `/auth/login` | Registration and JWT issue |
 | `POST` | `/checkins` | Clock in/out — validates geofence + face, stores photo |
-| `GET` | `/checkins/me` | Own attendance history |
+| `GET` | `/checkins/me` | Own attendance history — optional `days` / `limit` (the app asks for `days=1` to render today's list) |
 | `POST` | `/faces/enroll` | Enroll a reference face photo |
 | `GET` | `/faces/employee/{id}` · `/faces/{id}/photo` | Face history (owner or manager only) |
 | `POST` | `/locations/ping` | Continuous GPS reporting |
