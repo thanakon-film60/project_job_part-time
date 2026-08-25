@@ -61,6 +61,8 @@ port, and a PWA install path so employees on both Android and iOS get the same b
 | **Face liveness gate** | Google ML Kit face detection on device; a check-in is rejected if no live face is present |
 | **Continuous location pings** | Flutter background service reports coordinates every 60s to `POST /locations/ping`, so presence is a time series, not a single point |
 | **Tracking from login to logout** | Tracking starts the moment a session opens — before any clock-in, inside the geofence or at home — and stops only on logout or the 22:00 session cut-off. The app escalates to Android's *Allow all the time* location grant and keeps re-asking every 10 minutes until it gets it |
+| **Home is not work** | Locations tagged `home` never open a work session: the app offers a single "arrived home" record instead of clock-in/clock-out, those records are excluded from worked hours, and such days are never flagged as a missing check-out. The LINE alert and the daily summary follow the same rule |
+| **Sidebar shell** | The mobile app is a drawer + tab shell: a drawer on phones that pins itself beside the content at ≥900 dp. Adding a screen is one `AppTab` entry in a single registry file; app-wide concerns (tracking, session cut-off) live in the shell, not the tabs |
 | **Today's timesheet on the phone** | The employee's own home screen lists every clock-in/out of the current Thai day with place and distance, plus first-in, last-out, and a live running total of hours worked |
 | **Role-separated auth** | JWT (bcrypt-hashed passwords); manager-only endpoints for employee lists, calendar reports, and other employees' face records |
 | **Manager calendar** | React + Ant Design monthly grid of in/out times and in-geofence status per employee |

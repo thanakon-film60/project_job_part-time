@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
-import 'home_screen.dart';
+import 'app_shell.dart';
 
 class LoginScreen extends StatefulWidget {
   /// ข้อความบอกสาเหตุที่ถูกพากลับมาหน้านี้ (เช่น หมดเวลาใช้งานประจำวัน)
@@ -28,7 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = false);
     if (ok) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        MaterialPageRoute(builder: (_) => const AppShell()),
       );
     } else {
       setState(() => _error = 'รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง');

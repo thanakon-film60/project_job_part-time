@@ -22,15 +22,26 @@ class Config {
   // ---------------------------------------------------------------
   static const List<Office> offices = [
     Office(
-        name: "MARDODI", lat: 13.9231953, lng: 100.5195808, radiusKm: 2.0),
+      name: "MARDODI",
+      lat: 13.9231953,
+      lng: 100.5195808,
+      radiusKm: 2.0,
+      category: "work",
+    ),
     Office(
-        name: "BJH Bangkok", lat: 13.8918358, lng: 100.563443, radiusKm: 1.0),
+      name: "BJH Bangkok",
+      lat: 13.8918358,
+      lng: 100.563443,
+      radiusKm: 1.0,
+      category: "hospital",
+    ),
     Office(
       name: "ถึงบ้านแล้ว",
       lat: 13.8865664,
       lng: 100.5066278,
       radiusKm: 0.2,
       allowCheckout: false,
+      category: "home",
     ),
   ];
 
@@ -97,13 +108,33 @@ class Office {
   final double radiusKm;
   final bool allowCheckout;
 
+  /// หมวดของสถานที่จาก backend: work / hospital / home
+  final String? category;
+
   const Office({
     required this.name,
     required this.lat,
     required this.lng,
     required this.radiusKm,
     this.allowCheckout = true,
+    this.category,
   });
+
+  /// ที่นี่คือ "บ้าน" — อยู่บ้าน = ไม่ได้ไปทำงาน จึงไม่มีเข้างาน/ออกงาน
+  bool get isHome => isHomeLabel(category) || isHomeLabel(name);
+
+  /// ที่ที่นับเป็นการมาทำงานจริง (ใช้ตัดสินทั้งเข้างานและออกงาน)
+  bool get isWorkplace => allowCheckout && !isHome;
+
+  /// ข้อความนี้หมายถึงบ้านหรือไม่ — ตรรกะเดียวกับ backend (geofence.py)
+  /// ใช้กับทั้ง category และชื่อสถานที่ เพราะ config เก่าบางชุดไม่มี category
+  static bool isHomeLabel(String? value) {
+    final text = (value ?? '').trim().toLowerCase();
+    if (text.isEmpty) return false;
+    return text.contains('บ้าน') ||
+        text.contains('home') ||
+        text.contains('house');
+  }
 
   factory Office.fromJson(Map<String, dynamic> json) {
     return Office(
@@ -114,6 +145,7 @@ class Office {
       allowCheckout: json['allow_checkout'] is bool
           ? json['allow_checkout'] as bool
           : true,
+      category: json['category']?.toString(),
     );
   }
 }

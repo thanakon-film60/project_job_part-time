@@ -19,6 +19,7 @@ from ..database import get_db
 from ..geofence import (
     describe_offices,
     evaluate_location,
+    location_category,
     location_category_label,
     office_by_name,
 )
@@ -61,9 +62,21 @@ def notify_checkin(emp: Employee, record: CheckIn, office: dict | None = None) -
         office_info = office or office_by_name(record.office_name)
         category_label = location_category_label(office_info)
         office_name = record.office_name or (office_info or {}).get("name") or "-"
+
+        # อยู่บ้าน = ไม่ได้ไปทำงาน การลงเวลาที่บ้านจึงเป็นแค่ "กลับถึงบ้านแล้ว"
+        # ไม่ใช่การเข้างาน และไม่ต้องมีออกงานตามมา
+        if location_category(office_info) == "home":
+            headline = f"{_employee_display_name(emp)} กลับถึงบ้านแล้ว ({time_text})"
+            note = "ไม่นับเป็นการเข้างาน (อยู่บ้าน = ไม่ได้ไปทำงาน)"
+        else:
+            headline = (
+                f"{_employee_display_name(emp)} ได้ทำการ{action}แล้ว ({time_text})"
+            )
+            note = f"ประเภทสถานที่: {category_label}"
+
         push_text(
-            f"{_employee_display_name(emp)} ได้ทำการ{action}แล้ว ({time_text})\n"
-            f"ประเภทสถานที่: {category_label}\n"
+            f"{headline}\n"
+            f"{note}\n"
             f"สถานที่ใกล้สุด: {office_name}\n"
             f"ระยะห่างจาก{category_label}: {distance_text}"
         )

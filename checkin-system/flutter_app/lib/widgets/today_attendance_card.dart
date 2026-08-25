@@ -103,12 +103,16 @@ class _Summary extends StatelessWidget {
     final lastOut = attendance.lastCheckOut;
     final worked = attendance.workedAt();
     final working = attendance.isWorking;
+    // อยู่บ้าน = ไม่ได้ไปทำงาน จึงไม่มีเวลาทำงานและไม่ต้องรอออกงาน
+    final homeOnly = attendance.isHomeOnly;
+    final accent =
+        homeOnly ? Colors.indigo : (working ? Colors.green : Colors.blueGrey);
 
     return Container(
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(right: 8),
       decoration: BoxDecoration(
-        color: (working ? Colors.green : Colors.blueGrey).withValues(alpha: 0.1),
+        color: accent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -117,17 +121,25 @@ class _Summary extends StatelessWidget {
           Row(
             children: [
               Icon(
-                working ? Icons.play_circle_fill : Icons.pause_circle_filled,
-                color: working ? Colors.green : Colors.blueGrey,
+                homeOnly
+                    ? Icons.home
+                    : (working
+                        ? Icons.play_circle_fill
+                        : Icons.pause_circle_filled),
+                color: accent,
                 size: 20,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  working ? 'กำลังทำงานอยู่' : 'ยังไม่ได้เริ่มงาน / ออกงานแล้ว',
+                  homeOnly
+                      ? 'อยู่บ้าน — ไม่ได้ไปทำงาน'
+                      : (working
+                          ? 'กำลังทำงานอยู่'
+                          : 'ยังไม่ได้เริ่มงาน / ออกงานแล้ว'),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: working ? Colors.green.shade800 : Colors.blueGrey,
+                    color: homeOnly ? Colors.indigo : accent,
                   ),
                 ),
               ),
@@ -153,7 +165,9 @@ class _Summary extends StatelessWidget {
               Expanded(
                 child: _Stat(
                   label: 'รวมเวลาทำงาน',
-                  value: attendance.isEmpty ? '-' : humanDuration(worked),
+                  value: (attendance.isEmpty || homeOnly)
+                      ? '-'
+                      : humanDuration(worked),
                 ),
               ),
             ],
@@ -194,7 +208,9 @@ class _RecordTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIn = record.isCheckIn;
-    final color = isIn ? Colors.green : Colors.deepOrange;
+    final atHome = record.atHome;
+    final color =
+        atHome ? Colors.indigo : (isIn ? Colors.green : Colors.deepOrange);
     final place = (record.officeName ?? '').trim();
     final distance = record.distanceKm < 1
         ? '${(record.distanceKm * 1000).toStringAsFixed(0)} ม.'
@@ -207,10 +223,15 @@ class _RecordTile extends StatelessWidget {
       leading: CircleAvatar(
         radius: 18,
         backgroundColor: color.withValues(alpha: 0.15),
-        child: Icon(isIn ? Icons.login : Icons.logout, color: color, size: 18),
+        child: Icon(
+          atHome ? Icons.home : (isIn ? Icons.login : Icons.logout),
+          color: color,
+          size: 18,
+        ),
       ),
       title: Text(
-        '${isIn ? 'เข้างาน' : 'ออกงาน'} ${thaiClock(record.timestamp)} น.',
+        '${atHome ? 'ถึงบ้านแล้ว' : (isIn ? 'เข้างาน' : 'ออกงาน')} '
+        '${thaiClock(record.timestamp)} น.',
         style: TextStyle(fontWeight: FontWeight.bold, color: color),
       ),
       subtitle: Text(

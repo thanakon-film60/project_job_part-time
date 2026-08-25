@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'config.dart';
 import 'services/api_service.dart';
 import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
+import 'screens/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +23,7 @@ class ThanakonBoxApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: ApiService.isLoggedIn
-          ? const HomeScreen()
+          ? const AppShell()
           : LoginScreen(
               notice: ApiService.sessionExpiredOnStart
                   ? Config.sessionExpiredMessage

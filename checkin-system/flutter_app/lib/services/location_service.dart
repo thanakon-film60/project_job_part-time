@@ -180,7 +180,7 @@ class LocationService {
     bool bestInside = false;
 
     final offices =
-        workOnly ? _offices.where((office) => office.allowCheckout) : _offices;
+        workOnly ? _offices.where((office) => office.isWorkplace) : _offices;
     for (final o in offices) {
       final d = _haversineKm(lat, lng, o.lat, o.lng);
       final inside = d <= o.radiusKm;
@@ -198,6 +198,37 @@ class LocationService {
       throw StateError('ยังไม่ได้กำหนดสถานที่ทำงานสำหรับการออกงาน');
     }
     return (best, bestDist, bestInside);
+  }
+
+  /// ระยะระหว่างสองพิกัด (กม.) — ให้หน้าจออื่นเรียกใช้ได้ เช่น รายการสถานที่
+  static double distanceBetweenKm(
+    double lat1,
+    double lng1,
+    double lat2,
+    double lng2,
+  ) =>
+      _haversineKm(lat1, lng1, lat2, lng2);
+
+  /// ตอนนี้อยู่ในเขต "บ้าน" หรือไม่
+  ///
+  /// อยู่บ้าน = ไม่ได้ไปทำงาน จึงไม่ต้องมีเข้างาน/ออกงาน — ดู README หัวข้อ "อยู่บ้าน"
+  static bool insideHome(double lat, double lng) => _offices.any(
+        (office) =>
+            office.isHome &&
+            _haversineKm(lat, lng, office.lat, office.lng) <= office.radiusKm,
+      );
+
+  /// ชื่อสถานที่ที่บันทึกไว้ในประวัติ เป็น "บ้าน" หรือไม่
+  ///
+  /// ประวัติเก็บแค่ชื่อ จึงเทียบกับรายการสถานที่ก่อน (ได้ category ที่ถูกต้อง)
+  /// ถ้าไม่เจอ (สถานที่ถูกลบ/เปลี่ยนชื่อไปแล้ว) ค่อยเดาจากชื่อ
+  static bool isHomeName(String? officeName) {
+    final target = (officeName ?? '').trim();
+    if (target.isEmpty) return false;
+    for (final office in _offices) {
+      if (office.name.trim() == target) return office.isHome;
+    }
+    return Office.isHomeLabel(target);
   }
 
   /// ระยะจากสถานที่ที่ใกล้ที่สุด (กม.)

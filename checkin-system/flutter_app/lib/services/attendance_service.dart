@@ -1,5 +1,6 @@
 import '../config.dart';
 import 'api_service.dart';
+import 'location_service.dart';
 
 /// การลงเวลา 1 ครั้ง (เข้างานหรือออกงาน) ที่ backend บันทึกไว้
 class CheckInRecord {
@@ -20,6 +21,10 @@ class CheckInRecord {
   });
 
   bool get isCheckIn => kind == 'in';
+
+  /// ลงเวลาไว้ที่ "บ้าน" — เป็นแค่การบันทึกว่าถึงบ้านแล้ว ไม่ใช่การมาทำงาน
+  /// จึงไม่จับคู่เป็นช่วงเวลาทำงาน และไม่ต้องมีออกงาน
+  bool get atHome => LocationService.isHomeName(officeName);
 
   /// เวลาไทยของรายการนี้ (ใช้ทั้งตอนตัดวันและตอนแสดงผล)
   DateTime get thaiTime => Config.toThai(timestamp);
@@ -63,7 +68,7 @@ class DayAttendance {
   /// วันที่ของสรุปก้อนนี้ตามเวลาไทย (เที่ยงคืนตรง)
   final DateTime day;
 
-  /// รายการลงเวลาทั้งหมดของวันนั้น เรียงจากเช้าไปเย็น
+  /// รายการลงเวลาทั้งหมดของวันนั้น เรียงจากเช้าไปเย็น (รวมรายการที่บ้านด้วย)
   final List<CheckInRecord> records;
 
   /// ช่วงเวลาทำงานที่จับคู่เข้า-ออกแล้ว
@@ -77,22 +82,41 @@ class DayAttendance {
 
   bool get isEmpty => records.isEmpty;
 
+  /// รายการที่บันทึกไว้ที่บ้าน (ไม่นับเป็นเวลาทำงาน)
+  List<CheckInRecord> get homeRecords =>
+      records.where((record) => record.atHome).toList(growable: false);
+
+  /// รายการที่นับเป็นการทำงานจริง
+  List<CheckInRecord> get workRecords =>
+      records.where((record) => !record.atHome).toList(growable: false);
+
+  /// วันนี้มีแต่การบันทึกที่บ้าน = อยู่บ้าน ไม่ได้ไปทำงาน
+  bool get isHomeOnly => records.isNotEmpty && workRecords.isEmpty;
+
   /// กดเข้างานแล้วแต่ยังไม่ได้กดออกงาน
   bool get isWorking => sessions.any((session) => session.isOpen);
 
   CheckInRecord? get firstCheckIn {
-    for (final record in records) {
+    for (final record in workRecords) {
       if (record.isCheckIn) return record;
     }
     return null;
   }
 
   CheckInRecord? get lastCheckOut {
-    for (final record in records.reversed) {
+    for (final record in workRecords.reversed) {
       if (!record.isCheckIn) return record;
     }
     return null;
   }
+
+  /// รวมเวลาเฉพาะช่วงที่กดออกงานแล้ว
+  ///
+  /// ใช้กับวันย้อนหลัง: ถ้าวันนั้นลืมกดออกงาน การนับถึง "ตอนนี้" จะได้เลข
+  /// เพี้ยนเป็นร้อยชั่วโมง หน้าประวัติจึงใช้ค่านี้แล้วติดป้ายเตือนแทน
+  Duration get workedClosed => sessions
+      .where((session) => !session.isOpen)
+      .fold(Duration.zero, (total, session) => total + session.durationAt());
 
   /// รวมเวลาทำงานถึงตอนนี้ — ช่วงที่ยังไม่ปิดจะนับถึง [now] (ปกติคือ DateTime.now())
   Duration workedAt([DateTime? now]) {
@@ -105,12 +129,15 @@ class DayAttendance {
 
   /// จับคู่เข้า-ออกจากรายการลงเวลาดิบ
   ///
+  /// นับเฉพาะรายการที่ "ไปทำงานจริง" — รายการที่บ้านถูกกรองออกตั้งแต่ต้น
+  /// เพราะอยู่บ้านคือไม่ได้ไปทำงาน ไม่มีออกงานให้จับคู่
+  ///
   /// เผื่อกรณีที่เกิดขึ้นจริง: กดเข้างานซ้ำสองครั้ง (ยึดครั้งแรก) หรือ
   /// มีออกงานโดยไม่มีเข้างานคู่กัน (ข้ามไป แต่ยังโชว์ในรายการ)
   static List<WorkSession> _pair(List<CheckInRecord> records) {
     final sessions = <WorkSession>[];
     CheckInRecord? openedAt;
-    for (final record in records) {
+    for (final record in records.where((record) => !record.atHome)) {
       if (record.isCheckIn) {
         openedAt ??= record;
         continue;
@@ -144,12 +171,35 @@ class DayAttendance {
 class AttendanceService {
   /// รายการลงเวลาของ "วันนี้" ตามเวลาไทย
   static Future<DayAttendance> today() async {
-    final raw = await ApiService.fetchMyCheckIns();
-    final records = raw
+    return DayAttendance.forDay(Config.thaiNow(), await _fetch(days: 1));
+  }
+
+  /// ย้อนหลังหลายวัน — จัดกลุ่มเป็นรายวัน เรียงวันใหม่สุดขึ้นก่อน
+  /// วันที่ไม่มีการลงเวลาเลยจะไม่อยู่ในรายการ
+  static Future<List<DayAttendance>> recentDays({int days = 30}) async {
+    final records = await _fetch(days: days, limit: 500);
+
+    final thaiDays = <DateTime>{};
+    for (final record in records) {
+      final thai = record.thaiTime;
+      thaiDays.add(DateTime(thai.year, thai.month, thai.day));
+    }
+
+    final sorted = thaiDays.toList()..sort((a, b) => b.compareTo(a));
+    return sorted
+        .map((day) => DayAttendance.forDay(day, records))
+        .toList(growable: false);
+  }
+
+  static Future<List<CheckInRecord>> _fetch({
+    required int days,
+    int limit = 200,
+  }) async {
+    final raw = await ApiService.fetchMyCheckIns(days: days, limit: limit);
+    return raw
         .map(CheckInRecord.fromJson)
         .whereType<CheckInRecord>()
         .toList(growable: false);
-    return DayAttendance.forDay(Config.thaiNow(), records);
   }
 }
 

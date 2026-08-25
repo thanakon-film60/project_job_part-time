@@ -80,13 +80,18 @@ void main() {
   // เวลาที่ใช้ทดสอบเป็น UTC ล้วน — ผลลัพธ์จึงไม่ขึ้นกับ timezone ของเครื่องที่รัน test
   // 24 ส.ค. 01:00 UTC = 08:00 น. เวลาไทยของวันที่ 24
   // -----------------------------------------------------------------
-  CheckInRecord record(String kind, DateTime utc) => CheckInRecord(
+  CheckInRecord record(
+    String kind,
+    DateTime utc, {
+    String office = 'MARDODI',
+  }) =>
+      CheckInRecord(
         id: utc.millisecondsSinceEpoch,
         kind: kind,
         timestamp: utc,
         distanceKm: 0.1,
         withinGeofence: true,
-        officeName: 'MARDODI',
+        officeName: office,
       );
 
   test('today list keeps only records of the same Thai day', () {
@@ -159,5 +164,69 @@ void main() {
     expect(humanDuration(const Duration(minutes: 45)), '45 นาที');
     expect(humanDuration(const Duration(hours: 3, minutes: 5)), '3 ชม. 05 น.');
     expect(humanDuration(const Duration(seconds: -30)), '0 นาที');
+  });
+
+  test('a past day that never checked out only counts closed sessions', () {
+    // ลืมกดออกงานเมื่อวาน — หน้าประวัติต้องไม่นับเวลาถึง "ตอนนี้"
+    final day = DateTime.utc(2026, 8, 24, 3);
+    final attendance = DayAttendance.forDay(Config.toThai(day), [
+      record('in', DateTime.utc(2026, 8, 24, 1)), // 08:00 น.
+      record('out', DateTime.utc(2026, 8, 24, 5)), // 12:00 น.
+      record('in', DateTime.utc(2026, 8, 24, 6)), // 13:00 น. แล้วไม่ได้กดออก
+    ]);
+
+    expect(attendance.isWorking, isTrue);
+    expect(attendance.workedClosed, const Duration(hours: 4));
+    // ถ้าเผลอใช้ workedAt กับวันย้อนหลัง จะได้ตัวเลขบานเพราะนับถึงปัจจุบัน
+    expect(attendance.workedAt(), greaterThan(attendance.workedClosed));
+  });
+
+  // -----------------------------------------------------------------
+  // อยู่บ้าน = ไม่ได้ไปทำงาน — ไม่มีออกงาน และไม่นับเป็นเวลาทำงาน
+  // -----------------------------------------------------------------
+  test('a home record is not a work session and needs no check-out', () {
+    final now = DateTime.utc(2026, 8, 25, 12); // 19:00 น.
+    final attendance = DayAttendance.forDay(Config.toThai(now), [
+      record('in', DateTime.utc(2026, 8, 25, 10), office: 'ถึงบ้านแล้ว'),
+    ]);
+
+    expect(attendance.records.length, 1);
+    expect(attendance.homeRecords.length, 1);
+    expect(attendance.workRecords, isEmpty);
+    expect(attendance.isHomeOnly, isTrue);
+    // ไม่มีช่วงเวลาทำงานค้าง = ไม่ต้องรอกดออกงาน และไม่มีชั่วโมงทำงาน
+    expect(attendance.sessions, isEmpty);
+    expect(attendance.isWorking, isFalse);
+    expect(attendance.workedAt(now), Duration.zero);
+  });
+
+  test('going home after work does not extend the working hours', () {
+    final now = DateTime.utc(2026, 8, 25, 12);
+    final attendance = DayAttendance.forDay(Config.toThai(now), [
+      record('in', DateTime.utc(2026, 8, 25, 1)), // เข้างาน 08:00 น.
+      record('out', DateTime.utc(2026, 8, 25, 9)), // ออกงาน 16:00 น.
+      record('in', DateTime.utc(2026, 8, 25, 10), office: 'ถึงบ้านแล้ว'),
+    ]);
+
+    expect(attendance.isHomeOnly, isFalse);
+    expect(attendance.sessions.length, 1);
+    expect(attendance.isWorking, isFalse); // การถึงบ้านไม่เปิดช่วงงานใหม่
+    expect(attendance.workedAt(now), const Duration(hours: 8));
+    expect(thaiClock(attendance.lastCheckOut!.timestamp), '16:00');
+  });
+
+  test('home locations are excluded from the check-out geofence', () {
+    final (office, _, within) = LocationService.nearestOffice(
+      13.8865664,
+      100.5066278,
+      workOnly: true,
+    );
+
+    expect(office.isHome, isFalse);
+    expect(office.isWorkplace, isTrue);
+    expect(within, isFalse);
+    expect(LocationService.insideHome(13.8865664, 100.5066278), isTrue);
+    expect(LocationService.isHomeName('ถึงบ้านแล้ว'), isTrue);
+    expect(LocationService.isHomeName('MARDODI'), isFalse);
   });
 }
