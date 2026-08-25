@@ -75,6 +75,9 @@ export const getCalendar = (employeeId, year, month) =>
 export const getTeamCalendar = (year, month) =>
   req(`/reports/team-calendar?year=${year}&month=${month}`);
 
+// ===== checkins =====
+export const getMyCheckins = () => req("/checkins/me");
+
 // ===== locations (แผนที่ติดตามพนักงาน — เฉพาะหัวหน้า) =====
 export const getLiveLocations = () => req("/locations/live");
 export const getLocationTrail = (employeeId, hours = 6) =>

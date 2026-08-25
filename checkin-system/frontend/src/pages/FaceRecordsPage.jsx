@@ -1,19 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Card,
-  Row,
-  Col,
-  Input,
-  Button,
-  Select,
-  Typography,
-  Empty,
-  Image,
-  Spin,
-  Alert,
-  App,
-} from "antd";
-import { CameraOutlined } from "@ant-design/icons";
+import { toast } from "sonner";
+import { Camera, TriangleAlert } from "lucide-react";
 import {
   getEmployee,
   getEmployees,
@@ -23,55 +10,65 @@ import {
   fetchFacePhoto,
 } from "../api";
 import AppLayout from "../components/AppLayout.jsx";
-
-const { Text, Title } = Typography;
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ImagePreview } from "@/components/ui/image-preview";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function FaceThumb({ recordId, note, createdAt }) {
   const [url, setUrl] = useState(null);
+
   useEffect(() => {
     let alive = true;
+    let objectUrl = "";
     fetchFacePhoto(recordId)
-      .then((u) => alive && setUrl(u))
+      .then((u) => {
+        objectUrl = u;
+        if (alive) setUrl(u);
+        else URL.revokeObjectURL(u);
+      })
       .catch(() => {});
     return () => {
       alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [recordId]);
 
   return (
-    <Card
-      size="small"
-      cover={
-        url ? (
-          <Image src={url} height={150} style={{ objectFit: "cover" }} />
-        ) : (
-          <div
-            style={{
-              height: 150,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "#f0f0f0",
-            }}
-          >
-            <Spin />
-          </div>
-        )
-      }
-    >
-      <Text style={{ fontSize: 12 }} type="secondary">
-        {new Date(createdAt).toLocaleString("th-TH")}
-      </Text>
-      {note && (
-        <div style={{ fontSize: 12 }}>{note}</div>
+    <Card className="gap-0 overflow-hidden py-0">
+      {url ? (
+        <ImagePreview
+          src={url}
+          alt={note || "รูปใบหน้าที่บันทึกไว้"}
+          wrapperClassName="aspect-square rounded-none"
+          className="size-full"
+        />
+      ) : (
+        <Skeleton className="aspect-square rounded-none" />
       )}
+      <div className="space-y-0.5 p-2">
+        <p className="text-muted-foreground text-[11px]">
+          {new Date(createdAt).toLocaleString("th-TH")}
+        </p>
+        {note && <p className="truncate text-xs">{note}</p>}
+      </div>
     </Card>
   );
 }
 
 export default function FaceRecordsPage() {
   const me = getEmployee();
-  const { message } = App.useApp();
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -97,7 +94,7 @@ export default function FaceRecordsPage() {
         }
       } catch {
         setCamError(
-          "เปิดกล้องไม่ได้ — ต้องรันผ่าน HTTPS และอนุญาตสิทธิ์กล้องของเบราว์เซอร์"
+          "เปิดกล้องไม่ได้ — ต้องรันผ่าน HTTPS และอนุญาตสิทธิ์กล้องของเบราว์เซอร์",
         );
       }
     }
@@ -111,12 +108,10 @@ export default function FaceRecordsPage() {
 
   async function loadRecords(id) {
     try {
-      const data = me?.is_manager
-        ? await getEmployeeFaces(id)
-        : await getMyFaces();
+      const data = me?.is_manager ? await getEmployeeFaces(id) : await getMyFaces();
       setRecords(data);
     } catch (e) {
-      message.error(String(e.message));
+      toast.error(String(e.message));
     }
   }
 
@@ -132,16 +127,14 @@ export default function FaceRecordsPage() {
     canvas.width = v.videoWidth;
     canvas.height = v.videoHeight;
     canvas.getContext("2d").drawImage(v, 0, 0);
-    const blob = await new Promise((res) =>
-      canvas.toBlob(res, "image/jpeg", 0.9)
-    );
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.9));
     try {
       await enrollFace(blob, note);
       setNote("");
-      message.success("บันทึกใบหน้าเข้าประวัติแล้ว");
+      toast.success("บันทึกใบหน้าเข้าประวัติแล้ว");
       if (!me?.is_manager || viewId === me?.id) loadRecords(me.id);
     } catch (e) {
-      message.error(String(e.message));
+      toast.error(String(e.message));
     } finally {
       setSaving(false);
     }
@@ -149,84 +142,89 @@ export default function FaceRecordsPage() {
 
   return (
     <AppLayout>
-      <Title level={4}>ประวัติใบหน้า (บันทึก/ตรวจสอบ)</Title>
+      <div className="space-y-4">
+        <div className="hidden lg:block">
+          <h2 className="text-2xl font-bold">ประวัติใบหน้า</h2>
+          <p className="text-muted-foreground text-sm">บันทึกและตรวจสอบรูปยืนยันตัวตน</p>
+        </div>
 
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={12}>
+        <Card>
+          <CardContent className="grid gap-4 md:grid-cols-2 md:items-center md:gap-6">
             {camError ? (
-              <Alert type="warning" message={camError} showIcon />
+              <Alert variant="warning">
+                <TriangleAlert />
+                <AlertTitle>เปิดกล้องไม่ได้</AlertTitle>
+                <AlertDescription>{camError}</AlertDescription>
+              </Alert>
             ) : (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="mirror-video"
-              />
+              <video ref={videoRef} autoPlay playsInline muted className="mirror-video" />
             )}
-          </Col>
-          <Col xs={24} md={12}>
-            <Text>
-              บันทึกใบหน้าของ <Text strong>{me?.full_name}</Text> เข้าประวัติ
-            </Text>
-            <Input
-              placeholder="หมายเหตุ (เช่น มุมหน้าตรง / ใส่แว่น)"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              style={{ margin: "12px 0" }}
-            />
-            <Button
-              type="primary"
-              icon={<CameraOutlined />}
-              onClick={capture}
-              loading={saving}
-              disabled={!ready}
-              block
-            >
-              ถ่าย &amp; บันทึกใบหน้า
-            </Button>
-          </Col>
-        </Row>
-      </Card>
 
-      <Row justify="space-between" align="middle" style={{ marginBottom: 12 }}>
-        <Col>
-          <Title level={5} style={{ margin: 0 }}>
-            รายการที่บันทึกไว้
-          </Title>
-        </Col>
-        {me?.is_manager && (
-          <Col>
-            <Text type="secondary">ดูของพนักงาน: </Text>
-            <Select
-              value={viewId}
-              style={{ minWidth: 200 }}
-              onChange={setViewId}
-              options={employees.map((e) => ({
-                value: e.id,
-                label: `${e.full_name} (${e.employee_code})`,
-              }))}
-            />
-          </Col>
+            <div className="space-y-3">
+              <p className="text-sm">
+                บันทึกใบหน้าของ <strong>{me?.full_name}</strong> เข้าประวัติ
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="face-note">หมายเหตุ</Label>
+                <Input
+                  id="face-note"
+                  placeholder="เช่น มุมหน้าตรง / ใส่แว่น"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+              </div>
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={capture}
+                loading={saving}
+                disabled={!ready}
+              >
+                <Camera />
+                ถ่าย &amp; บันทึกใบหน้า
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-base font-semibold">รายการที่บันทึกไว้</h3>
+          {me?.is_manager && (
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-muted-foreground shrink-0 text-sm">ดูของพนักงาน:</span>
+              <Select
+                value={viewId != null ? String(viewId) : undefined}
+                onValueChange={(v) => setViewId(Number(v))}
+              >
+                <SelectTrigger className="w-[min(60vw,240px)]">
+                  <SelectValue placeholder="เลือกพนักงาน" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>
+                      {e.full_name} ({e.employee_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        {records.length === 0 ? (
+          <Card>
+            <CardContent>
+              <EmptyState title="ยังไม่มีข้อมูลใบหน้า" description="กดถ่ายรูปด้านบนเพื่อเริ่มบันทึก" />
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {records.map((r) => (
+              <FaceThumb key={r.id} recordId={r.id} note={r.note} createdAt={r.created_at} />
+            ))}
+          </div>
         )}
-      </Row>
-
-      {records.length === 0 ? (
-        <Empty description="ยังไม่มีข้อมูลใบหน้า" />
-      ) : (
-        <Row gutter={[12, 12]}>
-          {records.map((r) => (
-            <Col key={r.id} xs={12} sm={8} md={6} lg={4}>
-              <FaceThumb
-                recordId={r.id}
-                note={r.note}
-                createdAt={r.created_at}
-              />
-            </Col>
-          ))}
-        </Row>
-      )}
+      </div>
     </AppLayout>
   );
 }

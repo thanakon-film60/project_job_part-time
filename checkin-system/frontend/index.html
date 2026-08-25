@@ -2,11 +2,12 @@
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
-    <!-- viewport-fit=cover + maximum-scale=1 : กันหน้าซูมเองตอนโฟกัสช่องกรอกบน iOS
-         และให้เนื้อหาชนขอบจอเวลาเปิดแบบเต็มจอ (notch) -->
+    <!-- viewport-fit=cover : ให้เนื้อหาชนขอบจอเวลาเปิดแบบเต็มจอ (notch)
+         ไม่ล็อก user-scalable แล้ว — iOS เลิกซูมเองตอนโฟกัสช่องกรอกเพราะ
+         input ถูกบังคับ font-size 16px ไว้ใน src/index.css แทน คนสายตาไม่ดีจึงยังซูมนิ้วได้ -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <title>THANAKON-ROOM — ปฏิทินเข้างาน</title>
     <meta name="theme-color" content="#1565c0" />

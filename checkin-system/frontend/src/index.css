@@ -1,0 +1,179 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ธีม shadcn/ui (Tailwind v4) — ไม่มี tailwind.config.js แล้ว ทุกอย่างตั้งที่ไฟล์นี้
+   สีหลักยึดสีแบรนด์เดิม #1565c0 เพื่อให้ PWA / theme-color ใน index.html ยังเข้ากัน */
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.65rem;
+
+  --background: oklch(0.985 0.003 250);
+  --foreground: oklch(0.21 0.02 256);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.02 256);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.02 256);
+  --primary: oklch(0.514 0.156 254.6);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.968 0.008 247);
+  --secondary-foreground: oklch(0.28 0.03 256);
+  --muted: oklch(0.968 0.008 247);
+  --muted-foreground: oklch(0.554 0.02 257);
+  --accent: oklch(0.955 0.02 250);
+  --accent-foreground: oklch(0.28 0.03 256);
+  --destructive: oklch(0.577 0.222 27.3);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.596 0.132 156);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.72 0.15 75);
+  --warning-foreground: oklch(0.24 0.04 75);
+  --border: oklch(0.923 0.01 255);
+  --input: oklch(0.923 0.01 255);
+  --ring: oklch(0.514 0.156 254.6);
+
+  --sidebar: oklch(0.23 0.035 259);
+  --sidebar-foreground: oklch(0.93 0.01 255);
+  --sidebar-primary: oklch(0.58 0.15 254);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.31 0.04 259);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.33 0.03 259);
+  --sidebar-ring: oklch(0.6 0.14 254);
+}
+
+.dark {
+  --background: oklch(0.16 0.02 258);
+  --foreground: oklch(0.96 0.005 250);
+  --card: oklch(0.21 0.025 258);
+  --card-foreground: oklch(0.96 0.005 250);
+  --popover: oklch(0.21 0.025 258);
+  --popover-foreground: oklch(0.96 0.005 250);
+  --primary: oklch(0.64 0.15 254);
+  --primary-foreground: oklch(0.16 0.02 258);
+  --secondary: oklch(0.27 0.025 258);
+  --secondary-foreground: oklch(0.96 0.005 250);
+  --muted: oklch(0.27 0.025 258);
+  --muted-foreground: oklch(0.71 0.02 256);
+  --accent: oklch(0.3 0.03 258);
+  --accent-foreground: oklch(0.96 0.005 250);
+  --destructive: oklch(0.65 0.19 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --success: oklch(0.68 0.14 156);
+  --success-foreground: oklch(0.16 0.02 258);
+  --warning: oklch(0.79 0.14 78);
+  --warning-foreground: oklch(0.2 0.03 78);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.64 0.15 254);
+
+  --sidebar: oklch(0.19 0.025 258);
+  --sidebar-foreground: oklch(0.94 0.008 250);
+  --sidebar-primary: oklch(0.64 0.15 254);
+  --sidebar-primary-foreground: oklch(0.16 0.02 258);
+  --sidebar-accent: oklch(0.28 0.03 258);
+  --sidebar-accent-foreground: oklch(0.96 0 0);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.64 0.15 254);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: "Sarabun", "Noto Sans Thai", ui-sans-serif, -apple-system,
+    "Segoe UI", sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    /* กันหน้าเลื่อนซ้าย-ขวาบนมือถือเวลามีตาราง/แผนที่กว้างเกินจอ */
+    overflow-x: hidden;
+  }
+  /* iOS ซูมเองเมื่อ font ช่องกรอกเล็กกว่า 16px */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+  @media (min-width: 640px) {
+    input,
+    textarea,
+    select {
+      font-size: inherit;
+    }
+  }
+}
+
+@layer components {
+  /* กล้องแบบกระจกเงา — ผู้ใช้ขยับซ้ายเห็นภาพขยับซ้าย */
+  .mirror-video {
+    @apply w-full rounded-xl bg-black;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+
+  /* Leaflet ต้องได้ความสูงเป็นตัวเลขจริง ไม่งั้นแผนที่สูง 0 */
+  .live-map-frame {
+    @apply relative w-full overflow-hidden rounded-xl border shadow-sm;
+    height: clamp(320px, 60vh, 640px);
+  }
+  .live-map-frame .leaflet-container {
+    @apply h-full w-full;
+    font-family: inherit;
+  }
+  .leaflet-popup-content-wrapper {
+    @apply rounded-lg text-sm;
+  }
+}
+
+/* พื้นที่ปลอดภัยของจอมีติ่ง (iPhone) เวลาเปิดแบบ PWA เต็มจอ */
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
