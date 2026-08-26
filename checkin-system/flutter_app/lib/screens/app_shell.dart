@@ -94,6 +94,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _logout() => _leave();
 
+  void _openMyProfile() {
+    final profileIndex = _tabs.indexWhere((tab) => tab.id == 'profile');
+    if (profileIndex >= 0) setState(() => _index = profileIndex);
+  }
+
   Future<void> _leave({String? notice}) async {
     _sessionTimer?.cancel();
     _permissionNagTimer?.cancel();
@@ -161,6 +166,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final pinned =
         MediaQuery.sizeOf(context).width >= _pinnedSidebarBreakpoint;
     final current = _tabs[_index];
+    final account = ApiService.account;
 
     // IndexedStack = สลับแท็บแล้วสถานะของแท็บเดิมยังอยู่ (ไม่ต้องโหลดใหม่ทุกครั้ง)
     final body = IndexedStack(
@@ -185,6 +191,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             Text(current.label),
           ],
         ),
+        actions: [
+          if (account != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Tooltip(
+                message: 'เปิดบัญชีของฉัน',
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _openMyProfile,
+                  child: EmployeeFacePhoto(
+                    employeeId: account.id,
+                    fallbackText: account.initial,
+                    size: 38,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
       drawer: pinned
           ? null

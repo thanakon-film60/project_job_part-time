@@ -4,6 +4,7 @@ import '../navigation/app_tabs.dart';
 import '../services/api_service.dart';
 import '../services/attendance_service.dart';
 import '../services/tracking_controller.dart';
+import 'face_photo.dart';
 
 /// เมนูด้านข้าง — ใช้ได้ทั้งแบบ Drawer (จอมือถือ) และแบบตรึงไว้ข้างจอ (จอกว้าง)
 ///
@@ -101,12 +102,19 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              Image.asset(
-                'assets/images/logo-checkin.png',
-                width: 40,
-                height: 40,
-                fit: BoxFit.contain,
-              ),
+              if (account == null)
+                Image.asset(
+                  'assets/images/logo-checkin.png',
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.contain,
+                )
+              else
+                EmployeeFacePhoto(
+                  employeeId: account.id,
+                  fallbackText: account.initial,
+                  size: 42,
+                ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(

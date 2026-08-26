@@ -41,6 +41,13 @@ class _ProfileTabState extends State<ProfileTab> {
     try {
       final faces = await ApiService.fetchMyFaces();
       if (!mounted) return;
+      final account = ApiService.account;
+      if (account != null) {
+        FacePhoto.setLatestFace(
+          account.id,
+          faces.isEmpty ? null : faces.first.id,
+        );
+      }
       setState(() {
         _faces = faces;
         _loading = false;
@@ -74,6 +81,13 @@ class _ProfileTabState extends State<ProfileTab> {
   Future<bool> _reorder(List<int> orderedIds) async {
     try {
       final updated = await ApiService.reorderFaces(orderedIds);
+      final account = ApiService.account;
+      if (account != null) {
+        FacePhoto.setLatestFace(
+          account.id,
+          updated.isEmpty ? null : updated.first.id,
+        );
+      }
       if (mounted) setState(() => _faces = updated);
       return true;
     } on ApiException catch (err) {

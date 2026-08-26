@@ -104,6 +104,7 @@ class StatTile extends StatelessWidget {
   final String value;
   final String? suffix;
   final Color? tone;
+  final VoidCallback? onTap;
 
   const StatTile({
     super.key,
@@ -112,52 +113,69 @@ class StatTile extends StatelessWidget {
     required this.value,
     this.suffix,
     this.tone,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final color = tone ?? Theme.of(context).colorScheme.primary;
+    final content = Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const Spacer(),
+              if (onTap != null)
+                Icon(Icons.chevron_right, size: 18, color: color),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              if (suffix != null) ...[
+                const SizedBox(width: 4),
+                Text(
+                  suffix!,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: Colors.black54),
+          ),
+        ],
+      ),
+    );
+
     return Card(
       margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: color),
-            const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-                if (suffix != null) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    suffix!,
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                ],
-              ],
+      clipBehavior: Clip.antiAlias,
+      child: onTap == null
+          ? content
+          : Semantics(
+              button: true,
+              label: 'เปิด$label',
+              child: InkWell(onTap: onTap, child: content),
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, color: Colors.black54),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

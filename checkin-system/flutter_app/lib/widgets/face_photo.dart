@@ -34,11 +34,36 @@ class FacePhoto extends StatefulWidget {
   /// รายชื่อพนักงานถูกสร้างใหม่ทุกครั้งที่เลื่อนจอหรือค้นหา ถ้าไม่จำไว้
   /// จะยิงถามรายการรูปของทุกคนซ้ำไม่จบ
   static final Map<int, int?> latestFaceByEmployee = {};
+  static final Map<int, Future<int?>> _pendingLatestFace = {};
+  static final ValueNotifier<int> avatarRevision = ValueNotifier<int>(0);
+
+  static void setLatestFace(int employeeId, int? faceId) {
+    latestFaceByEmployee[employeeId] = faceId;
+    avatarRevision.value++;
+  }
+
+  static Future<int?> resolveLatestFace(int employeeId) {
+    if (latestFaceByEmployee.containsKey(employeeId)) {
+      return Future<int?>.value(latestFaceByEmployee[employeeId]);
+    }
+    final pending = _pendingLatestFace[employeeId];
+    if (pending != null) return pending;
+
+    final request = ApiService.fetchEmployeeFaces(employeeId)
+        .then((faces) => faces.isEmpty ? null : faces.first.id);
+    _pendingLatestFace[employeeId] = request;
+    request.then(
+      (_) => _pendingLatestFace.remove(employeeId),
+      onError: (_) => _pendingLatestFace.remove(employeeId),
+    );
+    return request;
+  }
 
   /// ล้าง cache ตอนออกจากระบบ — เครื่องที่ใช้ร่วมกันจะได้ไม่เห็นรูปของคนก่อน
   static void clearCache() {
     _cache.clear();
     latestFaceByEmployee.clear();
+    _pendingLatestFace.clear();
   }
 
   /// ลืมรูปที่ถูกลบไปแล้ว — ไม่งั้นภาพยังค้างในหน่วยความจำทั้งที่ลบจากเซิร์ฟเวอร์แล้ว
@@ -47,12 +72,118 @@ class FacePhoto extends StatefulWidget {
   /// รอบหน้าจะได้ไปถามใหม่ว่าตอนนี้ใช้ใบไหนแทน
   static void forget(int recordId) {
     _cache.remove(recordId);
-    latestFaceByEmployee
-        .removeWhere((_, faceId) => faceId == recordId);
+    final before = latestFaceByEmployee.length;
+    latestFaceByEmployee.removeWhere((_, faceId) => faceId == recordId);
+    if (latestFaceByEmployee.length != before) avatarRevision.value++;
   }
 
   @override
   State<FacePhoto> createState() => _FacePhotoState();
+}
+
+/// Avatar พนักงานที่ค้นหารูปประจำตัวล่าสุดให้อัตโนมัติ
+/// ใช้ร่วมกันใน AppBar, Sidebar และ UI List รายชื่อพนักงาน
+class EmployeeFacePhoto extends StatefulWidget {
+  final int employeeId;
+  final String fallbackText;
+  final double size;
+
+  const EmployeeFacePhoto({
+    super.key,
+    required this.employeeId,
+    required this.fallbackText,
+    this.size = 48,
+  });
+
+  @override
+  State<EmployeeFacePhoto> createState() => _EmployeeFacePhotoState();
+}
+
+class _EmployeeFacePhotoState extends State<EmployeeFacePhoto> {
+  int? _faceId;
+  bool _resolved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    FacePhoto.avatarRevision.addListener(_avatarChanged);
+    _resolve();
+  }
+
+  @override
+  void dispose() {
+    FacePhoto.avatarRevision.removeListener(_avatarChanged);
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(EmployeeFacePhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.employeeId != widget.employeeId) {
+      setState(() {
+        _faceId = null;
+        _resolved = false;
+      });
+      _resolve();
+    }
+  }
+
+  Future<void> _resolve() async {
+    final employeeId = widget.employeeId;
+    if (FacePhoto.latestFaceByEmployee.containsKey(employeeId)) {
+      if (!mounted) return;
+      setState(() {
+        _faceId = FacePhoto.latestFaceByEmployee[employeeId];
+        _resolved = true;
+      });
+      return;
+    }
+    try {
+      final latest = await FacePhoto.resolveLatestFace(employeeId);
+      if (!mounted || employeeId != widget.employeeId) return;
+      FacePhoto.setLatestFace(employeeId, latest);
+      setState(() {
+        _faceId = latest;
+        _resolved = true;
+      });
+    } catch (err) {
+      debugPrint('Load avatar for employee $employeeId failed: $err');
+      if (!mounted || employeeId != widget.employeeId) return;
+      FacePhoto.setLatestFace(employeeId, null);
+      setState(() => _resolved = true);
+    }
+  }
+
+  void _avatarChanged() {
+    if (!mounted) return;
+    if (!FacePhoto.latestFaceByEmployee.containsKey(widget.employeeId)) {
+      setState(() => _resolved = false);
+      _resolve();
+      return;
+    }
+    final latest = FacePhoto.latestFaceByEmployee[widget.employeeId];
+    if (_resolved && latest == _faceId) return;
+    setState(() {
+      _faceId = latest;
+      _resolved = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_resolved) {
+      return SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+    return FacePhoto(
+      recordId: _faceId,
+      size: widget.size,
+      fallbackText: widget.fallbackText,
+    );
+  }
 }
 
 class _FacePhotoState extends State<FacePhoto> {
@@ -96,8 +227,8 @@ class _FacePhotoState extends State<FacePhoto> {
     });
     try {
       final bytes = await ApiService.fetchFacePhoto(id);
-      FacePhoto._cache[id] = bytes;
       if (!mounted) return;
+      FacePhoto._cache[id] = bytes;
       setState(() => _bytes = bytes);
     } catch (err) {
       debugPrint('Load face photo $id failed: $err');

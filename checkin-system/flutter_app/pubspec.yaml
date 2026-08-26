@@ -1,7 +1,7 @@
 name: thanakon_box_checkin
 description: แอปเช็คอินเข้างาน THANAKON-BOX (GPS + สแกนใบหน้า)
 publish_to: "none"
-version: 1.4.0+6
+version: 1.5.0+7
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

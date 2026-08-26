@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:thanakon_box_checkin/config.dart';
@@ -5,12 +6,33 @@ import 'package:thanakon_box_checkin/main.dart';
 import 'package:thanakon_box_checkin/services/api_service.dart';
 import 'package:thanakon_box_checkin/services/attendance_service.dart';
 import 'package:thanakon_box_checkin/services/location_service.dart';
+import 'package:thanakon_box_checkin/widgets/app_forms.dart';
 
 void main() {
   testWidgets('THANAKON-BOX app starts', (WidgetTester tester) async {
     await tester.pumpWidget(const ThanakonBoxApp());
 
     expect(find.text('เข้าสู่ระบบ'), findsWidgets);
+  });
+
+  testWidgets('การ์ดสรุปพนักงานกดเปิด UI List ได้', (tester) async {
+    var tapped = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatTile(
+            icon: Icons.groups,
+            label: 'พนักงานทั้งหมด',
+            value: '3',
+            suffix: 'คน',
+            onTap: () => tapped = true,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('พนักงานทั้งหมด'));
+    expect(tapped, isTrue);
   });
 
   test('checkout geofence ignores offices that disallow checkout', () {

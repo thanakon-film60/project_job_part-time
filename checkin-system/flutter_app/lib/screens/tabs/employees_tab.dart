@@ -23,6 +23,14 @@ class _EmployeesTabState extends State<EmployeesTab> {
   bool _loading = false;
   String? _error;
   String _query = '';
+  final TextEditingController _searchController = TextEditingController();
+  final GlobalKey _listKey = GlobalKey();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -97,6 +105,21 @@ class _EmployeesTabState extends State<EmployeesTab> {
     await _load();
   }
 
+  void _showAllEmployees() {
+    _searchController.clear();
+    setState(() => _query = '');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _listKey.currentContext;
+      if (target == null) return;
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOut,
+        alignment: 0.08,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final employees = _employees;
@@ -124,6 +147,7 @@ class _EmployeesTabState extends State<EmployeesTab> {
                   label: 'พนักงานทั้งหมด',
                   value: '${_staff.length}',
                   suffix: 'คน',
+                  onTap: _showAllEmployees,
                 ),
               ),
               const SizedBox(width: 10),
@@ -141,6 +165,8 @@ class _EmployeesTabState extends State<EmployeesTab> {
           ),
           const SizedBox(height: 12),
           TextField(
+            key: _listKey,
+            controller: _searchController,
             onChanged: (value) => setState(() => _query = value),
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.search),
@@ -211,7 +237,13 @@ class _EmployeeRow extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              _EmployeeAvatar(employee: employee),
+              EmployeeFacePhoto(
+                employeeId: employee.id,
+                size: 48,
+                fallbackText: employee.fullName.isEmpty
+                    ? '?'
+                    : employee.fullName.substring(0, 1),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -255,57 +287,6 @@ class _EmployeeRow extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// รูปพนักงานในรายชื่อ — ต้องถามก่อนว่าคนนี้มีรูปไหนบ้าง ถึงจะโหลดรูปได้
-///
-/// ผลถูกจำไว้ใน FacePhoto.latestFaceByEmployee ซึ่งถูกล้างพร้อมกันตอนออกจากระบบ
-class _EmployeeAvatar extends StatefulWidget {
-  final EmployeeProfile employee;
-
-  const _EmployeeAvatar({required this.employee});
-
-  @override
-  State<_EmployeeAvatar> createState() => _EmployeeAvatarState();
-}
-
-class _EmployeeAvatarState extends State<_EmployeeAvatar> {
-  int? _faceId;
-
-  @override
-  void initState() {
-    super.initState();
-    _resolve();
-  }
-
-  Future<void> _resolve() async {
-    final employeeId = widget.employee.id;
-    if (FacePhoto.latestFaceByEmployee.containsKey(employeeId)) {
-      setState(() => _faceId = FacePhoto.latestFaceByEmployee[employeeId]);
-      return;
-    }
-    try {
-      final faces = await ApiService.fetchEmployeeFaces(employeeId);
-      final latest = faces.isEmpty ? null : faces.first.id;
-      FacePhoto.latestFaceByEmployee[employeeId] = latest;
-      if (!mounted) return;
-      setState(() => _faceId = latest);
-    } catch (err) {
-      debugPrint('Load faces for employee $employeeId failed: $err');
-      FacePhoto.latestFaceByEmployee[employeeId] = null;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FacePhoto(
-      recordId: _faceId,
-      size: 48,
-      fallbackText: widget.employee.fullName.isEmpty
-          ? '?'
-          : widget.employee.fullName.substring(0, 1),
     );
   }
 }
