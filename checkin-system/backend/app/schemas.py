@@ -253,9 +253,21 @@ class FaceProfileOut(BaseModel):
     source: str
     note: str | None
     created_at: datetime
+    # ลำดับที่พนักงานจัดเอง — None = ยังไม่เคยจัด (เรียงตามเวลาบันทึก)
+    sort_order: int | None = None
 
     class Config:
         from_attributes = True
+
+
+class FaceOrderIn(BaseModel):
+    """ลำดับรูปใบหน้าใหม่ที่พนักงานลากจัดเอง
+
+    ส่ง id ของ "ทุกรูปของตัวเอง" มาเรียงตามลำดับที่ต้องการ รูปแรกในลิสต์
+    (ลำดับ 0) จะถูกใช้เป็นรูปประจำตัวทุกที่ที่ระบบแสดงรูปพนักงาน
+    """
+
+    face_ids: list[int] = Field(min_length=1)
 
 
 class EmployeeEventOut(BaseModel):

@@ -8,7 +8,8 @@ from ..config import settings
 from ..database import get_db
 from ..geofence import location_category, office_by_name
 from ..employee_profiles import employee_profile
-from ..models import CheckIn, Employee, EmployeeEvent, FaceProfile
+from ..models import CheckIn, Employee, EmployeeEvent
+from .faces import ordered_faces
 from ..schemas import EmployeeHistoryOut, EmployeeProfileOut, GeofenceInfo
 from ..security import require_manager
 
@@ -133,12 +134,9 @@ def employee_history(
         db.refresh(legacy_event)
         events = [legacy_event]
 
-    faces = (
-        db.query(FaceProfile)
-        .filter(FaceProfile.employee_id == employee_id)
-        .order_by(FaceProfile.created_at.desc())
-        .all()
-    )
+    # ใช้ตัวเรียงเดียวกับ /faces/* เพื่อให้ "รูปแรก" ที่หน้าแฟ้มพนักงานเอาไป
+    # ทำรูปประจำตัว เป็นใบเดียวกับที่พนักงานเลือกไว้เองในแอป
+    faces = ordered_faces(db, employee_id)
     return EmployeeHistoryOut(
         employee=employee_profile(employee),
         year=year,

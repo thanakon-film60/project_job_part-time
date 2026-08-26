@@ -211,6 +211,36 @@ String thaiClock(DateTime timestamp) {
   return '${_pad(thai.hour)}:${_pad(thai.minute)}';
 }
 
+/// ชื่อเดือนภาษาไทยแบบย่อ (index 0 = มกราคม)
+const List<String> thaiShortMonths = [
+  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+];
+
+/// ชื่อเดือนภาษาไทยแบบเต็ม
+const List<String> thaiFullMonths = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+];
+
+/// หัวปฏิทิน "สิงหาคม 2568"
+String thaiMonthYear(int year, int month) {
+  final index = (month - 1).clamp(0, 11);
+  return '${thaiFullMonths[index]} ${year + 543}';
+}
+
+/// วันที่แบบอ่านง่าย "25 ส.ค. 2568" (รับเวลาไทยมาแล้ว)
+String thaiLongDate(DateTime thaiDay) {
+  final index = (thaiDay.month - 1).clamp(0, 11);
+  return '${thaiDay.day} ${thaiShortMonths[index]} ${thaiDay.year + 543}';
+}
+
+/// วันและเวลาแบบ "25 ส.ค. 2568 12:34 น." (รับ UTC จาก backend มาแปลงเอง)
+String thaiDateTime(DateTime? timestamp) {
+  if (timestamp == null) return '-';
+  return '${thaiLongDate(Config.toThai(timestamp))} ${thaiClock(timestamp)} น.';
+}
+
 /// วันที่แบบไทย 25/08/2568
 String thaiDate(DateTime thaiDay) =>
     '${_pad(thaiDay.day)}/${_pad(thaiDay.month)}/${thaiDay.year + 543}';

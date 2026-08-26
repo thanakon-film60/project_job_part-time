@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../screens/tabs/checkin_tab.dart';
+import '../screens/tabs/employees_tab.dart';
 import '../screens/tabs/history_tab.dart';
+import '../screens/tabs/live_map_tab.dart';
 import '../screens/tabs/places_tab.dart';
+import '../screens/tabs/profile_tab.dart';
+import '../screens/tabs/team_tab.dart';
+import '../services/api_service.dart';
 import '../services/tracking_controller.dart';
 
 /// เมนู 1 อันบน sidebar = เนื้อหา 1 แท็บ
@@ -36,6 +41,10 @@ class AppTab {
 /// **เพิ่มแท็บใหม่ = เพิ่ม AppTab หนึ่งตัวในลิสต์นี้ แล้วสร้างไฟล์หน้าจอใน
 /// lib/screens/tabs/ เท่านั้น** ไม่ต้องแก้ AppShell หรือ sidebar เลย
 /// ลำดับในลิสต์ = ลำดับบนเมนู
+///
+/// แท็บของหัวหน้าจะโผล่เฉพาะบัญชีที่ is_manager = true (มาจาก /auth/login)
+/// การซ่อนเมนูเป็นแค่เรื่องความสะดวก — ตัวกันจริงคือ require_manager
+/// ที่ backend ซึ่งกันไว้ทุก endpoint ของหัวหน้าอยู่แล้ว
 /// ---------------------------------------------------------------------
 List<AppTab> buildAppTabs(TrackingController tracking) {
   return [
@@ -46,12 +55,42 @@ List<AppTab> buildAppTabs(TrackingController tracking) {
       icon: Icons.how_to_reg,
       builder: (_) => CheckInTab(tracking: tracking),
     ),
+    if (ApiService.isManager) ...[
+      AppTab(
+        id: 'team',
+        label: 'ปฏิทินทีม',
+        subtitle: 'ใครลงเวลาวันไหนบ้าง',
+        icon: Icons.calendar_month,
+        builder: (_) => const TeamTab(),
+      ),
+      AppTab(
+        id: 'employees',
+        label: 'ข้อมูลพนักงาน',
+        subtitle: 'รายชื่อ · แฟ้มประวัติ · ลงทะเบียน',
+        icon: Icons.groups,
+        builder: (_) => const EmployeesTab(),
+      ),
+      AppTab(
+        id: 'live-map',
+        label: 'แผนที่ติดตาม',
+        subtitle: 'ตำแหน่งล่าสุดของทุกคน',
+        icon: Icons.map,
+        builder: (_) => const LiveMapTab(),
+      ),
+    ],
     AppTab(
       id: 'history',
       label: 'ประวัติการลงเวลา',
       subtitle: 'ย้อนหลัง 30 วัน',
       icon: Icons.history,
       builder: (_) => const HistoryTab(),
+    ),
+    AppTab(
+      id: 'profile',
+      label: 'บัญชีของฉัน',
+      subtitle: 'ประวัติใบหน้า · เวอร์ชันแอป',
+      icon: Icons.account_circle,
+      builder: (_) => const ProfileTab(),
     ),
     AppTab(
       id: 'places',

@@ -69,6 +69,10 @@ port, and a PWA install path so employees on both Android and iOS get the same b
 | **Face enrollment gallery** | Webcam capture stored as a per-employee reference history, streamed back only to the owner or a manager |
 | **LINE daily summary** | Scheduled task posts an end-of-day attendance summary to the team's LINE channel |
 | **Installable PWA** | `vite-plugin-pwa`, with API requests deliberately excluded from the cache so attendance data is never stale |
+| **Manager tools on the phone** | The Flutter app is no longer employee-only: a manager account unlocks the team calendar, the employee directory and file, the registration wizard, and a live map — the same endpoints the web dashboard calls, with the menu keyed off `is_manager` from the login response and `require_manager` still enforcing it server-side |
+| **Face enrollment from the app** | Reference photos can be captured on the phone's front camera (`source=mobile`), not only through a browser that needs HTTPS to open `getUserMedia` |
+| **Employees curate their own gallery** | Long-press-drag reorders the reference photos and the first one becomes the avatar the whole system shows; an unwanted photo can be deleted outright. Reordering is owner-only — a manager cannot pick someone else's avatar — while deletion follows the same owner-or-manager rule as viewing |
+| **One rule, three implementations, one test suite** | Thai national-ID checksum, registration validation, the "home is not work" labels, and the timezone-less-timestamp rule are ported to Dart with unit tests, so the app rejects what the backend would reject instead of surfacing a 422 after the fact |
 
 ## Architecture
 
@@ -106,7 +110,7 @@ share one origin and CORS stops being a problem in production.
 | Backend | Python · FastAPI · SQLAlchemy 2.0 (typed `Mapped[...]`) · Pydantic · python-jose · passlib/bcrypt |
 | Database | PostgreSQL (SQLite for local dev) |
 | Web | React 18 · Vite 5 · Ant Design 5 · React Router 6 · vite-plugin-pwa |
-| Mobile | Flutter 3 · geolocator · camera · google_mlkit_face_detection · flutter_background_service |
+| Mobile | Flutter 3 · geolocator · camera · google_mlkit_face_detection · flutter_background_service · flutter_map |
 | Infra | Docker Compose · IIS (URL Rewrite + ARR) · Cloudflare Tunnel · Windows Scheduled Tasks · PowerShell automation |
 
 ## Repository layout
@@ -123,7 +127,7 @@ checkin-system/
 │   ├── tests_e2e.py      end-to-end API tests
 │   └── Dockerfile
 ├── frontend/         React manager dashboard (PWA)
-├── flutter_app/      Employee mobile client
+├── flutter_app/      Mobile client (employee + manager)
 ├── deploy/           Cloudflare Tunnel · IIS · ngrok · LINE setup scripts
 ├── TRAVEL_ANALYSIS.md   Google Takeout feasibility study
 └── README.md            Full setup guide (Thai)
@@ -158,6 +162,8 @@ are in [`checkin-system/README.md`](checkin-system/README.md).
 | `GET` | `/checkins/me` | Own attendance history — optional `days` / `limit` (the app asks for `days=1` to render today's list) |
 | `POST` | `/faces/enroll` | Enroll a reference face photo |
 | `GET` | `/faces/employee/{id}` · `/faces/{id}/photo` | Face history (owner or manager only) |
+| `PUT` | `/faces/order` | Reorder your own reference photos — position 0 becomes the avatar shown everywhere |
+| `DELETE` | `/faces/{id}` | Delete a reference photo (owner or manager); check-in evidence photos are a separate table and untouched |
 | `POST` | `/locations/ping` | Continuous GPS reporting |
 | `GET` | `/reports/calendar` · `/reports/employees` | Manager-only reporting |
 | `GET` | `/reports/geofence` | Configured offices and radii |

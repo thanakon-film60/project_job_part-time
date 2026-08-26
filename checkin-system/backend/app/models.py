@@ -103,6 +103,9 @@ class FaceProfile(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, index=True
     )
+    # ลำดับที่พนักงานจัดเอง (0 = รูปแรก ใช้เป็นรูปประจำตัว)
+    # NULL = ยังไม่เคยจัดลำดับ ให้เรียงตามเวลาที่บันทึก (ใหม่สุดขึ้นก่อน)
+    sort_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     employee: Mapped["Employee"] = relationship()
 

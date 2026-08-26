@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../services/location_service.dart';
 import '../services/tracking_controller.dart';
 import '../widgets/app_sidebar.dart';
+import '../widgets/face_photo.dart';
 import 'login_screen.dart';
 
 /// โครงหลักของแอปหลังล็อกอิน — sidebar + แท็บ
@@ -98,6 +99,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _permissionNagTimer?.cancel();
     await _tracking.stop();
     await ApiService.logout();
+    // รูปใบหน้าถูก cache ไว้ในหน่วยความจำ — เครื่องที่พนักงานใช้ร่วมกัน
+    // ต้องไม่เห็นรูปของคนก่อนหน้าหลังสลับบัญชี
+    FacePhoto.clearCache();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => LoginScreen(notice: notice)),

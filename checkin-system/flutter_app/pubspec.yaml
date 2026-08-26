@@ -1,7 +1,7 @@
 name: thanakon_box_checkin
 description: แอปเช็คอินเข้างาน THANAKON-BOX (GPS + สแกนใบหน้า)
 publish_to: "none"
-version: 1.2.1+4
+version: 1.4.0+6
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -17,6 +17,21 @@ dependencies:
   shared_preferences: ^2.2.3
   flutter_background_service: ^5.0.5
   permission_handler: ^11.3.1
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
+
+# ===================================================================
+# ตรึงเวอร์ชัน path_provider_android
+#
+# flutter_map ต้องใช้ path_provider (ไว้หาที่เก็บ cache ของ tile แผนที่)
+# แต่ path_provider_android 2.3.x เปลี่ยนไปเรียก native ผ่าน package jni
+# ซึ่ง build ไม่ผ่านกับ Gradle/AGP ชุดที่โปรเจ็กต์นี้ใช้อยู่:
+#   Could not determine the dependencies of task ':jni_flutter:compileReleaseJavaWithJavac'
+# 2.2.23 เป็นตัวสุดท้ายก่อนเปลี่ยนไปใช้ jni และทำงานได้ครบเหมือนเดิม
+# ถอดบรรทัดนี้ออกได้เมื่ออัปเกรด AGP/Gradle แล้วลอง build ผ่าน
+# ===================================================================
+dependency_overrides:
+  path_provider_android: 2.2.23
 
 dev_dependencies:
   flutter_test:

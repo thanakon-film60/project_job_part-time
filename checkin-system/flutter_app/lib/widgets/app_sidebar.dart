@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../navigation/app_tabs.dart';
+import '../services/api_service.dart';
 import '../services/attendance_service.dart';
 import '../services/tracking_controller.dart';
 
@@ -87,6 +88,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final account = ApiService.account;
     final healthy = tracking.isHealthy;
     final lastPing = tracking.lastPingAt;
 
@@ -106,14 +108,54 @@ class _Header extends StatelessWidget {
                 fit: BoxFit.contain,
               ),
               const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'THANAKON-BOX',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'THANAKON-BOX',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (account != null)
+                      Text(
+                        account.fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
           ),
+          if (account != null) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                _Chip(
+                  text: account.employeeCode,
+                  color: theme.colorScheme.primary,
+                  icon: Icons.badge,
+                ),
+                // หัวหน้าเห็นเมนูมากกว่าพนักงานทั่วไป จึงต้องบอกให้ชัดว่า
+                // ตอนนี้ล็อกอินด้วยสิทธิ์อะไรอยู่ (เครื่องที่ใช้ร่วมกัน)
+                if (account.isManager)
+                  const _Chip(
+                    text: 'หัวหน้า',
+                    color: Colors.deepPurple,
+                    icon: Icons.shield,
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -178,6 +220,41 @@ class _TabTile extends StatelessWidget {
                 style: const TextStyle(fontSize: 11, color: Colors.black45),
               ),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// ป้ายเล็กบนหัว sidebar (รหัสพนักงาน / สิทธิ์)
+class _Chip extends StatelessWidget {
+  final String text;
+  final Color color;
+  final IconData icon;
+
+  const _Chip({required this.text, required this.color, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 3),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
