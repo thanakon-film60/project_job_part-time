@@ -1,8 +1,12 @@
+import base64
+import hashlib
+import hmac
 from datetime import datetime, timedelta
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from cryptography.fernet import Fernet
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
@@ -12,6 +16,23 @@ from .models import Employee
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+
+def _personal_data_cipher() -> Fernet:
+    key = base64.urlsafe_b64encode(hashlib.sha256(settings.secret_key.encode()).digest())
+    return Fernet(key)
+
+
+def encrypt_personal_data(value: str) -> str:
+    return _personal_data_cipher().encrypt(value.encode()).decode()
+
+
+def decrypt_personal_data(value: str) -> str:
+    return _personal_data_cipher().decrypt(value.encode()).decode()
+
+
+def personal_data_hash(value: str) -> str:
+    return hmac.new(settings.secret_key.encode(), value.encode(), hashlib.sha256).hexdigest()
 
 
 def hash_password(password: str) -> str:

@@ -1,14 +1,15 @@
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
 from ..geofence import location_category, office_by_name
-from ..models import CheckIn, Employee
-from ..schemas import EmployeeOut, GeofenceInfo
+from ..employee_profiles import employee_profile
+from ..models import CheckIn, Employee, EmployeeEvent, FaceProfile
+from ..schemas import EmployeeHistoryOut, EmployeeProfileOut, GeofenceInfo
 from ..security import require_manager
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -80,11 +81,72 @@ def geofence_info():
     )
 
 
-@router.get("/employees", response_model=list[EmployeeOut])
+@router.get("/employees", response_model=list[EmployeeProfileOut])
 def list_employees(
     _: Employee = Depends(require_manager), db: Session = Depends(get_db)
 ):
-    return db.query(Employee).order_by(Employee.full_name).all()
+    employees = db.query(Employee).order_by(Employee.full_name).all()
+    return [employee_profile(employee) for employee in employees]
+
+
+@router.get("/employees/{employee_id}/history", response_model=EmployeeHistoryOut)
+def employee_history(
+    employee_id: int,
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    _: Employee = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
+    """ประวัติลงเวลารายบุคคลในเดือนที่เลือก สำหรับ Boss เท่านั้น."""
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if employee is None:
+        raise HTTPException(status_code=404, detail="ไม่พบพนักงาน")
+
+    start_utc, end_utc = _month_range_utc(year, month)
+    checkins = (
+        db.query(CheckIn)
+        .filter(
+            CheckIn.employee_id == employee_id,
+            CheckIn.timestamp >= start_utc,
+            CheckIn.timestamp < end_utc,
+        )
+        .order_by(CheckIn.timestamp.desc())
+        .all()
+    )
+    events = (
+        db.query(EmployeeEvent)
+        .filter(EmployeeEvent.employee_id == employee_id)
+        .order_by(EmployeeEvent.created_at.desc())
+        .all()
+    )
+    if not events:
+        legacy_event = EmployeeEvent(
+            employee_id=employee.id,
+            actor_employee_id=None,
+            event_type="legacy_account",
+            title="บัญชีเดิมก่อนระบบแฟ้มพนักงาน",
+            detail={"note": "นำบัญชีและประวัติเดิมมาประสานกับโครงสร้างใหม่แล้ว"},
+            created_at=employee.created_at,
+        )
+        db.add(legacy_event)
+        db.commit()
+        db.refresh(legacy_event)
+        events = [legacy_event]
+
+    faces = (
+        db.query(FaceProfile)
+        .filter(FaceProfile.employee_id == employee_id)
+        .order_by(FaceProfile.created_at.desc())
+        .all()
+    )
+    return EmployeeHistoryOut(
+        employee=employee_profile(employee),
+        year=year,
+        month=month,
+        checkins=checkins,
+        face_profiles=faces,
+        events=events,
+    )
 
 
 @router.get("/calendar")

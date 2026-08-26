@@ -27,6 +27,19 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { thaiDateTime } from "@/lib/attendance";
 
+/** โครงร่าง Skeleton ของรูปใบหน้า 1 ใบ — จำลอง FaceThumb ขณะโหลด */
+function FaceThumbSkeleton() {
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <Skeleton className="aspect-square rounded-none" />
+      <div className="space-y-1 p-2">
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-3 w-14" />
+      </div>
+    </Card>
+  );
+}
+
 function FaceThumb({ recordId, note, createdAt }) {
   const [url, setUrl] = useState(null);
 
@@ -80,6 +93,7 @@ export default function FaceRecordsPage() {
   const [employees, setEmployees] = useState([]);
   const [viewId, setViewId] = useState(me?.id || null);
   const [records, setRecords] = useState([]);
+  const [loadingRecords, setLoadingRecords] = useState(true);
 
   useEffect(() => {
     async function start() {
@@ -108,11 +122,14 @@ export default function FaceRecordsPage() {
   }, []);
 
   async function loadRecords(id) {
+    setLoadingRecords(true);
     try {
       const data = me?.is_manager ? await getEmployeeFaces(id) : await getMyFaces();
       setRecords(data);
     } catch (e) {
       toast.error(String(e.message));
+    } finally {
+      setLoadingRecords(false);
     }
   }
 
@@ -212,7 +229,13 @@ export default function FaceRecordsPage() {
           )}
         </div>
 
-        {records.length === 0 ? (
+        {loadingRecords ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <FaceThumbSkeleton key={i} />
+            ))}
+          </div>
+        ) : records.length === 0 ? (
           <Card>
             <CardContent>
               <EmptyState title="ยังไม่มีข้อมูลใบหน้า" description="กดถ่ายรูปด้านบนเพื่อเริ่มบันทึก" />

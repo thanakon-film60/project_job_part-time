@@ -1,10 +1,12 @@
 import logging
 import os
+import shutil
 import uuid
 from datetime import datetime, time, timedelta
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -47,37 +49,42 @@ def _employee_display_name(emp: Employee) -> str:
     return (emp.full_name or "").strip() or emp.employee_code
 
 
-def notify_checkin(emp: Employee, record: CheckIn, office: dict | None = None) -> None:
+def notify_checkin(
+    employee_name: str,
+    kind: str,
+    timestamp: datetime,
+    distance_km: float,
+    office_name: str | None,
+    office: dict | None = None,
+) -> None:
     """แจ้งเข้ากลุ่ม LINE ว่ามีคนเช็คอิน/เช็คเอาท์
 
     ห่อ try ทั้งก้อน — ถ้า LINE มีปัญหาต้องไม่ทำให้การเช็คอินล้มเหลว
     """
     try:
-        local_time = record.timestamp + timedelta(
-            hours=settings.timezone_offset_hours
-        )
-        action = "เข้างาน" if record.kind == "in" else "ออกจากงาน"
+        local_time = timestamp + timedelta(hours=settings.timezone_offset_hours)
+        action = "เข้างาน" if kind == "in" else "ออกจากงาน"
         time_text = local_time.strftime("%H:%M น. %d/%m/%Y")
-        distance_text = _distance_text(record.distance_km)
-        office_info = office or office_by_name(record.office_name)
+        distance_text = _distance_text(distance_km)
+        office_info = office or office_by_name(office_name)
         category_label = location_category_label(office_info)
-        office_name = record.office_name or (office_info or {}).get("name") or "-"
+        display_office_name = office_name or (office_info or {}).get("name") or "-"
 
         # อยู่บ้าน = ไม่ได้ไปทำงาน การลงเวลาที่บ้านจึงเป็นแค่ "กลับถึงบ้านแล้ว"
         # ไม่ใช่การเข้างาน และไม่ต้องมีออกงานตามมา
         if location_category(office_info) == "home":
-            headline = f"{_employee_display_name(emp)} อยู่บ้านแล้ว ({time_text})"
+            headline = f"{employee_name} อยู่บ้านแล้ว ({time_text})"
             note = "อยู่บ้าน = ไม่ได้ไปทำงาน ไม่นับเป็นการเข้างานและไม่มีออกงาน"
         else:
             headline = (
-                f"{_employee_display_name(emp)} ได้ทำการ{action}แล้ว ({time_text})"
+                f"{employee_name} ได้ทำการ{action}แล้ว ({time_text})"
             )
             note = f"ประเภทสถานที่: {category_label}"
 
         push_text(
             f"{headline}\n"
             f"{note}\n"
-            f"สถานที่ใกล้สุด: {office_name}\n"
+            f"สถานที่ใกล้สุด: {display_office_name}\n"
             f"ระยะห่างจาก{category_label}: {distance_text}"
         )
     except Exception as e:
@@ -85,7 +92,8 @@ def notify_checkin(emp: Employee, record: CheckIn, office: dict | None = None) -
 
 
 @router.post("", response_model=CheckInOut)
-async def create_checkin(
+def create_checkin(
+    background_tasks: BackgroundTasks,
     latitude: float = Form(...),
     longitude: float = Form(...),
     kind: str = Form("in"),
@@ -125,8 +133,10 @@ async def create_checkin(
         ext = os.path.splitext(photo.filename or "")[1] or ".jpg"
         fname = f"{emp.employee_code}_{uuid.uuid4().hex}{ext}"
         full = os.path.join(settings.storage_dir, fname)
+        # Endpoint นี้เป็น sync เพื่อให้ FastAPI ย้ายงานเขียนไฟล์และ SQLAlchemy
+        # ไปทำใน thread pool โดยไม่บล็อก event loop
         with open(full, "wb") as f:
-            f.write(await photo.read())
+            shutil.copyfileobj(photo.file, f)
         photo_path = full
 
     record = CheckIn(
@@ -145,8 +155,17 @@ async def create_checkin(
     db.commit()
     db.refresh(record)
 
-    # แจ้งเข้ากลุ่ม LINE — ทำหลัง commit และห้ามให้พังจนกระทบการเช็คอิน
-    notify_checkin(emp, record, office)
+    # ส่ง LINE หลังตอบ request โดยใช้ sync background task ใน thread pool
+    # ส่งเฉพาะค่า primitive เพื่อไม่ผูก task กับ SQLAlchemy session ที่กำลังจะปิด
+    background_tasks.add_task(
+        notify_checkin,
+        _employee_display_name(emp),
+        record.kind,
+        record.timestamp,
+        record.distance_km,
+        record.office_name,
+        office,
+    )
 
     return record
 

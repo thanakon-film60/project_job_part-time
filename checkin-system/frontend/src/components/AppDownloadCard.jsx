@@ -74,9 +74,21 @@ export default function AppDownloadCard() {
         </div>
 
         {loading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-2/3" />
-            <Skeleton className="h-11 w-full sm:w-56" />
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Skeleton className="h-5 w-16 rounded-md" />
+              <Skeleton className="h-5 w-24 rounded-md" />
+              <Skeleton className="h-5 w-20 rounded-md" />
+              <Skeleton className="h-5 w-32 rounded-md" />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Skeleton className="h-11 w-full rounded-md sm:w-48" />
+              <Skeleton className="h-11 w-full rounded-md sm:w-36" />
+            </div>
+            <div className="space-y-1.5 pt-1">
+              <Skeleton className="h-3.5 w-full" />
+              <Skeleton className="h-3.5 w-4/5" />
+            </div>
           </div>
         ) : !info?.available ? (
           <Alert variant="warning">

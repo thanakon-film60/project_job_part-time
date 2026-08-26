@@ -6,6 +6,7 @@ import {
   CircleAlert,
   Clock,
   House,
+  History,
   Info,
   LogIn,
   LogOut,
@@ -17,7 +18,7 @@ import { Link } from "react-router-dom";
 import { getEmployee, getTeamCalendar, getMyCheckins } from "../api";
 import AppLayout from "../components/AppLayout.jsx";
 import AppDownloadCard from "../components/AppDownloadCard.jsx";
-import MonthCalendar from "../components/MonthCalendar.jsx";
+import MonthCalendar, { MonthCalendarSkeleton } from "../components/MonthCalendar.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, StatCardSkeleton, ListRowSkeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import {
   describeCheckin,
@@ -118,9 +119,10 @@ function EmployeeDashboard({ me }) {
             </p>
 
             {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-14 w-full rounded-lg" />
-                <Skeleton className="h-14 w-full rounded-lg" />
+              <div className="divide-border -mx-1 divide-y px-1">
+                {[0, 1, 2, 3].map((i) => (
+                  <ListRowSkeleton key={i} />
+                ))}
               </div>
             ) : checkins.length === 0 ? (
               <EmptyState
@@ -288,19 +290,28 @@ export default function DashboardPage() {
         </p>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-          <StatCard
-            icon={<Users />}
-            label={`พนักงานที่ลงเวลา (${value.format("MMMM YYYY")})`}
-            value={activeEmployees}
-            suffix="คน"
-          />
-          <StatCard
-            icon={<CalendarDays />}
-            label="วันที่มีการลงเวลา"
-            value={days.length}
-            suffix="วัน"
-            tone="success"
-          />
+          {loading && days.length === 0 ? (
+            <>
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+            </>
+          ) : (
+            <>
+              <StatCard
+                icon={<Users />}
+                label={`พนักงานที่ลงเวลา (${value.format("MMMM YYYY")})`}
+                value={activeEmployees}
+                suffix="คน"
+              />
+              <StatCard
+                icon={<CalendarDays />}
+                label="วันที่มีการลงเวลา"
+                value={days.length}
+                suffix="วัน"
+                tone="success"
+              />
+            </>
+          )}
         </div>
 
         {err && (
@@ -312,11 +323,8 @@ export default function DashboardPage() {
 
         <Card>
           <CardContent>
-            {loading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-[320px] w-full sm:h-[520px]" />
-              </div>
+            {loading && days.length === 0 ? (
+              <MonthCalendarSkeleton />
             ) : (
               <MonthCalendar
                 value={value}
@@ -386,6 +394,11 @@ export default function DashboardPage() {
                           </Badge>
                         ))}
                       </div>
+                      <Button asChild variant="outline" size="sm" className="mt-1">
+                        <Link to={`/employees/${person.employee_id}/history`}>
+                          <History /> ดูประวัติพนักงาน
+                        </Link>
+                      </Button>
                     </div>
                   </li>
                 ))}

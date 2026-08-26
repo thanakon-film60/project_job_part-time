@@ -128,8 +128,12 @@ export default function LiveMapPage() {
 
   const [trail, setTrail] = useState([]);
   const [trailHours, setTrailHours] = useState(0); // 0 = ไม่แสดงเส้นทาง
+  const loadInFlight = useRef(false);
 
   const load = useCallback(async (opts = {}) => {
+    // setInterval ไม่รอ Promise; กันรอบใหม่ซ้อนกับ request ที่ยังไม่จบ
+    if (loadInFlight.current) return;
+    loadInFlight.current = true;
     if (!opts.silent) setLoading(true);
     try {
       const res = await getLiveLocations();
@@ -139,6 +143,7 @@ export default function LiveMapPage() {
     } catch (err) {
       setError(err?.message || "โหลดตำแหน่งพนักงานไม่สำเร็จ");
     } finally {
+      loadInFlight.current = false;
       setLoading(false);
     }
   }, []);
@@ -243,25 +248,37 @@ export default function LiveMapPage() {
 
         {/* สรุปสถานะ — 2 คอลัมน์บนมือถือ, 4 บนแท็บเล็ตขึ้นไป */}
         <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
-          {["online", "stale", "offline", "no_data"].map((status) => {
-            const meta = statusMeta(status);
-            return (
-              <Card key={status} className="gap-0 py-3">
-                <CardContent className="px-3">
-                  <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                    <span className={cn("size-2 shrink-0 rounded-full", meta.dot)} />
-                    <span className="truncate">{meta.label}</span>
-                  </div>
-                  <div
-                    className="text-2xl leading-tight font-semibold tabular-nums"
-                    style={{ color: meta.color }}
-                  >
-                    {counts[status]}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {loading && !data
+            ? [0, 1, 2, 3].map((i) => (
+                <Card key={i} className="gap-0 py-3">
+                  <CardContent className="space-y-1.5 px-3">
+                    <div className="flex items-center gap-1.5">
+                      <Skeleton className="size-2 rounded-full" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                    <Skeleton className="h-7 w-10" />
+                  </CardContent>
+                </Card>
+              ))
+            : ["online", "stale", "offline", "no_data"].map((status) => {
+                const meta = statusMeta(status);
+                return (
+                  <Card key={status} className="gap-0 py-3">
+                    <CardContent className="px-3">
+                      <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                        <span className={cn("size-2 shrink-0 rounded-full", meta.dot)} />
+                        <span className="truncate">{meta.label}</span>
+                      </div>
+                      <div
+                        className="text-2xl leading-tight font-semibold tabular-nums"
+                        style={{ color: meta.color }}
+                      >
+                        {counts[status]}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
         </div>
 
         <Card className="gap-0 py-3">
@@ -377,13 +394,28 @@ export default function LiveMapPage() {
 
           <Card className="gap-0 py-0 lg:max-h-[640px] lg:overflow-hidden">
             <div className="border-b px-4 py-3 text-sm font-semibold">
-              พนักงานทั้งหมด ({employees.length})
+              {loading && !data ? (
+                <Skeleton className="h-4 w-36" />
+              ) : (
+                <>พนักงานทั้งหมด ({employees.length})</>
+              )}
             </div>
             <div className="max-h-[420px] overflow-y-auto lg:max-h-[560px]">
               {loading && !data ? (
-                <div className="space-y-3 p-4">
-                  {[0, 1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
+                <div className="divide-border divide-y">
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="flex items-start gap-2.5 px-3 py-2.5">
+                      <Skeleton className="mt-1.5 size-2 shrink-0 rounded-full" />
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Skeleton className="h-4 w-28" />
+                          {i % 3 === 0 && <Skeleton className="h-4 w-12 rounded-md" />}
+                        </div>
+                        <Skeleton className="h-3 w-24" />
+                        <Skeleton className="h-3 w-36" />
+                      </div>
+                      <Skeleton className="mt-1 size-4 shrink-0" />
+                    </div>
                   ))}
                 </div>
               ) : employees.length === 0 ? (

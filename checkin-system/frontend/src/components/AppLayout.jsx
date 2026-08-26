@@ -11,9 +11,9 @@ import {
   Users,
 } from "lucide-react";
 import { getEmployee, clearSession } from "../api";
+import EmployeeFaceAvatar from "@/components/EmployeeFaceAvatar.jsx";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 const logoSrc = "/logo-checkin.svg";
@@ -156,11 +156,11 @@ export default function AppLayout({ children }) {
           </h1>
 
           <div className="flex items-center gap-2">
-            <Avatar className="size-8">
-              <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground">
-                {isBoss ? <Crown className="size-4" /> : <User className="size-4" />}
-              </AvatarFallback>
-            </Avatar>
+            <EmployeeFaceAvatar
+              currentUser
+              className="size-9 border border-sidebar-border"
+              fallback={isBoss ? <Crown className="size-4" /> : <User className="size-4" />}
+            />
             <span className="hidden max-w-[180px] truncate text-sm sm:inline">
               {emp?.full_name}
               {isBoss ? " (Boss)" : ""}

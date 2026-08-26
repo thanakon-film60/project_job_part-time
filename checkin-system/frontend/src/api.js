@@ -69,6 +69,38 @@ export async function login(username, password) {
 
 // ===== reports =====
 export const getEmployees = () => req("/reports/employees");
+export const getEmployeeHistory = (employeeId, year, month) =>
+  req(`/reports/employees/${employeeId}/history?year=${year}&month=${month}`);
+export async function getThaiAddresses(postalCode) {
+  const rows = await req(`/addresses/postal-code/${encodeURIComponent(postalCode)}`);
+  return rows.map((row) => ({
+    id: row.id,
+    postalCode: row.postal_code,
+    subdistrict: row.subdistrict,
+    district: row.district,
+    province: row.province,
+  }));
+}
+
+export const getEmploymentOptions = () => req("/employment-options");
+export const addEmploymentOption = (kind, name) =>
+  req("/employment-options", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, name }),
+  });
+export const registerEmployee = (payload) =>
+  req("/employee-management", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+export const updateEmployeeProfile = (employeeId, payload) =>
+  req(`/employee-management/${employeeId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 export const getGeofence = () => req("/reports/geofence");
 export const getCalendar = (employeeId, year, month) =>
   req(`/reports/calendar?employee_id=${employeeId}&year=${year}&month=${month}`);

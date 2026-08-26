@@ -59,8 +59,11 @@ export default defineConfig({
         navigateFallbackDenylist: [
           // /app = ดาวน์โหลดไฟล์ติดตั้งแอป Flutter (ของ backend ไม่ใช่หน้าเว็บ)
           /^\/app/,
+          /^\/addresses/,
           /^\/auth/,
           /^\/checkins/,
+          /^\/employment-options/,
+          /^\/employee-management/,
           /^\/faces/,
           /^\/line/,
           /^\/locations/,

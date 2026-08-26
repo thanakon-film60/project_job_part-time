@@ -1,4 +1,5 @@
 import os
+import shutil
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -17,7 +18,7 @@ FACE_DIR = os.path.join(settings.storage_dir, "faces")
 
 
 @router.post("/enroll", response_model=FaceProfileOut)
-async def enroll_face(
+def enroll_face(
     photo: UploadFile = File(...),
     source: str = Form("web"),
     note: str | None = Form(None),
@@ -29,8 +30,10 @@ async def enroll_face(
     ext = os.path.splitext(photo.filename or "")[1] or ".jpg"
     fname = f"{emp.employee_code}_{uuid.uuid4().hex}{ext}"
     full = os.path.join(FACE_DIR, fname)
+    # Endpoint เป็น sync เพื่อให้ FastAPI รันทั้ง file I/O และ SQLAlchemy
+    # ใน thread pool และคัดลอกเป็น stream โดยไม่โหลดรูปทั้งหมดเข้า RAM
     with open(full, "wb") as f:
-        f.write(await photo.read())
+        shutil.copyfileobj(photo.file, f)
 
     record = FaceProfile(
         employee_id=emp.id, photo_path=full, source=source, note=note
