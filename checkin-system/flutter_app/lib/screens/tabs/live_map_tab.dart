@@ -10,20 +10,18 @@ import '../../services/attendance_service.dart';
 import '../../services/location_service.dart';
 import '../../widgets/app_forms.dart';
 
-/// สีประจำสถานะ ใช้ทั้งหมุดบนแผนที่และรายชื่อด้านล่าง เพื่อไม่ให้สองที่เพี้ยนกัน
-/// (STATUS_META ใน frontend/src/pages/LiveMapPage.jsx)
-const Map<LiveStatus, Color> _statusColors = {
-  LiveStatus.online: Color(0xFF2E7D32),
-  LiveStatus.stale: Color(0xFFF9A825),
-  LiveStatus.offline: Color(0xFFC62828),
-  LiveStatus.noData: Color(0xFF9E9E9E),
-};
-
 /// รีเฟรชอัตโนมัติทุกกี่วินาที — เท่ากับฝั่งเว็บ
 const Duration _refreshInterval = Duration(seconds: 20);
 
 /// จุดกึ่งกลางเริ่มต้นเมื่อยังไม่มีข้อมูลอะไรเลย (บางบัวทอง)
 const LatLng _defaultCenter = LatLng(13.8712, 100.4155);
+
+/// ซูมได้ลึกสุดเท่าที่ tile ของ OpenStreetMap มีจริง (สูงสุดคือ 19)
+/// เผื่อไว้หนึ่งระดับ ภาพจะได้ยังคมอยู่
+const double _maxZoom = 18;
+
+/// เพดานตอนซูมให้เห็นทุกคนพร้อมกัน — เห็นบริบทรอบตัวด้วย ไม่ใช่จ่อจนติดหลังคา
+const double _fitMaxZoom = 17;
 
 /// แท็บ "แผนที่ติดตาม" (หัวหน้าเท่านั้น)
 ///
@@ -122,6 +120,9 @@ class _LiveMapTabState extends State<LiveMapTab> {
       CameraFit.bounds(
         bounds: LatLngBounds.fromPoints(points),
         padding: const EdgeInsets.all(40),
+        // ทุกคนยืนอยู่จุดเดียวกัน = กรอบเล็กจิ๋ว ถ้าไม่คุมไว้จะซูมทะลุ
+        // จนไม่เหลือแผนที่ให้ดู
+        maxZoom: _fitMaxZoom,
       ),
     );
   }
@@ -228,7 +229,7 @@ class _LiveMapTabState extends State<LiveMapTab> {
           for (final status in LiveStatus.values)
             Tag(
               text: '${status.label} ${counts[status] ?? 0}',
-              color: _statusColors[status]!,
+              color: liveStatusColor(status),
               icon: Icons.circle,
             ),
         ],
@@ -244,6 +245,11 @@ class _LiveMapTabState extends State<LiveMapTab> {
       options: MapOptions(
         initialCenter: _defaultCenter,
         initialZoom: 13,
+        // OSM มี tile ถึง zoom 19 เท่านั้น เกินกว่านี้แผนที่จะกลายเป็นพื้นเทา
+        // เพราะเหลือ tile เดียวถูกขยายจนเบลอ — กันไว้ทั้งการซูมด้วยนิ้วและ
+        // การ fitCamera (ดู _fitAllOnce: คนสองคนที่อยู่ห่างกันไม่กี่เมตร
+        // ทำให้กรอบเล็กจนคำนวณซูมได้ถึง 24)
+        maxZoom: _maxZoom,
         // แตะที่ว่างบนแผนที่ = เลิกเลือกคน (เส้นทางหายไปด้วย)
         onTap: (_, __) => setState(() {
           _selectedId = null;
@@ -255,6 +261,11 @@ class _LiveMapTabState extends State<LiveMapTab> {
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           // OSM บังคับให้ระบุตัวตนของแอปที่เรียกใช้ ตาม usage policy ของเขา
           userAgentPackageName: 'com.mardodi.mardodi_checkin',
+          // แผนที่ว่างเปล่าเป็นอาการที่ debug ยากมาก เพราะ flutter_map กลืน
+          // error ของ tile ไว้เงียบๆ — log ไว้จะได้รู้ว่าติดที่เน็ต ที่ 403
+          // หรือที่การถอดรหัสรูป (debugPrint ถูกตัดทิ้งใน release อยู่แล้ว)
+          errorTileCallback: (tile, error, stackTrace) =>
+              debugPrint('TILE FAIL ${tile.coordinates}: $error'),
         ),
         CircleLayer(
           circles: [
@@ -343,7 +354,7 @@ class _MapPin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _statusColors[employee.status]!;
+    final color = liveStatusColor(employee.status);
     final initial =
         employee.fullName.isEmpty ? '?' : employee.fullName.substring(0, 1);
 
@@ -386,7 +397,7 @@ class _EmployeeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _statusColors[employee.status]!;
+    final color = liveStatusColor(employee.status);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),

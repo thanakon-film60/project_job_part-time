@@ -38,71 +38,89 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Padding(
+      // คีย์บอร์ดเด้งขึ้นแล้วพื้นที่ที่เหลือเตี้ยกว่าฟอร์ม — ถ้าไม่ให้เลื่อนได้
+      // ฟอร์มจะล้นจนขึ้นแถบเหลือง-ดำ และปุ่ม "เข้าสู่ระบบ" จะถูกดันหายไป
+      body: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset(
-                'assets/images/logo-checkin.png',
-                width: 116,
-                height: 116,
-                fit: BoxFit.contain,
-              ),
-              const SizedBox(height: 12),
-              const Text('THANAKON-BOX เช็คอินเข้างาน',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 24),
-              if (widget.notice != null) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(8),
+          child: ConstrainedBox(
+            // ยังจัดกลางจอเหมือนเดิมตอนที่พื้นที่พอ (48 = padding บน+ล่าง)
+            constraints: BoxConstraints(
+              minHeight: (constraints.maxHeight - 48).clamp(0, double.infinity),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/images/logo-checkin.png',
+                    width: 116,
+                    height: 116,
+                    fit: BoxFit.contain,
                   ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.schedule, color: Colors.orange),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(widget.notice!)),
-                    ],
+                  const SizedBox(height: 12),
+                  const Text('THANAKON-BOX เช็คอินเข้างาน',
+                      style:
+                          TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  if (widget.notice != null) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.schedule, color: Colors.orange),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(widget.notice!)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  TextField(
+                    controller: _user,
+                    decoration: const InputDecoration(
+                      labelText: 'รหัสพนักงาน / อีเมล',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              TextField(
-                controller: _user,
-                decoration: const InputDecoration(
-                  labelText: 'รหัสพนักงาน / อีเมล',
-                  border: OutlineInputBorder(),
-                ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _pass,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'รหัสผ่าน',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _loading ? null : _submit,
+                      child: _loading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('เข้าสู่ระบบ'),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _pass,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'รหัสผ่าน',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-              ],
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _loading ? null : _submit,
-                  child: _loading
-                      ? const CircularProgressIndicator()
-                      : const Text('เข้าสู่ระบบ'),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

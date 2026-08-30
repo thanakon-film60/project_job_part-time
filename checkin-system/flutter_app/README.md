@@ -67,9 +67,10 @@
 
 | แท็บ | ไฟล์ | เห็นได้ | เนื้อหา |
 | --- | --- | --- | --- |
+| ภาพรวมทีม | `screens/tabs/overview_tab.dart` | หัวหน้า | หน้าแรกของหัวหน้า — วันนี้ใครมา ใครยังไม่ลงเวลา ใครอยู่บ้าน ใครกำลังส่งตำแหน่ง |
 | เช็คอินเข้างาน | `screens/tabs/checkin_tab.dart` | ทุกคน | ตำแหน่งปัจจุบัน · สถานะการติดตาม · ลงเวลาวันนี้ · ปุ่มเข้า/ออกงาน |
 | ปฏิทินทีม | `screens/tabs/team_tab.dart` | หัวหน้า | ปฏิทินรายเดือน ใครลงเวลาวันไหน กดวันเพื่อดูเวลาเข้า–ออกรายคน |
-| ข้อมูลพนักงาน | `screens/tabs/employees_tab.dart` | หัวหน้า | การ์ดสรุปกดเปิด UI List · ค้นหา · กดรายชื่อเข้าแฟ้ม · ลงทะเบียนพนักงานใหม่ |
+| ข้อมูลพนักงาน | `screens/tabs/employees_tab.dart` | หัวหน้า | รายชื่อพร้อมสถานะวันนี้ · การ์ดสรุปกดกรองรายชื่อ · ค้นหา · กดรายชื่อเข้าแฟ้ม · ลงทะเบียนพนักงานใหม่ |
 | แผนที่ติดตาม | `screens/tabs/live_map_tab.dart` | หัวหน้า | ตำแหน่งล่าสุดของทุกคนบนแผนที่ · วงเขต · เส้นทางย้อนหลัง |
 | ประวัติการลงเวลา | `screens/tabs/history_tab.dart` | ทุกคน | ย้อนหลัง 30 วัน กดกางดูรายการของแต่ละวัน |
 | บัญชีของฉัน | `screens/tabs/profile_tab.dart` | ทุกคน | ข้อมูลผู้ใช้ · ประวัติใบหน้า + บันทึกรูปใหม่ · เวอร์ชันแอป |
@@ -116,12 +117,18 @@ AppTab(
 
 | งาน | หน้าจอในแอป | เทียบกับเว็บ | API |
 | --- | --- | --- | --- |
+| ภาพรวมทีมวันนี้ | `tabs/overview_tab.dart` | (ไม่มีบนเว็บ) | `GET /reports/employees`, `GET /reports/team-calendar`, `GET /locations/live` |
 | ปฏิทินทีมรายเดือน | `tabs/team_tab.dart` | `pages/DashboardPage.jsx` | `GET /reports/team-calendar` |
-| รายชื่อพนักงาน + ค้นหา | `tabs/employees_tab.dart` | `pages/EmployeesPage.jsx` | `GET /reports/employees` |
+| รายชื่อพนักงาน + สถานะวันนี้ | `tabs/employees_tab.dart` | `pages/EmployeesPage.jsx` | `GET /reports/employees`, `GET /reports/team-calendar`, `GET /locations/live` |
 | แฟ้มพนักงานรายคน | `screens/employee_detail_screen.dart` | `pages/EmployeeHistoryPage.jsx` | `GET /reports/employees/{id}/history` |
 | แก้ไขข้อมูลพนักงาน | `screens/employee_edit_screen.dart` | `components/EmployeeEditDialog.jsx` | `PATCH /employee-management/{id}` |
 | ลงทะเบียนพนักงานใหม่ | `screens/employee_register_screen.dart` | `pages/EmployeeRegistrationPage.jsx` | `POST /employee-management` |
 | แผนที่ติดตาม | `tabs/live_map_tab.dart` | `pages/LiveMapPage.jsx` | `GET /locations/live`, `GET /locations/trail/{id}` |
+
+สองแท็บแรกอ่านข้อมูลชุดเดียวกันผ่าน `services/team_status.dart` ซึ่งรวมสามเส้น
+(แฟ้มพนักงาน + ปฏิทินของวันนี้ + พิกัดล่าสุด) ให้เป็นรายชื่อเดียว แล้ว cache ไว้ 30 วินาที
+ตัวเลขสองหน้าจึงตรงกันเสมอ และเปิดแอปครั้งเดียวไม่ยิงซ้ำสองรอบ
+(ตรรกะการรวมมี unit test อยู่ที่ `test/team_status_test.dart`)
 
 ตรรกะที่ต้องตรงกันทั้งสามฝั่ง (backend / เว็บ / แอป) ถูกพอร์ตมาเป็น Dart ล้วน
 พร้อม unit test ใน `test/employee_logic_test.dart`:

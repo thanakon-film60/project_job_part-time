@@ -122,7 +122,10 @@ def create_checkin(
             f"ห่าง {distance_km:.2f} กม. (อนุญาตไม่เกิน {office['radius_km']} กม.) "
             f"| สถานที่ที่อนุญาต: {describe_offices(work_only=checkout_only)}",
         )
-    if not face_detected:
+    # หัวหน้าลงเวลาผ่านแอปของหัวหน้า ซึ่งไม่มีกล้อง/ไม่มีการสแกนใบหน้า
+    # จึงยกเว้นเงื่อนไขนี้ให้เฉพาะบัญชี is_manager
+    # พนักงานทั่วไปยังต้องสแกนหน้าผ่าน liveness ทุกครั้งเหมือนเดิม
+    if not face_detected and not emp.is_manager:
         raise HTTPException(
             status_code=422, detail="ไม่พบใบหน้า/liveness ไม่ผ่าน เช็คอินไม่ได้"
         )
