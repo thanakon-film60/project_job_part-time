@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../config.dart';
@@ -65,6 +64,12 @@ class FacePhoto extends StatefulWidget {
     latestFaceByEmployee.clear();
     _pendingLatestFace.clear();
   }
+
+  /// ใส่รูปเข้า cache ตรง ๆ — ใช้ในเทสต์เท่านั้น เพื่อตรวจว่ารูปที่แสดง
+  /// เปลี่ยนตาม recordId จริง โดยไม่ต้องยิงเครือข่าย
+  @visibleForTesting
+  static void seedCache(int recordId, Uint8List bytes) =>
+      _cache[recordId] = bytes;
 
   /// ลืมรูปที่ถูกลบไปแล้ว — ไม่งั้นภาพยังค้างในหน่วยความจำทั้งที่ลบจากเซิร์ฟเวอร์แล้ว
   ///
@@ -325,7 +330,14 @@ class FaceTile extends StatelessWidget {
           children: [
             // รูปกินที่ที่เหลือหลังหักส่วนข้อความ แทนที่จะบังคับเป็นจัตุรัส
             // แล้วเบียดข้อความจนล้นกรอบ
-            Expanded(child: _FaceImage(recordId: recordId)),
+            Expanded(
+              child: _FaceImage(
+                // ผูก state ของรูปไว้กับ id ของรูป ไม่ใช่ตำแหน่งในกริด
+                // สลับลำดับเมื่อไรก็ได้รูปที่ถูกใบเสมอ
+                key: ValueKey(recordId),
+                recordId: recordId,
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(6, 5, 6, 6),
               child: Column(
@@ -406,7 +418,11 @@ class _FaceImage extends StatefulWidget {
   final int recordId;
   final BoxFit fit;
 
-  const _FaceImage({required this.recordId, this.fit = BoxFit.cover});
+  const _FaceImage({
+    super.key,
+    required this.recordId,
+    this.fit = BoxFit.cover,
+  });
 
   @override
   State<_FaceImage> createState() => _FaceImageState();
@@ -420,6 +436,23 @@ class _FaceImageState extends State<_FaceImage> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  /// รูปที่ต้องแสดงเปลี่ยนไปแล้ว ต้องโหลดใหม่
+  ///
+  /// สำคัญมากตอนลากสลับลำดับหรือลบรูป: กริดเอา element เดิมมาใช้ซ้ำ
+  /// ตาม "ตำแหน่ง" ในลิสต์ ถ้าไม่โหลดใหม่ตรงนี้ วันที่ใต้รูปจะขยับตามลำดับใหม่
+  /// แต่ตัวรูปค้างอยู่ที่เดิม กลายเป็นรูปกับวันที่ไม่ตรงกัน
+  @override
+  void didUpdateWidget(_FaceImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.recordId != widget.recordId) {
+      setState(() {
+        _bytes = null;
+        _error = null;
+      });
+      _load();
+    }
   }
 
   Future<void> _load() async {

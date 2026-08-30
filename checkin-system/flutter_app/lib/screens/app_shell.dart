@@ -163,8 +163,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final pinned =
-        MediaQuery.sizeOf(context).width >= _pinnedSidebarBreakpoint;
+    final pinned = MediaQuery.sizeOf(context).width >= _pinnedSidebarBreakpoint;
     final current = _tabs[_index];
     final account = ApiService.account;
 
@@ -227,7 +226,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 tracking: _tracking,
               ),
             ),
-      body: body,
+      body: SafeArea(
+        top: false,
+        child: body,
+      ),
     );
 
     if (!pinned) return scaffold;
