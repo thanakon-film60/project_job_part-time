@@ -179,6 +179,9 @@ class _FaceGalleryState extends State<FaceGallery> {
     final tile = _tile(face, index, width: width, height: height);
 
     return DragTarget<int>(
+      // ผูกช่องกับ id ของรูป ไม่ใช่ตำแหน่ง — พอสลับลำดับ Flutter จะย้าย
+      // element ตามรูป แทนที่จะเอาของช่องเดิมมาใช้ซ้ำแล้วเนื้อหาสลับกัน
+      key: ValueKey(face.id),
       onWillAcceptWithDetails: (details) => details.data != index,
       onAcceptWithDetails: (details) => _move(details.data, index),
       builder: (context, candidate, rejected) {
