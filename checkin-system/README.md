@@ -14,6 +14,27 @@ Flutter app  ──(GPS ตลอดเวลา + สแกนหน้า)─�
 เว็บจริงที่ใช้งานอยู่: **https://thanakronpart-time.com**
 (ใช้ได้ทั้ง `thanakronpart-time.com`, `www.thanakronpart-time.com` และ `api.thanakronpart-time.com` — ชี้ที่เดียวกันหมด)
 
+### เปิดเองทุกครั้งที่เปิดเครื่อง
+
+**ดับเบิลคลิก `ติดตั้งเปิดอัตโนมัติ.bat` ครั้งเดียว** (หรือกดปุ่ม **ติดตั้ง Auto-start** ในแผงควบคุม)
+หลังจากนั้นทุกครั้งที่เปิดเครื่อง ระบบจะขึ้นเองครบทุกส่วน:
+
+| ส่วน | วิธีเริ่มเอง |
+|---|---|
+| IIS (หน้าเว็บ :80) | Windows Service แบบ Automatic |
+| FastAPI (:8001) | Scheduled Task `MardodiCheckinAPI` แบบ AtStartup |
+| Cloudflare Tunnel | Windows Service แบบ Automatic |
+| แผงควบคุม (GUI) | Scheduled Task `ThanakonCheckinPanel` แบบ AtLogOn (หน่วง 25 วินาที) |
+
+หน้าต่างแผงควบคุมที่เด้งขึ้นตอนล็อกอินจะรันด้วย `-AutoStart` คือ **ตรวจแล้วสั่งเปิด Production ให้เองทันที**
+(เผื่อกรณีบูตแล้วมีบางตัวไม่ติด) ถ้าเปิดหน้าต่างค้างไว้อยู่แล้วจะไม่เด้งซ้อนอีกบาน
+
+ยกเลิกไม่ให้หน้าต่างเด้งเอง:
+
+```powershell
+.\deploy\windows-server\install-gui-autostart.ps1 -Uninstall
+```
+
 ---
 
 ## องค์ประกอบ

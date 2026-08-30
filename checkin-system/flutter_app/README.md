@@ -3,6 +3,9 @@
 แอป Android สำหรับพนักงาน — เช็คอินด้วย GPS + สแกนใบหน้า
 คุยกับ backend ตัวเดียวกับเว็บ (ตั้ง URL ที่ `lib/config.dart`)
 
+> **เพิ่งโคลนมา / เครื่องยังไม่มี Flutter SDK?** เริ่มที่ [RUN_FLUTTER.md](RUN_FLUTTER.md)
+> — ติดตั้ง SDK, คำสั่งที่ใช้ประจำ, สิ่งที่ต้องตรวจ และปัญหาที่เจอบ่อย
+
 ## build เป็นไฟล์ APK ให้พนักงานโหลดจากเว็บ
 
 รันบนเครื่องที่มี Flutter SDK + Android SDK (เครื่อง production ไม่ต้องมี — ดูหัวข้อถัดไป):
@@ -17,7 +20,7 @@
    (โฟลเดอร์นี้ไม่ได้ commit ลง git เพราะสร้างใหม่ได้)
 2. เติมสิทธิ์กล้อง/ตำแหน่ง/แจ้งเตือน และตั้งชื่อแอปลง `AndroidManifest.xml`
    ตาม [PLATFORM_SETUP.md](PLATFORM_SETUP.md)
-3. ตั้ง `minSdk = 23` (ML Kit + background service ต้องการ)
+3. ตั้ง `minSdk = 24` (ML Kit + background service ต้องการอย่างน้อย 23)
 4. สร้างไอคอนแอปจาก **โลโก้ตัวเดียวกับเว็บ** (ดูหัวข้อถัดไป)
 5. `flutter build apk --release`
 6. copy ไฟล์ไปที่ `backend/storage/app/thanakon-checkin.apk`

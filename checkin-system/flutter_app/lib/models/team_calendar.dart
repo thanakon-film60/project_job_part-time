@@ -17,6 +17,9 @@ class TeamCalendarPerson {
   final bool homeOnly;
   final int count;
 
+  /// เคยลงทะเบียนใบหน้าอ้างอิงไว้แล้วหรือยัง
+  final bool faceEnrolled;
+
   const TeamCalendarPerson({
     required this.employeeId,
     required this.employeeCode,
@@ -24,6 +27,7 @@ class TeamCalendarPerson {
     required this.locations,
     required this.homeOnly,
     required this.count,
+    this.faceEnrolled = true,
     this.firstIn,
     this.lastOut,
   });
@@ -39,11 +43,44 @@ class TeamCalendarPerson {
           : const [],
       homeOnly: asBool(json['home_only']),
       count: asInt(json['count']),
+      faceEnrolled: asEnrolled(json['face_enrolled']),
       firstIn: parseServerDateTime(json['first_in']),
       lastOut: parseServerDateTime(json['last_out']),
     );
   }
 }
+
+/// พนักงานที่ "ยังไม่ได้ยืนยันตัวตน" ของวันนั้น (ไม่มีการลงเวลาเลย)
+///
+/// ข้อความเตือนที่ใช้คู่กันอยู่ใน widgets/duty_warning_card.dart
+class TeamCalendarMissing {
+  final int employeeId;
+  final String employeeCode;
+  final String fullName;
+  final bool faceEnrolled;
+
+  const TeamCalendarMissing({
+    required this.employeeId,
+    required this.employeeCode,
+    required this.fullName,
+    required this.faceEnrolled,
+  });
+
+  factory TeamCalendarMissing.fromJson(Map<String, dynamic> json) {
+    return TeamCalendarMissing(
+      employeeId: asInt(json['employee_id']),
+      employeeCode: asText(json['employee_code']) ?? '-',
+      fullName: asText(json['full_name']) ?? '-',
+      faceEnrolled: asEnrolled(json['face_enrolled']),
+    );
+  }
+}
+
+/// อ่าน face_enrolled แบบ "ไม่มีค่ามา = ถือว่าลงทะเบียนแล้ว"
+///
+/// asBool() คืน false เมื่อคีย์หายไป ซึ่งจะกลายเป็นการกล่าวหาพนักงานทุกคนว่า
+/// ไม่ได้ลงทะเบียนใบหน้า ตอนแอปรุ่นใหม่คุยกับ backend รุ่นเก่าที่ยังไม่ส่งคีย์นี้
+bool asEnrolled(Object? value) => value != false;
 
 /// 1 วันในปฏิทินรวมของหัวหน้า
 class TeamCalendarDay {
@@ -51,12 +88,20 @@ class TeamCalendarDay {
   final String date;
   final List<TeamCalendarPerson> people;
 
-  const TeamCalendarDay({required this.date, required this.people});
+  /// คนที่วันนั้นไม่มีการลงเวลาเลย — ยังไม่ได้ยืนยันตัวตน
+  final List<TeamCalendarMissing> missing;
+
+  const TeamCalendarDay({
+    required this.date,
+    required this.people,
+    this.missing = const [],
+  });
 
   factory TeamCalendarDay.fromJson(Map<String, dynamic> json) {
     return TeamCalendarDay(
       date: asText(json['date']) ?? '',
       people: mapList(json['people'], TeamCalendarPerson.fromJson),
+      missing: mapList(json['missing'], TeamCalendarMissing.fromJson),
     );
   }
 }
@@ -79,6 +124,10 @@ class TeamCalendarMonth {
   /// จำนวนพนักงาน (ไม่ซ้ำ) ที่ลงเวลาในเดือนนี้
   int get activeEmployees =>
       days.expand((day) => day.people).map((p) => p.employeeId).toSet().length;
+
+  /// วันที่มีคนลงเวลาจริง — days รวมวันที่มีแต่คนขาดมาด้วย จึงนับตรงๆ ไม่ได้
+  int get daysWithCheckins =>
+      days.where((day) => day.people.isNotEmpty).length;
 
   factory TeamCalendarMonth.fromJson(Map<String, dynamic> json) {
     return TeamCalendarMonth(

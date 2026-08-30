@@ -10,7 +10,10 @@
 [CmdletBinding()]
 param(
     # ใช้ตอนทดสอบว่าหน้าต่างสร้างได้ไหม โดยไม่ต้องเปิดจริง
-    [switch]$SelfTest
+    [switch]$SelfTest,
+    # โหมดเปิดเครื่อง: เปิดหน้าต่างแล้วสั่งเปิด Production ให้เองทันที
+    # ตั้งค่าโดย Scheduled Task ThanakonCheckinPanel (ดู windows-server\install-gui-autostart.ps1)
+    [switch]$AutoStart
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,10 +25,24 @@ $isAdmin = ([Security.Principal.WindowsPrincipal] `
 
 $selfPath = $MyInvocation.MyCommand.Path
 if (-not $isAdmin -and -not $SelfTest) {
-    Start-Process powershell.exe -Verb RunAs -ArgumentList @(
+    $relaunchArgs = @(
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", "`"$selfPath`""
     )
+    # ต้องส่ง -AutoStart ต่อไปด้วย ไม่งั้นตอนยกสิทธิ์แล้วหน้าต่างใหม่จะลืมว่า
+    # ถูกเรียกมาจากตอนเปิดเครื่อง แล้วไม่เปิด Production ให้
+    if ($AutoStart) { $relaunchArgs += "-AutoStart" }
+    Start-Process powershell.exe -Verb RunAs -ArgumentList $relaunchArgs
     exit
+}
+
+# ---------- กันหน้าต่างซ้อนกัน ----------
+# Task ตอนล็อกอินจะเรียกสคริปต์นี้ทุกครั้ง ถ้าผู้ใช้เปิดแผงควบคุมค้างไว้อยู่แล้ว
+# จะได้ไม่มีหน้าต่างสองบานซ้อนกัน (ต้องเก็บ mutex ไว้ในตัวแปรระดับสคริปต์
+# ไม่งั้น GC จะเก็บทิ้งแล้วสิทธิ์ครอบครองหลุดตั้งแต่ยังไม่ปิดหน้าต่าง)
+if (-not $SelfTest) {
+    $createdNew = $false
+    $script:panelMutex = New-Object Threading.Mutex($true, "Global\ThanakonCheckinPanel", [ref]$createdNew)
+    if (-not $createdNew -and $AutoStart) { exit }
 }
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -44,6 +61,7 @@ $PROD_PORT  = 8001
 $SITE       = "https://thanakronpart-time.com"
 $DEV_MARKER = "CHECKIN_DEV_A7F3"
 $PROD_TASK  = "MardodiCheckinAPI" # legacy internal task name installed on this server
+$GUI_TASK   = "ThanakonCheckinPanel" # เปิดหน้าต่างนี้เองตอนล็อกอิน
 
 # ---------- ธีมสี ----------
 $cBg     = [Drawing.Color]::FromArgb(24, 26, 32)
@@ -384,10 +402,26 @@ function Update-ProductionStatus {
     }
     $iisAuto = $iis -and "$($iis.StartType)" -eq "Automatic"
     $tunAuto = $svc -and "$($svc.StartType)" -eq "Automatic"
-    if ($hasBootTrigger -and $iisAuto -and $tunAuto) {
-        Set-Status $stAuto "Auto-start: พร้อม (API + IIS + Tunnel)" $cGreen
+
+    # หน้าต่างควบคุมนี้เปิดเองตอนล็อกอินไหม
+    $guiTask = Get-ScheduledTask -TaskName $GUI_TASK -ErrorAction SilentlyContinue
+    $guiAuto = $false
+    if ($guiTask) {
+        $guiAuto = @($guiTask.Triggers | Where-Object {
+            $_.CimClass.CimClassName -eq "MSFT_TaskLogonTrigger"
+        }).Count -gt 0
+    }
+
+    if ($hasBootTrigger -and $iisAuto -and $tunAuto -and $guiAuto) {
+        Set-Status $stAuto "Auto-start: พร้อม (API + IIS + Tunnel + หน้าต่างนี้)" $cGreen
     } else {
-        Set-Status $stAuto "Auto-start: ยังติดตั้งไม่ครบ" $cAmber
+        # บอกให้ชัดว่าขาดตัวไหน จะได้ไม่ต้องเดาว่าต้องแก้อะไร
+        $missing = @()
+        if (-not $hasBootTrigger) { $missing += "API" }
+        if (-not $iisAuto)        { $missing += "IIS" }
+        if (-not $tunAuto)        { $missing += "Tunnel" }
+        if (-not $guiAuto)        { $missing += "หน้าต่างนี้" }
+        Set-Status $stAuto "Auto-start: ยังขาด $($missing -join ', ')" $cAmber
     }
 }
 
@@ -694,8 +728,9 @@ function Action-StopProduction {
 
 function Action-InstallAutoStart {
     $ans = [Windows.Forms.MessageBox]::Show(
-        "ระบบจะติดตั้ง IIS, FastAPI Scheduled Task และ Cloudflare Tunnel`n" +
-        "ทั้งสามส่วนจะเริ่มเองทุกครั้งเมื่อเปิด Windows`n`nต้องการดำเนินการหรือไม่?",
+        "ระบบจะติดตั้ง IIS, FastAPI Scheduled Task, Cloudflare Tunnel`n" +
+        "และตั้งให้หน้าต่างควบคุมนี้เปิดขึ้นเองตอนล็อกอิน`n`n" +
+        "ทุกส่วนจะเริ่มเองทุกครั้งเมื่อเปิดเครื่อง`n`nต้องการดำเนินการหรือไม่?",
         "ติดตั้ง Auto-start",
         [Windows.Forms.MessageBoxButtons]::YesNo,
         [Windows.Forms.MessageBoxIcon]::Question)
@@ -823,6 +858,24 @@ $form.Add_Shown({
 
     try { Update-Status } catch { }
     $timer.Start()
+
+    # ---------- โหมดเปิดเครื่อง ----------
+    # IIS / cloudflared ตั้งเป็น Automatic และ Task ของ API ตั้งเป็น AtStartup อยู่แล้ว
+    # ตรงนี้จึงเป็นการ "ตรวจซ้ำแล้วเปิดตัวที่ยังไม่ขึ้น" กันกรณีบูตแล้วมีบางตัวไม่ติด
+    if ($AutoStart) {
+        Write-Log ""
+        Write-Log "  โหมดเปิดอัตโนมัติ: กำลังตรวจและเปิด Production ให้..." $cBlue
+        try {
+            Action-StartProduction
+            if (Test-PortAlive $PROD_PORT) {
+                Write-Log "  [OK] ระบบพร้อมใช้งาน — $SITE" $cGreen
+            } else {
+                Write-Log "  [!] FastAPI :$PROD_PORT ยังไม่ตอบ กดปุ่ม 'รีสตาร์ต Production' เพื่อลองอีกครั้ง" $cAmber
+            }
+        } catch {
+            Write-Log "  ERROR: $($_.Exception.Message)" $cRed
+        }
+    }
 })
 
 $form.Add_FormClosing({

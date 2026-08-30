@@ -8,9 +8,11 @@ import '../../services/api_service.dart';
 import '../../services/attendance_service.dart';
 import '../../services/location_service.dart';
 import '../../services/tracking_controller.dart';
+import '../../widgets/duty_warning_card.dart';
 import '../../widgets/today_attendance_card.dart';
 import '../../widgets/tracking_status_card.dart';
 import '../checkin_screen.dart';
+import '../face_enroll_screen.dart';
 
 /// แท็บหลัก — ตำแหน่งปัจจุบัน สถานะการติดตาม รายการลงเวลาวันนี้ และปุ่มลงเวลา
 class CheckInTab extends StatefulWidget {
@@ -42,6 +44,10 @@ class _CheckInTabState extends State<CheckInTab> {
   bool _loadingToday = false;
   String? _todayError;
 
+  // ---- การยืนยันตัวตน ----
+  // null = ยังไม่รู้ (โหลดไม่เสร็จ/โหลดไม่ผ่าน) ยังไม่ต้องเตือน
+  bool? _faceEnrolled;
+
   Timer? _attendanceTimer;
   Timer? _clockTimer;
 
@@ -51,6 +57,7 @@ class _CheckInTabState extends State<CheckInTab> {
     widget.tracking.addListener(_onTrackingChanged);
     _onTrackingChanged();
     _loadToday();
+    _loadFaceEnrollment();
 
     _attendanceTimer = Timer.periodic(
       Config.attendanceRefreshInterval,
@@ -157,9 +164,33 @@ class _CheckInTabState extends State<CheckInTab> {
     }
   }
 
+  /// เคยลงทะเบียนใบหน้าไว้ไหม — ถ้ายัง แปลว่าสแกนหน้าเพื่อลงเวลาไม่ได้ตั้งแต่แรก
+  ///
+  /// โหลดล้มเหลวปล่อยเป็น null ไว้ ไม่เปลี่ยนเป็น false เพราะเน็ตหลุดชั่วคราว
+  /// ไม่ควรกลายเป็นคำเตือนว่าพนักงานไม่ได้ลงทะเบียน
+  Future<void> _loadFaceEnrollment() async {
+    if (!ApiService.isLoggedIn || !mounted) return;
+    try {
+      final faces = await ApiService.fetchMyFaces();
+      if (!mounted) return;
+      setState(() => _faceEnrolled = faces.isNotEmpty);
+    } catch (err) {
+      debugPrint('Load face enrollment failed: $err');
+    }
+  }
+
+  Future<void> _goEnrollFace() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const FaceEnrollScreen()),
+    );
+    if (!mounted) return;
+    await _loadFaceEnrollment();
+  }
+
   Future<void> _refreshAll() async {
     await widget.tracking.ensure();
     await _loadToday();
+    await _loadFaceEnrollment();
   }
 
   @override
@@ -204,11 +235,24 @@ class _CheckInTabState extends State<CheckInTab> {
     // เข้างานไว้ที่ที่ทำงานแต่ยังไม่ได้กดออกงาน
     final openWork =
         _today?.sessions.where((session) => session.isOpen).firstOrNull;
+    // ยังโหลดรายการของวันนี้ไม่เสร็จก็ยังไม่รู้ว่าลงเวลาแล้วหรือยัง — อย่าเพิ่งเตือน
+    final verification = DutyVerification(
+      faceEnrolled: _faceEnrolled ?? true,
+      checkedInToday: _today == null ? true : !_today!.isEmpty,
+    );
     return RefreshIndicator(
       onRefresh: _refreshAll,
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ขึ้นก่อนทุกอย่าง — เป็นคำเตือนว่ายังไม่ได้รับผิดชอบต่อหน้าที่ของวันนี้
+          if (verification.unverified) ...[
+            DutyWarningCard(
+              verification: verification,
+              onEnrollFace: _goEnrollFace,
+            ),
+            const SizedBox(height: 12),
+          ],
           Card(
             color: color.withValues(alpha: 0.1),
             child: Padding(

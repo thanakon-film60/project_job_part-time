@@ -1,5 +1,6 @@
+from calendar import monthrange
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -8,7 +9,7 @@ from ..config import settings
 from ..database import get_db
 from ..geofence import location_category, office_by_name
 from ..employee_profiles import employee_profile
-from ..models import CheckIn, Employee, EmployeeEvent
+from ..models import CheckIn, Employee, EmployeeEvent, FaceProfile
 from .faces import ordered_faces
 from ..schemas import EmployeeHistoryOut, EmployeeProfileOut, GeofenceInfo
 from ..security import require_manager
@@ -241,7 +242,12 @@ def team_calendar(
     _: Employee = Depends(require_manager),
     db: Session = Depends(get_db),
 ):
-    """สรุปว่าแต่ละวันมีพนักงานคนใดลงเวลา เพื่อใช้ในปฏิทินรวมของ Boss"""
+    """สรุปว่าแต่ละวันมีพนักงานคนใดลงเวลา เพื่อใช้ในปฏิทินรวมของ Boss
+
+    นอกจากคนที่ลงเวลาแล้ว ยังคืน `missing` = คนที่ "ยังไม่ได้ยืนยันตัวตน"
+    ของวันนั้นด้วย เพราะการรู้ว่าใครไม่ได้ลงเวลาสำคัญกว่าการรู้ว่าใครลงเวลา
+    (ดู UNVERIFIED_* ฝั่งเว็บ — ข้อความเตือนใช้ชุดเดียวกับแอปพนักงาน)
+    """
     start_utc, end_utc = _month_range_utc(year, month)
     rows = (
         db.query(CheckIn, Employee)
@@ -299,11 +305,55 @@ def team_calendar(
         for person in people.values():
             person["locations"].sort(key=_location_rank)
 
-    days = [
-        {
-            "date": day,
-            "people": sorted(people.values(), key=lambda item: item["full_name"]),
-        }
-        for day, people in sorted(people_by_day.items())
-    ]
+    # ---- ใครยังไม่ได้ยืนยันตัวตนในวันไหนบ้าง ----
+    # การลงเวลาทุกครั้งต้องสแกนใบหน้าผ่านก่อน วันที่ไม่มีการลงเวลาเลยจึงแปลว่า
+    # วันนั้นไม่มีการยืนยันตัวตน ส่วนคนที่ยังไม่เคยลงทะเบียนใบหน้าคือสแกนไม่ได้
+    # ตั้งแต่แรก ต้องแยกบอกให้หัวหน้ารู้ว่าติดที่ขั้นตอนไหน
+    staff = (
+        db.query(Employee)
+        .filter(Employee.is_manager.is_(False))
+        .order_by(Employee.full_name)
+        .all()
+    )
+    enrolled_ids = {
+        employee_id for (employee_id,) in db.query(FaceProfile.employee_id).distinct()
+    }
+    today_local = datetime.now(LOCAL_TZ).date()
+
+    days = []
+    for day_number in range(1, monthrange(year, month)[1] + 1):
+        current = date(year, month, day_number)
+        key = current.isoformat()
+        people = people_by_day.get(key, {})
+        for person in people.values():
+            person["face_enrolled"] = person["employee_id"] in enrolled_ids
+
+        missing = []
+        # วันที่ยังมาไม่ถึงยังไม่ถือว่าขาด ไม่งั้นทั้งเดือนจะขึ้นแดงตั้งแต่วันที่ 1
+        if current <= today_local:
+            for employee in staff:
+                if employee.id in people:
+                    continue
+                # คนที่เพิ่งเข้าระบบทีหลัง ไม่ต้องย้อนไปทวงวันก่อนหน้านั้น
+                if _to_local(employee.created_at).date() > current:
+                    continue
+                missing.append(
+                    {
+                        "employee_id": employee.id,
+                        "employee_code": employee.employee_code,
+                        "full_name": employee.full_name,
+                        "face_enrolled": employee.id in enrolled_ids,
+                    }
+                )
+
+        if not people and not missing:
+            continue
+        days.append(
+            {
+                "date": key,
+                "people": sorted(people.values(), key=lambda item: item["full_name"]),
+                "missing": missing,
+            }
+        )
+
     return {"year": year, "month": month, "days": days}

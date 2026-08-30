@@ -11,14 +11,17 @@ import {
   LogIn,
   LogOut,
   MapPin,
+  ShieldAlert,
   User,
+  UserX,
   Users,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getEmployee, getTeamCalendar, getMyCheckins } from "../api";
+import { getEmployee, getTeamCalendar, getMyCheckins, getMyFaces } from "../api";
 import AppLayout from "../components/AppLayout.jsx";
 import AppDownloadCard from "../components/AppDownloadCard.jsx";
 import MonthCalendar, { MonthCalendarSkeleton } from "../components/MonthCalendar.jsx";
+import UnverifiedDutyAlert from "../components/UnverifiedDutyAlert.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +38,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton, StatCardSkeleton, ListRowSkeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import {
+  UNVERIFIED_DUTY_WARNING,
+  UNVERIFIED_REASON_NO_FACE,
+  UNVERIFIED_TITLE,
   describeCheckin,
+  describeUnverified,
+  hasCheckinOn,
   thaiDateTime,
   thaiTime,
 } from "@/lib/attendance";
@@ -54,22 +62,57 @@ function locationVariant(location) {
 
 function EmployeeDashboard({ me }) {
   const [checkins, setCheckins] = useState([]);
+  const [faces, setFaces] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    getMyCheckins()
-      .then((data) => active && setCheckins(Array.isArray(data) ? data : []))
-      .catch(() => active && setCheckins([]))
+    Promise.all([
+      getMyCheckins().catch(() => []),
+      // โหลดล้มเหลว = ไม่รู้ว่าลงทะเบียนใบหน้าไว้ไหม ปล่อยเป็น null แล้วไม่เตือน
+      // ดีกว่ากล่าวหาว่าไม่ได้ลงทะเบียนทั้งที่จริงๆ แค่เน็ตหลุด
+      getMyFaces().catch(() => null),
+    ])
+      .then(([checkinData, faceData]) => {
+        if (!active) return;
+        setCheckins(Array.isArray(checkinData) ? checkinData : []);
+        setFaces(Array.isArray(faceData) ? faceData : null);
+      })
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
   }, []);
 
+  // เตือนหลังโหลดเสร็จเท่านั้น ไม่งั้นระหว่างรอข้อมูลจะขึ้นแดงทุกครั้งที่เปิดหน้า
+  const verification = describeUnverified({
+    faceEnrolled: faces === null ? true : faces.length > 0,
+    checkedInToday: loading ? true : hasCheckinOn(checkins),
+  });
+
   return (
     <AppLayout>
       <div className="space-y-4">
+        {verification.unverified && (
+          <UnverifiedDutyAlert
+            title={verification.title}
+            reasons={verification.reasons}
+            warning={verification.warning}
+          >
+            <p className="mt-1">
+              เปิดแอปในมือถือแล้วสแกนใบหน้าเพื่อลงเวลา
+              {faces !== null && faces.length === 0 && (
+                <>
+                  {" — "}
+                  <Link to="/face-records" className="font-semibold underline">
+                    ลงทะเบียนใบหน้าที่นี่
+                  </Link>
+                </>
+              )}
+            </p>
+          </UnverifiedDutyAlert>
+        )}
+
         {/* การ์ดต้อนรับพนักงาน */}
         <Card className="border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
           <CardContent className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:p-5">
@@ -225,23 +268,51 @@ export default function DashboardPage() {
     return ids.size;
   }, [days]);
 
+  // ปฏิทินคืนวันที่ "ไม่มีคนลงเวลาแต่มีคนขาด" มาด้วย จึงนับเฉพาะวันที่มีคนลงเวลาจริง
+  const daysWithCheckins = useMemo(
+    () => days.filter((day) => day.people.length > 0).length,
+    [days],
+  );
+
+  // คนที่ยังไม่ยืนยันตัวตน "ของวันนี้" — เฉพาะตอนดูเดือนปัจจุบัน
+  // เดือนอื่นให้ไปดูรายวันในปฏิทินเอา ไม่ต้องเอาของวันนี้มาแปะค้างไว้
+  const todayMissing = useMemo(() => {
+    const today = dayjs();
+    if (!today.isSame(value, "month")) return [];
+    return byDate[today.format("YYYY-MM-DD")]?.missing ?? [];
+  }, [byDate, value]);
+
   function openDay(current) {
     const day = byDate[current.format("YYYY-MM-DD")];
-    if (day?.people?.length) setSelectedDay(day);
+    // เปิดได้ทั้งวันที่มีคนลงเวลา และวันที่มีแต่คนขาด — วันที่ขาดยิ่งต้องกดดู
+    if (day?.people?.length || day?.missing?.length) setSelectedDay(day);
   }
 
   /** เนื้อหาในช่องวัน — จอเล็กโชว์แค่จำนวนคน (ชื่อจะล้นจนอ่านไม่ออก)
    *  จอ sm ขึ้นไปค่อยไล่ชื่อพร้อมแท็กสถานที่ */
   function renderCell(date) {
     const day = byDate[date.format("YYYY-MM-DD")];
-    if (!day?.people?.length) return null;
+    if (!day?.people?.length && !day?.missing?.length) return null;
 
     const visible = day.people.slice(0, 3);
+    const missingCount = day.missing?.length ?? 0;
     return (
       <div className="min-w-0 space-y-1">
-        <Badge variant="info" className="sm:hidden">
-          {day.people.length} คน
-        </Badge>
+        {missingCount > 0 && (
+          <Badge
+            variant="outline"
+            className="border-destructive/50 text-destructive max-w-full gap-1 truncate text-[10px] font-semibold"
+          >
+            <UserX className="size-3 shrink-0" />
+            ไม่ยืนยันตัวตน {missingCount}
+          </Badge>
+        )}
+
+        {day.people.length > 0 && (
+          <Badge variant="info" className="sm:hidden">
+            {day.people.length} คน
+          </Badge>
+        )}
 
         <div className="hidden space-y-1 sm:block">
           {visible.map((person) => (
@@ -294,6 +365,7 @@ export default function DashboardPage() {
             <>
               <StatCardSkeleton />
               <StatCardSkeleton />
+              <StatCardSkeleton />
             </>
           ) : (
             <>
@@ -306,9 +378,16 @@ export default function DashboardPage() {
               <StatCard
                 icon={<CalendarDays />}
                 label="วันที่มีการลงเวลา"
-                value={days.length}
+                value={daysWithCheckins}
                 suffix="วัน"
                 tone="success"
+              />
+              <StatCard
+                icon={<ShieldAlert />}
+                label="วันนี้ยังไม่ยืนยันตัวตน"
+                value={todayMissing.length}
+                suffix="คน"
+                tone={todayMissing.length > 0 ? "destructive" : "success"}
               />
             </>
           )}
@@ -319,6 +398,30 @@ export default function DashboardPage() {
             <CircleAlert />
             <AlertDescription className="text-foreground">{err}</AlertDescription>
           </Alert>
+        )}
+
+        {todayMissing.length > 0 && (
+          <UnverifiedDutyAlert
+            title={`${UNVERIFIED_TITLE} ${todayMissing.length} คน — ${dayjs().format("D MMMM YYYY")}`}
+            warning={UNVERIFIED_DUTY_WARNING}
+          >
+            <ul className="mt-0.5 space-y-1">
+              {todayMissing.map((person) => (
+                <li key={person.employee_id} className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-semibold">{person.full_name}</span>
+                  <span className="opacity-80">({person.employee_code})</span>
+                  {!person.face_enrolled && (
+                    <Badge
+                      variant="outline"
+                      className="border-destructive/50 text-destructive text-[10px]"
+                    >
+                      {UNVERIFIED_REASON_NO_FACE}
+                    </Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </UnverifiedDutyAlert>
         )}
 
         <Card>
@@ -350,7 +453,40 @@ export default function DashboardPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="-mx-1 max-h-[65vh] overflow-y-auto px-1">
+          <div className="-mx-1 max-h-[65vh] space-y-4 overflow-y-auto px-1">
+            {selectedDay?.missing?.length > 0 && (
+              <UnverifiedDutyAlert
+                title={`${UNVERIFIED_TITLE} ${selectedDay.missing.length} คน`}
+                warning={UNVERIFIED_DUTY_WARNING}
+              >
+                <ul className="mt-0.5 space-y-1">
+                  {selectedDay.missing.map((person) => (
+                    <li
+                      key={person.employee_id}
+                      className="flex flex-wrap items-center gap-1.5"
+                    >
+                      <span className="font-semibold">{person.full_name}</span>
+                      <span className="opacity-80">({person.employee_code})</span>
+                      {!person.face_enrolled && (
+                        <Badge
+                          variant="outline"
+                          className="border-destructive/50 text-destructive text-[10px]"
+                        >
+                          {UNVERIFIED_REASON_NO_FACE}
+                        </Badge>
+                      )}
+                      <Link
+                        to={`/employees/${person.employee_id}/history`}
+                        className="underline opacity-80 hover:opacity-100"
+                      >
+                        ดูประวัติ
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </UnverifiedDutyAlert>
+            )}
+
             {!selectedDay?.people?.length ? (
               <EmptyState title="ไม่มีผู้ลงเวลาในวันนี้" />
             ) : (
@@ -366,6 +502,16 @@ export default function DashboardPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{person.full_name}</span>
                         <Badge variant="secondary">{person.employee_code}</Badge>
+                        {/* ลงเวลาแล้วแต่ยังไม่เคยลงทะเบียนใบหน้าไว้เทียบ — ยืนยันตัวตนได้ไม่เต็มร้อย */}
+                        {person.face_enrolled === false && (
+                          <Badge
+                            variant="outline"
+                            className="border-destructive/50 text-destructive gap-1"
+                          >
+                            <ShieldAlert className="size-3" />
+                            {UNVERIFIED_REASON_NO_FACE}
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm">
                         {person.home_only ? (

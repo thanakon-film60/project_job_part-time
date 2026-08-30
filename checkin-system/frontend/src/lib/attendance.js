@@ -83,3 +83,49 @@ export function describeWhereShort({ within_geofence, office_name, distance_km }
   const distance = distance_km == null ? "-" : `${distance_km.toFixed(2)} กม.`;
   return `นอกเขต ห่าง ${distance}`;
 }
+
+/* ---------------------------------------------------------------------------
+ * การยืนยันตัวตนประจำวัน
+ *
+ * ลงเวลาทุกครั้งต้องสแกนใบหน้าผ่านก่อน "วันที่ไม่มีการลงเวลาเลย" จึงเท่ากับ
+ * วันที่ไม่มีการยืนยันตัวตน ส่วนคนที่ยังไม่เคยลงทะเบียนใบหน้าคือสแกนไม่ได้
+ * ตั้งแต่แรก — แยกสองเหตุผลนี้ออกจากกัน คนอ่านจะได้รู้ว่าต้องไปแก้ตรงไหน
+ *
+ * ข้อความชุดนี้ต้องตรงกับฝั่งแอป Flutter (lib/widgets/duty_warning_card.dart)
+ * ------------------------------------------------------------------------- */
+
+export const UNVERIFIED_TITLE = "ยังไม่ได้ยืนยันตัวตน";
+export const UNVERIFIED_DUTY_WARNING =
+  "ถือว่ายังไม่ได้รับผิดชอบต่อหน้าที่ในวันนี้";
+export const UNVERIFIED_REASON_NO_FACE =
+  "ยังไม่ได้ลงทะเบียนใบหน้า — จึงสแกนหน้าเพื่อลงเวลาไม่ได้";
+export const UNVERIFIED_REASON_NO_CHECKIN =
+  "วันนี้ยังไม่ได้ลงเวลา — ไม่มีการสแกนใบหน้ายืนยันตัวตน";
+
+/**
+ * สรุปสถานะการยืนยันตัวตนของพนักงาน 1 คน
+ *
+ * @param {object} input
+ * @param {boolean} input.faceEnrolled   ลงทะเบียนใบหน้าไว้แล้วหรือยัง
+ * @param {boolean} input.checkedInToday วันนี้มีการลงเวลาแล้วหรือยัง
+ * @returns {{ unverified: boolean, reasons: string[], title: string, warning: string }}
+ */
+export function describeUnverified({ faceEnrolled = true, checkedInToday = true } = {}) {
+  const reasons = [];
+  if (!faceEnrolled) reasons.push(UNVERIFIED_REASON_NO_FACE);
+  if (!checkedInToday) reasons.push(UNVERIFIED_REASON_NO_CHECKIN);
+  return {
+    unverified: reasons.length > 0,
+    reasons,
+    title: UNVERIFIED_TITLE,
+    warning: UNVERIFIED_DUTY_WARNING,
+  };
+}
+
+/** วันนั้น (เวลาไทย) มีการลงเวลาอย่างน้อย 1 ครั้งไหม */
+export function hasCheckinOn(records, day = dayjs()) {
+  const target = day.format("YYYY-MM-DD");
+  return (records ?? []).some(
+    (record) => thaiFrom(record?.timestamp)?.format("YYYY-MM-DD") === target,
+  );
+}
