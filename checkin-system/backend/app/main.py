@@ -7,6 +7,7 @@ from .routers import (
     addresses,
     app_release,
     auth,
+    camera,
     checkins,
     employee_management,
     employment_options,
@@ -36,6 +37,7 @@ app.include_router(addresses.router)
 app.include_router(employment_options.router)
 app.include_router(employee_management.router)
 app.include_router(auth.router)
+app.include_router(camera.router)
 app.include_router(checkins.router)
 app.include_router(faces.router)
 app.include_router(line.router)
