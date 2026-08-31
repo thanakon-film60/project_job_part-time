@@ -32,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(app_release.router)
+app.include_router(app_release.boss_router)
 app.include_router(addresses.router)
 app.include_router(employment_options.router)
 app.include_router(employee_management.router)

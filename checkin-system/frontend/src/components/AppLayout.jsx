@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
   Crown,
+  Download,
   LogOut,
   MapPin,
   Menu,
@@ -22,6 +23,7 @@ const BOSS_NAV = [
   { to: "/", label: "ปฏิทินเข้างาน", icon: CalendarDays },
   { to: "/employees", label: "ข้อมูลพนักงาน", icon: Users },
   { to: "/live-map", label: "แผนที่ติดตามพนักงาน", icon: MapPin },
+  { to: "/install-boss-app", label: "ติดตั้งแอปบอส", icon: Download },
 ];
 
 const STAFF_NAV = [

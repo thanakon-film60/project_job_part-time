@@ -8,6 +8,7 @@ import EmployeesPage from "./pages/EmployeesPage.jsx";
 import EmployeeRegistrationPage from "./pages/EmployeeRegistrationPage.jsx";
 import EmployeeHistoryPage from "./pages/EmployeeHistoryPage.jsx";
 import LiveMapPage from "./pages/LiveMapPage.jsx";
+import BossAppDownloadPage from "./pages/BossAppDownloadPage.jsx";
 
 function RequireAuth({ children }) {
   return getToken() ? children : <Navigate to="/login" replace />;
@@ -62,6 +63,14 @@ export default function App() {
         element={
           <RequireBoss>
             <LiveMapPage />
+          </RequireBoss>
+        }
+      />
+      <Route
+        path="/install-boss-app"
+        element={
+          <RequireBoss>
+            <BossAppDownloadPage />
           </RequireBoss>
         }
       />

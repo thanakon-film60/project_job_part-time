@@ -20,22 +20,28 @@ from fastapi.responses import FileResponse
 from ..config import settings
 
 router = APIRouter(prefix="/app", tags=["app"])
+boss_router = APIRouter(prefix="/boss-app", tags=["boss-app"])
 
 APK_DIR = os.path.join(settings.storage_dir, "app")
 APK_NAME = "thanakon-checkin.apk"
 APK_PATH = os.path.join(APK_DIR, APK_NAME)
 META_PATH = os.path.join(APK_DIR, "release.json")
 
+BOSS_APK_DIR = os.path.join(settings.storage_dir, "boss-app")
+BOSS_APK_NAME = "thanakon-boss.apk"
+BOSS_APK_PATH = os.path.join(BOSS_APK_DIR, BOSS_APK_NAME)
+BOSS_META_PATH = os.path.join(BOSS_APK_DIR, "release.json")
+
 # Android จะไม่ยอมติดตั้งถ้า content-type ไม่ใช่อันนี้ (บางเบราว์เซอร์เซฟเป็น .zip)
 APK_MEDIA_TYPE = "application/vnd.android.package-archive"
 
 
-def _meta() -> dict:
+def _meta(meta_path: str = META_PATH) -> dict:
     """ข้อมูลเวอร์ชันที่สคริปต์ build เขียนไว้ — ไม่มีก็ไม่เป็นไร"""
     try:
         # utf-8-sig: PowerShell 5.1 (Set-Content -Encoding UTF8) ใส่ BOM ไว้หน้าไฟล์
         # ถ้าอ่านแบบ utf-8 เฉย ๆ จะ decode ไม่ผ่าน แล้วเวอร์ชันจะหายไปจากหน้าเว็บ
-        with open(META_PATH, "r", encoding="utf-8-sig") as f:
+        with open(meta_path, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
         return data if isinstance(data, dict) else {}
     except (OSError, json.JSONDecodeError):
@@ -76,3 +82,40 @@ def app_download():
     # ใส่เวอร์ชันในชื่อไฟล์ที่โหลด จะได้ไม่ทับกับตัวเก่าในเครื่องพนักงาน
     filename = f"thanakon-checkin-{version}.apk" if version else APK_NAME
     return FileResponse(APK_PATH, media_type=APK_MEDIA_TYPE, filename=filename)
+
+
+@boss_router.get("/info")
+def boss_app_info():
+    """ข้อมูล APK สำหรับหน้า "ติดตั้งแอปบอส" บนเว็บ"""
+    if not os.path.isfile(BOSS_APK_PATH):
+        return {"available": False}
+
+    stat = os.stat(BOSS_APK_PATH)
+    meta = _meta(BOSS_META_PATH)
+    return {
+        "available": True,
+        "filename": BOSS_APK_NAME,
+        "download_url": "/boss-app/download",
+        "size_bytes": stat.st_size,
+        "built_at": meta.get("built_at")
+        or datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+        "version": meta.get("version") or "",
+        "min_android": meta.get("min_android") or "",
+    }
+
+
+@boss_router.get("/download")
+def boss_app_download():
+    if not os.path.isfile(BOSS_APK_PATH):
+        raise HTTPException(
+            status_code=404,
+            detail="ยังไม่มีไฟล์ติดตั้งแอปบอสบนเซิร์ฟเวอร์",
+        )
+
+    version = _meta(BOSS_META_PATH).get("version") or ""
+    filename = f"thanakon-boss-{version}.apk" if version else BOSS_APK_NAME
+    return FileResponse(
+        BOSS_APK_PATH,
+        media_type=APK_MEDIA_TYPE,
+        filename=filename,
+    )

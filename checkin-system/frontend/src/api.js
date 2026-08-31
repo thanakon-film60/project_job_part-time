@@ -155,3 +155,8 @@ export const getAppInfo = () => req("/app/info");
 // URL เต็ม เพื่อให้ QR ที่สแกนจากมือถือชี้กลับมาที่เซิร์ฟเวอร์ถูกตัว
 export const appDownloadUrl = () =>
   new URL(`${BASE}/app/download`, window.location.origin).href;
+
+// ===== ไฟล์ติดตั้งแอปหัวหน้า (Boss APK) =====
+export const getBossAppInfo = () => req("/boss-app/info");
+export const bossAppDownloadUrl = () =>
+  new URL(`${BASE}/boss-app/download`, window.location.origin).href;
