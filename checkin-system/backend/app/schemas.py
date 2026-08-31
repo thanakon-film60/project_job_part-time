@@ -311,3 +311,40 @@ class GeofenceInfo(BaseModel):
     office_lat: float
     office_lng: float
     radius_km: float
+
+
+# ---------------------------------------------------------------------
+# กล้องวงจรปิด ONVIF
+# ---------------------------------------------------------------------
+
+# ทิศที่สั่งได้ — ตรงกับปุ่มบนหน้าจอ
+# home = กลับตำแหน่งตั้งต้น (ปุ่ม Reset), stop = สั่งหยุดทันที
+CameraPtzAction = Literal[
+    "up", "down", "left", "right", "zoom_in", "zoom_out", "home", "stop"
+]
+
+
+class CameraPtzIn(BaseModel):
+    action: CameraPtzAction
+
+    # หมุนนานกี่มิลลิวินาทีแล้วหยุดเอง — ไม่ส่งมาก็ใช้ค่าจาก .env
+    # เพดานถูกบังคับอีกชั้นที่ router ด้วย CAMERA_PTZ_MAX_DURATION_MS
+    duration_ms: int | None = Field(default=None, ge=100, le=10000)
+
+
+class CameraPtzOut(BaseModel):
+    ok: bool
+    action: str
+    message: str
+
+
+class CameraStatusOut(BaseModel):
+    """สถานะกล้อง — แอปเอาไปตัดสินว่าจะโชว์ปุ่มควบคุมหรือขึ้นข้อความว่าต่อไม่ได้"""
+
+    enabled: bool
+    reachable: bool
+    host: str
+    message: str
+    model: str | None = None
+    firmware: str | None = None
+    home_supported: bool = False
