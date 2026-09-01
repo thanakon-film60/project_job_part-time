@@ -19,6 +19,9 @@ dependencies:
   permission_handler: ^11.3.1
   flutter_map: ^8.3.1
   latlong2: ^0.10.1
+  # ฟังเสียงจากไมค์กล้อง CCTV — ตรึงไว้ที่สาย 0.9 ดูเหตุผลใต้หัวข้อ
+  # "ตรึงเวอร์ชัน just_audio / audio_session" ด้านล่าง
+  just_audio: 0.9.46
 
 # ===================================================================
 # ตรึงเวอร์ชัน path_provider_android
@@ -30,8 +33,22 @@ dependencies:
 # 2.2.23 เป็นตัวสุดท้ายก่อนเปลี่ยนไปใช้ jni และทำงานได้ครบเหมือนเดิม
 # ถอดบรรทัดนี้ออกได้เมื่ออัปเกรด AGP/Gradle แล้วลอง build ผ่าน
 # ===================================================================
+
+# ===================================================================
+# ตรึงเวอร์ชัน just_audio / audio_session
+#
+# ทั้งคู่ย้ายไปประกาศ agpVersion = "9.0.1" ในสคริปต์ build ของตัวเอง
+# (just_audio ตั้งแต่ 0.10.x, audio_session ตั้งแต่ 0.2.x) ซึ่งชนกับ
+# AGP 8.11.1 ที่โปรเจ็กต์นี้ใช้ แล้ว build ไม่ผ่าน:
+#   Could not determine the dependencies of task
+#   ':just_audio:compileDebugJavaWithJavac'
+# just_audio 0.9.46 ยังใช้ AGP 8.5.0 และ audio_session 0.1.25 เป็นตัว
+# ท้ายสุดของสาย 0.1 (just_audio ยอมรับช่วง >=0.1.24 <0.3.0 อยู่แล้ว)
+# ถอดการตรึงทั้งสองออกได้เมื่ออัปเกรด AGP เป็น 9 แล้วลอง build ผ่าน
+# ===================================================================
 dependency_overrides:
   path_provider_android: 2.2.23
+  audio_session: 0.1.25
 
 dev_dependencies:
   flutter_test:

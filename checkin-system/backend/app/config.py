@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     camera_ptz_invert_tilt: bool = False
     camera_timeout_seconds: float = 8.0
 
+    # ฟังเสียงจากไมค์ของกล้อง (ขาเข้าอย่างเดียว)
+    # กล้องรุ่นที่ใช้อยู่ไม่มีลำโพงและไม่เปิด RTSP backchannel จึงพูดกลับไม่ได้
+    camera_audio_enabled: bool = True
+    camera_rtsp_url: str = "rtsp://192.168.1.101:554"
+    camera_audio_bitrate: str = "32k"
+    ffmpeg_path: str = ""   # เว้นว่าง = ให้ระบบหาเอง
+
     # โดเมนที่อนุญาตให้เรียก API จากเบราว์เซอร์ (คั่นด้วยจุลภาค)
     # production: ตั้งเป็นโดเมนจริง เช่น "https://checkin.example.com"
     allowed_origins: str = "*"

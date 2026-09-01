@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  โดเมนจริงทั้งหมดยังบังคับ HTTPS เหมือนเดิม (production ผ่าน Cloudflare Tunnel)
+
+  ยกเว้น "เครื่องตัวเอง" เพื่อให้ต่อ backend ตอนพัฒนาได้:
+    มือถือต่อสาย USB : adb reverse tcp:8002 tcp:8002  ->  http://localhost:8002
+    Android emulator : http://10.0.2.2:8002
+  ทั้งสามที่อยู่นี้วิ่งไม่ออกนอกเครื่อง จึงไม่ได้ลดความปลอดภัยของตัวแอปจริง
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
