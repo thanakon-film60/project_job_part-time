@@ -1,0 +1,34 @@
+# ---- build context ของ backend ----
+# ทุกอย่างในนี้ "ไม่" ถูกส่งเข้า Docker daemon ตอน build
+# เหตุผลหลัก: venv/ + storage/ รวมกันหลาย GB ถ้าไม่ตัดออก build จะช้ามากและ image บวม
+
+# virtualenv ของ Windows — ใช้ใน Linux container ไม่ได้อยู่แล้ว
+venv/
+.venv/
+
+# cache/bytecode
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ความลับ — ห้าม bake ลง image เด็ดขาด
+# compose ส่งค่าเข้าให้ตอน run ผ่าน env_file แทน
+.env
+.env.bak
+*.pem
+
+# ข้อมูลรันไทม์ — ผูกเข้ามาเป็น volume ตอน run ไม่ใช่ตอน build
+storage/
+*.db
+*.sqlite3
+*.log
+logs/
+
+# ไฟล์ที่ container ไม่ต้องใช้
+run-local.ps1
+tests_e2e.py
+camera_gui.py
+camera_view.py
+camera_ffmpeg_gui.py
+*.apk

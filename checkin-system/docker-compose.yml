@@ -1,35 +1,64 @@
+# ระบบเช็คอิน THANAKON-BOX — stack สำหรับรันบน Docker Desktop
+#
+# ตัวนี้เป็น "สภาพแวดล้อมแยก" ไม่ใช่ตัวแทน production
+# production ยังเป็น IIS + uvicorn :8001 + PostgreSQL บนเครื่อง (127.0.0.1:5432) เหมือนเดิม
+# พอร์ตในไฟล์นี้จึงจงใจเลี่ยง 5432 / 8000 / 8001 ที่ถูกใช้อยู่แล้ว
+#
+# ค่าตั้งต้นอ่านจาก .env ที่อยู่ข้าง ๆ ไฟล์นี้ (ดู .env.example)
+# ค่าลับของแอป (SECRET_KEY, LINE token ฯลฯ) อ่านจาก backend/.env ผ่าน env_file
+
+name: checkin-system
+
 services:
   db:
     image: postgres:16
+    container_name: checkin-db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: checkin
-      POSTGRES_PASSWORD: checkin
-      POSTGRES_DB: checkin
+      POSTGRES_USER: ${POSTGRES_USER:-thanakon_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?ตั้ง POSTGRES_PASSWORD ใน checkin-system/.env ก่อน}
+      POSTGRES_DB: ${POSTGRES_DB:-thanakon_room}
+      TZ: Asia/Bangkok
+      PGTZ: Asia/Bangkok
     ports:
-      - "5432:5432"
+      # ผูกกับ 127.0.0.1 เท่านั้น — ไม่เปิด DB ออกเน็ต
+      - "127.0.0.1:${DB_HOST_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U checkin"]
+      # $$ = ให้ compose ส่ง $ ตัวจริงเข้าไปใน shell ของ container
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 20s
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+    container_name: checkin-backend
+    restart: unless-stopped
+    env_file:
+      # ค่าลับ + OFFICES ใช้ชุดเดียวกับที่รันบนเครื่อง
+      - ./backend/.env
     environment:
-      DATABASE_URL: postgresql://checkin:checkin@db:5432/checkin
-      OFFICE_LAT: "13.9231953"
-      OFFICE_LNG: "100.5195808"
-      OFFICE_NAME: THANAKON-BOX
-      GEOFENCE_RADIUS_KM: "2.0"
-      SECRET_KEY: change-this-to-a-long-random-string
+      # ค่าด้านล่างนี้ "ทับ" ค่าจาก env_file เสมอ (compose ให้ environment ชนะ)
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-thanakon_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-thanakon_room}
+      # ใน backend/.env เป็น path ของ Windows (F:\...) ซึ่งใช้ใน Linux container ไม่ได้
+      STORAGE_DIR: /app/storage
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      # ปิดไว้เป็นค่าเริ่มต้น — กัน container ทดสอบยิงแจ้งเตือนเข้ากลุ่ม LINE จริง
+      LINE_NOTIFY_ENABLED: ${LINE_NOTIFY_ENABLED:-false}
+      # กล้องเป็น IP ในวง LAN — เปิดเมื่อจำเป็นเท่านั้น
+      CAMERA_PTZ_ENABLED: ${CAMERA_PTZ_ENABLED:-false}
+      TZ: Asia/Bangkok
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${API_HOST_PORT:-8010}:8000"
     depends_on:
       db:
         condition: service_healthy
     volumes:
+      # รูปใบหน้า/ไฟล์แนบ เก็บออกมานอก container จะได้ไม่หายตอน rebuild
       - ./backend/storage:/app/storage
 
 volumes:

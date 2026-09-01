@@ -5,7 +5,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends gcc \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+# requirements.txt อ้าง -r requirements-base.txt ต่อ จึงต้อง copy มาทั้งชุด
+# (ถ้า copy แค่ requirements.txt จะพังตอน pip: "No such file: requirements-base.txt")
+COPY requirements*.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
