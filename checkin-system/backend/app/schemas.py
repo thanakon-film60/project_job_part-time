@@ -348,3 +348,10 @@ class CameraStatusOut(BaseModel):
     model: str | None = None
     firmware: str | None = None
     home_supported: bool = False
+
+    # ฟังเสียงจากไมค์กล้องได้ไหม (เซิร์ฟเวอร์ต้องมี ffmpeg ด้วย)
+    audio_supported: bool = False
+
+    # พูดกลับออกลำโพงกล้องได้ไหม — กล้องที่ใช้อยู่ตอบว่าไม่ได้
+    # เก็บเป็นฟิลด์ไว้เผื่อเปลี่ยนกล้องรุ่นที่มีลำโพงในอนาคต แอปจะได้ไม่ต้องแก้
+    talkback_supported: bool = False

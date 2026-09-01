@@ -835,4 +835,13 @@ class ApiService {
     }
     return res.bodyBytes;
   }
+
+  /// ที่อยู่สตรีมเสียงจากไมค์กล้อง
+  ///
+  /// ตัวเล่นเสียง (just_audio) ต่อ URL นี้เองโดยตรง จึงต้องส่ง header ไปด้วย
+  /// ผ่าน cameraAudioHeaders — ไม่ได้ผ่าน _send เหมือน endpoint อื่น
+  static String get cameraAudioUrl => '${Config.apiBase}/camera/audio';
+
+  /// header ที่ต้องแนบไปกับ cameraAudioUrl (endpoint นี้ต้องเป็นหัวหน้า)
+  static Map<String, String> get cameraAudioHeaders => _authHeaders;
 }

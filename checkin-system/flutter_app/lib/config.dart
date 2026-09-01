@@ -22,8 +22,17 @@ class Config {
   //   Android emulator : http://10.0.2.2:8002
   //   iOS simulator    : http://localhost:8002
   // ---------------------------------------------------------------
-  static const String apiBase = "https://thanakronpart-time.com";
-  // static const String apiBase = "http://10.0.2.2:8002";
+  //
+  // ตอนทดสอบกับ backend บนเครื่องตัวเอง ไม่ต้องแก้ไฟล์นี้ — ส่งทาง --dart-define
+  // แทน แล้วค่า production จะยังเป็นค่าเริ่มต้นอยู่เหมือนเดิม:
+  //   มือถือต่อสาย USB : adb reverse tcp:8002 tcp:8002
+  //                      flutter run --dart-define=API_BASE=http://localhost:8002
+  //   Android emulator : flutter run --dart-define=API_BASE=http://10.0.2.2:8002
+  // ---------------------------------------------------------------
+  static const String apiBase = String.fromEnvironment(
+    "API_BASE",
+    defaultValue: "https://thanakronpart-time.com",
+  );
 
   // ---------------------------------------------------------------
   // สถานที่ fallback ถ้าโหลด /reports/geofence จาก backend ไม่ได้

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
+import '../models/camera.dart';
 import '../models/directory.dart';
 import '../models/employee.dart';
 import '../models/json.dart';
@@ -771,4 +772,76 @@ class ApiService {
 
   /// ลิงก์ดาวน์โหลดไฟล์ติดตั้ง (เปิดในเบราว์เซอร์)
   static String get appDownloadUrl => '${Config.apiBase}/app/download';
+
+  // -------------------------------------------------------------------
+  // กล้องวงจรปิด (หัวหน้าเท่านั้น)
+  //
+  // กล้องเป็น IP ในวง LAN ของออฟฟิศ แอปจึงไม่ได้คุยกับกล้องตรงๆ —
+  // ทุกอย่างวิ่งผ่าน backend ที่อยู่วงเดียวกับกล้อง แปลว่าไม่ต้องเปิดพอร์ต
+  // กล้องออกอินเทอร์เน็ต และภาพก็ถูกกันด้วย token เหมือน endpoint อื่น
+  // -------------------------------------------------------------------
+
+  /// เซิร์ฟเวอร์ต่อกล้องติดไหม + รุ่น/เฟิร์มแวร์
+  static Future<CameraStatus> fetchCameraStatus() async {
+    final data = await _jsonMap(
+      'GET',
+      '/camera/status',
+      errorText: 'เช็คสถานะกล้องไม่สำเร็จ',
+    );
+    return CameraStatus.fromJson(data);
+  }
+
+  /// สั่งกล้องหมุน 1 จังหวะ
+  ///
+  /// เซิร์ฟเวอร์เป็นคนสั่งหยุดให้เองเมื่อครบเวลา แอปไม่ต้องส่ง stop ตามมา —
+  /// ถ้าเน็ตมือถือหลุดกลางทาง กล้องจะได้ไม่หมุนค้าง
+  static Future<void> moveCamera(String action, {int? durationMs}) async {
+    await _jsonMap(
+      'POST',
+      '/camera/ptz',
+      body: {
+        'action': action,
+        if (durationMs != null) 'duration_ms': durationMs,
+      },
+      errorText: 'สั่งกล้องไม่สำเร็จ',
+    );
+  }
+
+  /// ปุ่มฉุกเฉิน — สั่งกล้องหยุดทันที
+  static Future<void> stopCamera() async {
+    await _jsonMap(
+      'POST',
+      '/camera/ptz/stop',
+      errorText: 'สั่งหยุดกล้องไม่สำเร็จ',
+    );
+  }
+
+  /// ภาพนิ่งล่าสุดจากกล้อง — ต้องแนบ token จึงใช้ Image.network ตรงๆ ไม่ได้
+  /// (เหมือน fetchFacePhoto) แอปเรียกซ้ำเป็นระยะเพื่อทำเป็นภาพสด
+  static Future<Uint8List> fetchCameraSnapshot() async {
+    final res = await _send('GET', '/camera/snapshot');
+    if (res.statusCode == 401) {
+      await logout();
+      throw const ApiException(
+        'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',
+        statusCode: 401,
+      );
+    }
+    if (res.statusCode != 200) {
+      throw ApiException(
+        _errorMessage(res, 'โหลดภาพจากกล้องไม่สำเร็จ'),
+        statusCode: res.statusCode,
+      );
+    }
+    return res.bodyBytes;
+  }
+
+  /// ที่อยู่สตรีมเสียงจากไมค์กล้อง
+  ///
+  /// ตัวเล่นเสียง (just_audio) ต่อ URL นี้เองโดยตรง จึงต้องส่ง header ไปด้วย
+  /// ผ่าน cameraAudioHeaders — ไม่ได้ผ่าน _send เหมือน endpoint อื่น
+  static String get cameraAudioUrl => '${Config.apiBase}/camera/audio';
+
+  /// header ที่ต้องแนบไปกับ cameraAudioUrl (endpoint นี้ต้องเป็นหัวหน้า)
+  static Map<String, String> get cameraAudioHeaders => _authHeaders;
 }

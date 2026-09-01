@@ -8,8 +8,11 @@
 
 import threading
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 
+from camera_audio import AudioStream, find_ffmpeg
 from camera_onvif import OnvifError, OnvifPtz
 
 from ..config import settings
@@ -95,6 +98,12 @@ def camera_status(_: Employee = Depends(require_manager)):
         model=info.get("Model") or None,
         firmware=info.get("FirmwareVersion") or None,
         home_supported=camera.home_supported,
+        audio_supported=(
+            settings.camera_audio_enabled
+            and find_ffmpeg(settings.ffmpeg_path or None) is not None
+        ),
+        # กล้องรุ่นนี้ไม่มีลำโพง ตรวจแล้วด้วย RTSP DESCRIBE + Require backchannel
+        talkback_supported=False,
     )
 
 
@@ -185,5 +194,64 @@ def camera_snapshot(_: Employee = Depends(require_manager)):
         content=image,
         media_type="image/jpeg",
         # ภาพสด — ห้ามให้ตัวกลางไหนแคชไว้ ไม่งั้นแอปจะได้ภาพเก่าเดิมซ้ำๆ
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get(
+    "/audio",
+    responses={200: {"content": {"audio/aac": {}}}},
+    response_class=StreamingResponse,
+)
+async def camera_audio(
+    request: Request,
+    _: Employee = Depends(require_manager),
+):
+    """ฟังเสียงจากไมค์ของกล้องแบบสด
+
+    เป็นเสียงขาเข้าอย่างเดียว — กล้องรุ่นนี้ไม่มีลำโพงและไม่เปิด RTSP
+    backchannel จึงพูดกลับออกกล้องไม่ได้
+
+    เสียงเริ่มดังช้าประมาณ 6 วินาที เพราะต้องรอกล้อง setup RTSP ให้เสร็จก่อน
+    ไม่ใช่เพราะฝั่งเซิร์ฟเวอร์ช้า
+    """
+    _require_enabled()
+
+    if not settings.camera_audio_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ระบบเสียงถูกปิดไว้ที่เซิร์ฟเวอร์",
+        )
+
+    if find_ffmpeg(settings.ffmpeg_path or None) is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="เซิร์ฟเวอร์นี้ยังไม่ได้ติดตั้ง ffmpeg จึงส่งเสียงไม่ได้",
+        )
+
+    stream = AudioStream(
+        rtsp_url=settings.camera_rtsp_url,
+        ffmpeg_path=settings.ffmpeg_path or None,
+        bitrate=settings.camera_audio_bitrate,
+    ).start()
+
+    async def chunks():
+        # ต้องเป็น async generator — ตัว sync generator ที่ StreamingResponse
+        # รันใน threadpool จะไม่ถูก close() เมื่อแอปตัดการเชื่อมต่อ ทำให้
+        # ffmpeg ค้างคาเครื่องและเปิด RTSP ค้างไว้กับกล้องไปเรื่อยๆ
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                chunk = await run_in_threadpool(stream.read)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            stream.close()
+
+    return StreamingResponse(
+        chunks(),
+        media_type="audio/aac",
         headers={"Cache-Control": "no-store"},
     )

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../screens/tabs/camera_tab.dart';
 import '../screens/tabs/checkin_tab.dart';
 import '../screens/tabs/employees_tab.dart';
 import '../screens/tabs/history_tab.dart';
@@ -89,6 +90,13 @@ List<AppTab> buildAppTabs(TrackingController tracking) {
         builder: (_) => const LiveMapTab(),
       ),
     ],
+    AppTab(
+      id: 'camera',
+      label: 'กล้องวงจรปิด',
+      subtitle: 'ดูภาพสด · หมุนกล้อง · ฟังเสียง',
+      icon: Icons.videocam,
+      builder: (_) => const CameraTab(),
+    ),
     AppTab(
       id: 'history',
       label: 'ประวัติการลงเวลา',
