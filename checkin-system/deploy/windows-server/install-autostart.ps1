@@ -3,7 +3,9 @@
 [CmdletBinding()]
 param(
     [switch]$SkipIis,
-    [switch]$SkipTunnel
+    [switch]$SkipTunnel,
+    # Skip the logon task that reopens the control panel window on every boot.
+    [switch]$SkipGui
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,10 +38,19 @@ if (-not $SkipTunnel) {
     & (Join-Path $deployDir "cloudflare\setup-tunnel.ps1") -InstallService
 }
 
+if (-not $SkipGui) {
+    # The three components above already come up on their own at boot. This last
+    # task reopens the control panel at logon so the operator can see that they
+    # did, and restarts anything that failed to come up.
+    Step "Install the control panel as an AtLogOn Scheduled Task"
+    & (Join-Path $windowsDir "install-gui-autostart.ps1")
+}
+
 Step "Verify automatic startup"
 $task = Get-ScheduledTask -TaskName "MardodiCheckinAPI" -ErrorAction SilentlyContinue
 $iis = Get-Service -Name "W3SVC" -ErrorAction SilentlyContinue
 $tunnel = Get-Service -Name "cloudflared" -ErrorAction SilentlyContinue
+$gui = Get-ScheduledTask -TaskName "ThanakonCheckinPanel" -ErrorAction SilentlyContinue
 
 $result = @(
     [PSCustomObject]@{
@@ -56,6 +67,11 @@ $result = @(
         Component = "Cloudflare Tunnel"
         Startup   = if ($tunnel) { $tunnel.StartType } else { "Not installed" }
         Status    = if ($tunnel) { $tunnel.Status } else { "Missing" }
+    }
+    [PSCustomObject]@{
+        Component = "Control panel (GUI)"
+        Startup   = if ($gui) { "AtLogOn" } else { "Not installed" }
+        Status    = if ($gui) { $gui.State } else { "Missing" }
     }
 )
 $result | Format-Table -AutoSize

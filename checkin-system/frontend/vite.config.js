@@ -22,15 +22,16 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: [
-        "favicon-32.png",
-        "apple-touch-icon.png",
-        "icon-192.png",
-        "icon-512.png",
-        "icon-maskable-512.png",
-        "logo-checkin.svg",
-        "logo-checkin.png",
-      ],
+      // ⚠️ ห้ามใส่ includeAssets ซ้ำกับ globPatterns ข้างล่าง!
+      //    ไฟล์ใน public/ ถูก copy ลง dist อยู่แล้ว globPatterns จึงเก็บให้ครบเอง
+      //    ถ้าใส่ทั้งสองที่ ไฟล์เดียวกันจะเข้า precache 2 รอบ → cache.put โยน
+      //    "Entry already exists" → service worker ติดตั้งไม่ผ่าน → ตัวเก่าค้าง
+      //    เสิร์ฟ index.html เดิมที่ชี้ไป /assets/*.js ซึ่งถูกลบไปแล้วตอน deploy
+      //    ผลคือผู้ใช้เดิมเจอจอขาวถาวร (เคยเกิดจริงมาแล้ว 25 ส.ค. 2026)
+      //
+      // ด้วยเหตุผลเดียวกัน ปิด includeManifestIcons ด้วย — ไอคอนใน manifest ข้างล่าง
+      // ก็อยู่ใน dist และถูก globPatterns เก็บไปแล้ว ไม่ต้องให้ปลั๊กอินใส่ซ้ำอีกรอบ
+      includeManifestIcons: false,
       manifest: {
         name: "THANAKON-ROOM เช็คอินเข้างาน",
         short_name: "THANAKON-ROOM",
@@ -58,8 +59,12 @@ export default defineConfig({
         navigateFallbackDenylist: [
           // /app = ดาวน์โหลดไฟล์ติดตั้งแอป Flutter (ของ backend ไม่ใช่หน้าเว็บ)
           /^\/app/,
+          /^\/boss-app/,
+          /^\/addresses/,
           /^\/auth/,
           /^\/checkins/,
+          /^\/employment-options/,
+          /^\/employee-management/,
           /^\/faces/,
           /^\/line/,
           /^\/locations/,
@@ -71,6 +76,11 @@ export default defineConfig({
         ],
         // cache เฉพาะไฟล์หน้าเว็บ (js/css/html/รูปไอคอน) ไม่แตะข้อมูล
         globPatterns: ["**/*.{js,css,html,png,svg,woff2}"],
+        // ลบ cache ของ build เก่าทิ้งตอน activate ไม่งั้นไฟล์เก่าค้างกินที่ไปเรื่อย ๆ
+        cleanupOutdatedCaches: true,
+        // เวอร์ชันใหม่เข้าคุมแท็บที่เปิดค้างอยู่ทันที ไม่ต้องรอปิดแท็บทั้งหมดก่อน
+        skipWaiting: true,
+        clientsClaim: true,
       },
       devOptions: {
         // ปิดไว้ตอน dev จะได้ไม่มี service worker มากวนเวลาแก้โค้ด

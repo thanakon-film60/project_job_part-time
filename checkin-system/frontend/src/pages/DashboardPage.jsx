@@ -5,18 +5,23 @@ import {
   CalendarDays,
   CircleAlert,
   Clock,
+  House,
+  History,
   Info,
   LogIn,
   LogOut,
   MapPin,
+  ShieldAlert,
   User,
+  UserX,
   Users,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getEmployee, getTeamCalendar, getMyCheckins } from "../api";
+import { getEmployee, getTeamCalendar, getMyCheckins, getMyFaces } from "../api";
 import AppLayout from "../components/AppLayout.jsx";
 import AppDownloadCard from "../components/AppDownloadCard.jsx";
-import MonthCalendar from "../components/MonthCalendar.jsx";
+import MonthCalendar, { MonthCalendarSkeleton } from "../components/MonthCalendar.jsx";
+import UnverifiedDutyAlert from "../components/UnverifiedDutyAlert.jsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -30,20 +35,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, StatCardSkeleton, ListRowSkeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
+import {
+  UNVERIFIED_DUTY_WARNING,
+  UNVERIFIED_REASON_NO_FACE,
+  UNVERIFIED_TITLE,
+  describeCheckin,
+  describeUnverified,
+  hasCheckinOn,
+  thaiDateTime,
+  thaiTime,
+} from "@/lib/attendance";
 import { cn } from "@/lib/utils";
 
 dayjs.extend(utc);
 
-// เวลาไทย = UTC+7 (นาที) — ฝั่ง API ส่ง ISO ที่ติด offset มาแล้ว ตรงนี้บังคับอีกชั้น
-// เพื่อให้เห็นเวลาไทยเหมือนกันหมด ต่อให้เปิดจากเครื่อง/มือถือที่ตั้ง timezone อื่นไว้
-const THAI_OFFSET_MINUTES = 7 * 60;
-
-function thaiTime(iso) {
-  if (!iso) return "–";
-  return dayjs(iso).utcOffset(THAI_OFFSET_MINUTES).format("HH:mm");
-}
+// การแปลงเวลาไทยและการอ่านว่า "รายการนี้อยู่บ้านหรือที่ทำงาน" อยู่ใน
+// src/lib/attendance.js — ใช้ร่วมกันทั้งเว็บ และตรรกะตรงกับ backend + แอป Flutter
 
 function locationVariant(location) {
   if (location === "อยู่ที่บ้าน") return "purple";
@@ -53,22 +62,57 @@ function locationVariant(location) {
 
 function EmployeeDashboard({ me }) {
   const [checkins, setCheckins] = useState([]);
+  const [faces, setFaces] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    getMyCheckins()
-      .then((data) => active && setCheckins(Array.isArray(data) ? data : []))
-      .catch(() => active && setCheckins([]))
+    Promise.all([
+      getMyCheckins().catch(() => []),
+      // โหลดล้มเหลว = ไม่รู้ว่าลงทะเบียนใบหน้าไว้ไหม ปล่อยเป็น null แล้วไม่เตือน
+      // ดีกว่ากล่าวหาว่าไม่ได้ลงทะเบียนทั้งที่จริงๆ แค่เน็ตหลุด
+      getMyFaces().catch(() => null),
+    ])
+      .then(([checkinData, faceData]) => {
+        if (!active) return;
+        setCheckins(Array.isArray(checkinData) ? checkinData : []);
+        setFaces(Array.isArray(faceData) ? faceData : null);
+      })
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
   }, []);
 
+  // เตือนหลังโหลดเสร็จเท่านั้น ไม่งั้นระหว่างรอข้อมูลจะขึ้นแดงทุกครั้งที่เปิดหน้า
+  const verification = describeUnverified({
+    faceEnrolled: faces === null ? true : faces.length > 0,
+    checkedInToday: loading ? true : hasCheckinOn(checkins),
+  });
+
   return (
     <AppLayout>
       <div className="space-y-4">
+        {verification.unverified && (
+          <UnverifiedDutyAlert
+            title={verification.title}
+            reasons={verification.reasons}
+            warning={verification.warning}
+          >
+            <p className="mt-1">
+              เปิดแอปในมือถือแล้วสแกนใบหน้าเพื่อลงเวลา
+              {faces !== null && faces.length === 0 && (
+                <>
+                  {" — "}
+                  <Link to="/face-records" className="font-semibold underline">
+                    ลงทะเบียนใบหน้าที่นี่
+                  </Link>
+                </>
+              )}
+            </p>
+          </UnverifiedDutyAlert>
+        )}
+
         {/* การ์ดต้อนรับพนักงาน */}
         <Card className="border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
           <CardContent className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:p-5">
@@ -112,10 +156,16 @@ function EmployeeDashboard({ me }) {
               <Badge variant="secondary">ทั้งหมด {checkins.length} รายการ</Badge>
             </div>
 
+            <p className="text-muted-foreground text-xs">
+              อยู่บ้านคืออยู่บ้าน — ไม่ได้ไปทำงาน จึงไม่มีเข้างาน/ออกงานและไม่นับเป็นเวลาทำงาน
+              แต่ยังต้องเข้าสู่ระบบทุกวัน เพื่อให้ระบบรู้ว่าอยู่ที่ไหนและกำลังทำอะไร
+            </p>
+
             {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-14 w-full rounded-lg" />
-                <Skeleton className="h-14 w-full rounded-lg" />
+              <div className="divide-border -mx-1 divide-y px-1">
+                {[0, 1, 2, 3].map((i) => (
+                  <ListRowSkeleton key={i} />
+                ))}
               </div>
             ) : checkins.length === 0 ? (
               <EmptyState
@@ -126,7 +176,10 @@ function EmployeeDashboard({ me }) {
             ) : (
               <ul className="divide-border -mx-1 divide-y px-1">
                 {checkins.slice(0, 10).map((record) => {
-                  const isIn = record.kind === "in";
+                  // อยู่บ้าน = ไม่ได้ไปทำงาน จึงไม่ขึ้นว่า "เข้างาน" และไม่มีออกงานคู่กัน
+                  const entry = describeCheckin(record);
+                  const isHome = entry.kind === "home";
+                  const isIn = entry.kind === "in";
                   return (
                     <li
                       key={record.id}
@@ -136,31 +189,30 @@ function EmployeeDashboard({ me }) {
                         <span
                           className={cn(
                             "flex size-9 shrink-0 items-center justify-center rounded-lg",
-                            isIn
-                              ? "bg-success/10 text-success"
-                              : "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+                            isHome
+                              ? "bg-purple-500/10 text-purple-700 dark:text-purple-300"
+                              : isIn
+                                ? "bg-success/10 text-success"
+                                : "bg-orange-500/10 text-orange-600 dark:text-orange-400",
                           )}
                         >
-                          {isIn ? <LogIn className="size-4.5" /> : <LogOut className="size-4.5" />}
+                          {isHome ? (
+                            <House className="size-4.5" />
+                          ) : isIn ? (
+                            <LogIn className="size-4.5" />
+                          ) : (
+                            <LogOut className="size-4.5" />
+                          )}
                         </span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">
-                              {isIn ? "เข้างาน" : "ออกงาน"}
-                            </span>
-                            <Badge
-                              variant={isIn ? "success" : "warning"}
-                              className="text-[10px]"
-                            >
+                            <span className="text-sm font-medium">{entry.label}</span>
+                            <Badge variant={entry.badge} className="text-[10px]">
                               {record.office_name || (record.within_geofence ? "ในเขต" : "นอกเขต")}
                             </Badge>
                           </div>
                           <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
-                            <span>
-                              {dayjs(record.timestamp)
-                                .utcOffset(THAI_OFFSET_MINUTES)
-                                .format("D MMM YYYY HH:mm น.")}
-                            </span>
+                            <span>{thaiDateTime(record.timestamp)}</span>
                             {record.distance_km != null && (
                               <span>
                                 ห่าง{" "}
@@ -216,23 +268,51 @@ export default function DashboardPage() {
     return ids.size;
   }, [days]);
 
+  // ปฏิทินคืนวันที่ "ไม่มีคนลงเวลาแต่มีคนขาด" มาด้วย จึงนับเฉพาะวันที่มีคนลงเวลาจริง
+  const daysWithCheckins = useMemo(
+    () => days.filter((day) => day.people.length > 0).length,
+    [days],
+  );
+
+  // คนที่ยังไม่ยืนยันตัวตน "ของวันนี้" — เฉพาะตอนดูเดือนปัจจุบัน
+  // เดือนอื่นให้ไปดูรายวันในปฏิทินเอา ไม่ต้องเอาของวันนี้มาแปะค้างไว้
+  const todayMissing = useMemo(() => {
+    const today = dayjs();
+    if (!today.isSame(value, "month")) return [];
+    return byDate[today.format("YYYY-MM-DD")]?.missing ?? [];
+  }, [byDate, value]);
+
   function openDay(current) {
     const day = byDate[current.format("YYYY-MM-DD")];
-    if (day?.people?.length) setSelectedDay(day);
+    // เปิดได้ทั้งวันที่มีคนลงเวลา และวันที่มีแต่คนขาด — วันที่ขาดยิ่งต้องกดดู
+    if (day?.people?.length || day?.missing?.length) setSelectedDay(day);
   }
 
   /** เนื้อหาในช่องวัน — จอเล็กโชว์แค่จำนวนคน (ชื่อจะล้นจนอ่านไม่ออก)
    *  จอ sm ขึ้นไปค่อยไล่ชื่อพร้อมแท็กสถานที่ */
   function renderCell(date) {
     const day = byDate[date.format("YYYY-MM-DD")];
-    if (!day?.people?.length) return null;
+    if (!day?.people?.length && !day?.missing?.length) return null;
 
     const visible = day.people.slice(0, 3);
+    const missingCount = day.missing?.length ?? 0;
     return (
       <div className="min-w-0 space-y-1">
-        <Badge variant="info" className="sm:hidden">
-          {day.people.length} คน
-        </Badge>
+        {missingCount > 0 && (
+          <Badge
+            variant="outline"
+            className="border-destructive/50 text-destructive max-w-full gap-1 truncate text-[10px] font-semibold"
+          >
+            <UserX className="size-3 shrink-0" />
+            ไม่ยืนยันตัวตน {missingCount}
+          </Badge>
+        )}
+
+        {day.people.length > 0 && (
+          <Badge variant="info" className="sm:hidden">
+            {day.people.length} คน
+          </Badge>
+        )}
 
         <div className="hidden space-y-1 sm:block">
           {visible.map((person) => (
@@ -281,19 +361,36 @@ export default function DashboardPage() {
         </p>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-          <StatCard
-            icon={<Users />}
-            label={`พนักงานที่ลงเวลา (${value.format("MMMM YYYY")})`}
-            value={activeEmployees}
-            suffix="คน"
-          />
-          <StatCard
-            icon={<CalendarDays />}
-            label="วันที่มีการลงเวลา"
-            value={days.length}
-            suffix="วัน"
-            tone="success"
-          />
+          {loading && days.length === 0 ? (
+            <>
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+            </>
+          ) : (
+            <>
+              <StatCard
+                icon={<Users />}
+                label={`พนักงานที่ลงเวลา (${value.format("MMMM YYYY")})`}
+                value={activeEmployees}
+                suffix="คน"
+              />
+              <StatCard
+                icon={<CalendarDays />}
+                label="วันที่มีการลงเวลา"
+                value={daysWithCheckins}
+                suffix="วัน"
+                tone="success"
+              />
+              <StatCard
+                icon={<ShieldAlert />}
+                label="วันนี้ยังไม่ยืนยันตัวตน"
+                value={todayMissing.length}
+                suffix="คน"
+                tone={todayMissing.length > 0 ? "destructive" : "success"}
+              />
+            </>
+          )}
         </div>
 
         {err && (
@@ -303,13 +400,34 @@ export default function DashboardPage() {
           </Alert>
         )}
 
+        {todayMissing.length > 0 && (
+          <UnverifiedDutyAlert
+            title={`${UNVERIFIED_TITLE} ${todayMissing.length} คน — ${dayjs().format("D MMMM YYYY")}`}
+            warning={UNVERIFIED_DUTY_WARNING}
+          >
+            <ul className="mt-0.5 space-y-1">
+              {todayMissing.map((person) => (
+                <li key={person.employee_id} className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-semibold">{person.full_name}</span>
+                  <span className="opacity-80">({person.employee_code})</span>
+                  {!person.face_enrolled && (
+                    <Badge
+                      variant="outline"
+                      className="border-destructive/50 text-destructive text-[10px]"
+                    >
+                      {UNVERIFIED_REASON_NO_FACE}
+                    </Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </UnverifiedDutyAlert>
+        )}
+
         <Card>
           <CardContent>
-            {loading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-[320px] w-full sm:h-[520px]" />
-              </div>
+            {loading && days.length === 0 ? (
+              <MonthCalendarSkeleton />
             ) : (
               <MonthCalendar
                 value={value}
@@ -335,7 +453,40 @@ export default function DashboardPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="-mx-1 max-h-[65vh] overflow-y-auto px-1">
+          <div className="-mx-1 max-h-[65vh] space-y-4 overflow-y-auto px-1">
+            {selectedDay?.missing?.length > 0 && (
+              <UnverifiedDutyAlert
+                title={`${UNVERIFIED_TITLE} ${selectedDay.missing.length} คน`}
+                warning={UNVERIFIED_DUTY_WARNING}
+              >
+                <ul className="mt-0.5 space-y-1">
+                  {selectedDay.missing.map((person) => (
+                    <li
+                      key={person.employee_id}
+                      className="flex flex-wrap items-center gap-1.5"
+                    >
+                      <span className="font-semibold">{person.full_name}</span>
+                      <span className="opacity-80">({person.employee_code})</span>
+                      {!person.face_enrolled && (
+                        <Badge
+                          variant="outline"
+                          className="border-destructive/50 text-destructive text-[10px]"
+                        >
+                          {UNVERIFIED_REASON_NO_FACE}
+                        </Badge>
+                      )}
+                      <Link
+                        to={`/employees/${person.employee_id}/history`}
+                        className="underline opacity-80 hover:opacity-100"
+                      >
+                        ดูประวัติ
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </UnverifiedDutyAlert>
+            )}
+
             {!selectedDay?.people?.length ? (
               <EmptyState title="ไม่มีผู้ลงเวลาในวันนี้" />
             ) : (
@@ -351,14 +502,32 @@ export default function DashboardPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{person.full_name}</span>
                         <Badge variant="secondary">{person.employee_code}</Badge>
+                        {/* ลงเวลาแล้วแต่ยังไม่เคยลงทะเบียนใบหน้าไว้เทียบ — ยืนยันตัวตนได้ไม่เต็มร้อย */}
+                        {person.face_enrolled === false && (
+                          <Badge
+                            variant="outline"
+                            className="border-destructive/50 text-destructive gap-1"
+                          >
+                            <ShieldAlert className="size-3" />
+                            {UNVERIFIED_REASON_NO_FACE}
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        <span className="text-success inline-flex items-center gap-1">
-                          <LogIn className="size-3.5" /> เข้า {thaiTime(person.first_in)}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-orange-600 dark:text-orange-400">
-                          <LogOut className="size-3.5" /> ออก {thaiTime(person.last_out)}
-                        </span>
+                        {person.home_only ? (
+                          <span className="inline-flex items-center gap-1 text-purple-700 dark:text-purple-300">
+                            <House className="size-3.5" /> อยู่บ้าน — ไม่ได้ไปทำงาน
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-success inline-flex items-center gap-1">
+                              <LogIn className="size-3.5" /> เข้า {thaiTime(person.first_in)}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                              <LogOut className="size-3.5" /> ออก {thaiTime(person.last_out)}
+                            </span>
+                          </>
+                        )}
                         <span className="inline-flex items-center gap-1">
                           <Clock className="size-3.5" /> ลงเวลาทั้งหมด {person.count} ครั้ง
                         </span>
@@ -371,6 +540,11 @@ export default function DashboardPage() {
                           </Badge>
                         ))}
                       </div>
+                      <Button asChild variant="outline" size="sm" className="mt-1">
+                        <Link to={`/employees/${person.employee_id}/history`}>
+                          <History /> ดูประวัติพนักงาน
+                        </Link>
+                      </Button>
                     </div>
                   </li>
                 ))}

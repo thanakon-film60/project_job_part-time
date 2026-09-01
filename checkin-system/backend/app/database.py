@@ -14,6 +14,20 @@ Base = declarative_base()
 _ADDED_COLUMNS = [
     ("checkins", "office_name", "VARCHAR(120)"),
     ("location_pings", "office_name", "VARCHAR(120)"),
+    ("face_profiles", "sort_order", "INTEGER"),
+    ("employees", "birth_date", "DATE"),
+    ("employees", "national_id_encrypted", "VARCHAR(255)"),
+    ("employees", "national_id_hash", "VARCHAR(64)"),
+    ("employees", "phone", "VARCHAR(20)"),
+    ("employees", "address_line", "VARCHAR(255)"),
+    ("employees", "postal_code", "VARCHAR(5)"),
+    ("employees", "subdistrict", "VARCHAR(120)"),
+    ("employees", "district", "VARCHAR(120)"),
+    ("employees", "province", "VARCHAR(120)"),
+    ("employees", "department", "VARCHAR(120)"),
+    ("employees", "position", "VARCHAR(120)"),
+    ("employees", "start_date", "DATE"),
+    ("employees", "updated_at", "TIMESTAMP"),
 ]
 
 

@@ -5,7 +5,10 @@ import LoginPage from "./pages/LoginPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import FaceRecordsPage from "./pages/FaceRecordsPage.jsx";
 import EmployeesPage from "./pages/EmployeesPage.jsx";
+import EmployeeRegistrationPage from "./pages/EmployeeRegistrationPage.jsx";
+import EmployeeHistoryPage from "./pages/EmployeeHistoryPage.jsx";
 import LiveMapPage from "./pages/LiveMapPage.jsx";
+import BossAppDownloadPage from "./pages/BossAppDownloadPage.jsx";
 
 function RequireAuth({ children }) {
   return getToken() ? children : <Navigate to="/login" replace />;
@@ -31,6 +34,22 @@ export default function App() {
       {/* ใช้ /face-records ไม่ใช่ /faces เพราะ /faces เป็น path ของ API
           (เว็บกับ API อยู่โดเมนเดียวกัน จึงห้ามชนกัน) */}
       <Route
+        path="/employees/register"
+        element={
+          <RequireBoss>
+            <EmployeeRegistrationPage />
+          </RequireBoss>
+        }
+      />
+      <Route
+        path="/employees/:employeeId/history"
+        element={
+          <RequireBoss>
+            <EmployeeHistoryPage />
+          </RequireBoss>
+        }
+      />
+      <Route
         path="/employees"
         element={
           <RequireBoss>
@@ -44,6 +63,14 @@ export default function App() {
         element={
           <RequireBoss>
             <LiveMapPage />
+          </RequireBoss>
+        }
+      />
+      <Route
+        path="/install-boss-app"
+        element={
+          <RequireBoss>
+            <BossAppDownloadPage />
           </RequireBoss>
         }
       />

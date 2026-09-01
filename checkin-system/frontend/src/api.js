@@ -69,6 +69,38 @@ export async function login(username, password) {
 
 // ===== reports =====
 export const getEmployees = () => req("/reports/employees");
+export const getEmployeeHistory = (employeeId, year, month) =>
+  req(`/reports/employees/${employeeId}/history?year=${year}&month=${month}`);
+export async function getThaiAddresses(postalCode) {
+  const rows = await req(`/addresses/postal-code/${encodeURIComponent(postalCode)}`);
+  return rows.map((row) => ({
+    id: row.id,
+    postalCode: row.postal_code,
+    subdistrict: row.subdistrict,
+    district: row.district,
+    province: row.province,
+  }));
+}
+
+export const getEmploymentOptions = () => req("/employment-options");
+export const addEmploymentOption = (kind, name) =>
+  req("/employment-options", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, name }),
+  });
+export const registerEmployee = (payload) =>
+  req("/employee-management", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+export const updateEmployeeProfile = (employeeId, payload) =>
+  req(`/employee-management/${employeeId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 export const getGeofence = () => req("/reports/geofence");
 export const getCalendar = (employeeId, year, month) =>
   req(`/reports/calendar?employee_id=${employeeId}&year=${year}&month=${month}`);
@@ -123,3 +155,8 @@ export const getAppInfo = () => req("/app/info");
 // URL เต็ม เพื่อให้ QR ที่สแกนจากมือถือชี้กลับมาที่เซิร์ฟเวอร์ถูกตัว
 export const appDownloadUrl = () =>
   new URL(`${BASE}/app/download`, window.location.origin).href;
+
+// ===== ไฟล์ติดตั้งแอปหัวหน้า (Boss APK) =====
+export const getBossAppInfo = () => req("/boss-app/info");
+export const bossAppDownloadUrl = () =>
+  new URL(`${BASE}/boss-app/download`, window.location.origin).href;

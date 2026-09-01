@@ -38,6 +38,32 @@ class Settings(BaseSettings):
     # เขตเวลาที่ใช้แสดงเวลาในข้อความ (ฐานข้อมูลเก็บเป็น UTC)
     timezone_offset_hours: int = 7        # ไทย = UTC+7
 
+    # --- กล้องวงจรปิด ONVIF (หมุนกล้อง + ภาพนิ่ง) ---
+    # เซิร์ฟเวอร์ต้องอยู่วงเดียวกับกล้องถึงจะสั่งได้ (กล้องเป็น IP ในวง LAN)
+    # ปิดทั้งระบบด้วย CAMERA_PTZ_ENABLED=false ถ้าเครื่องนั้นไม่มีกล้อง
+    camera_ptz_enabled: bool = True
+    camera_ptz_host: str = "192.168.1.101"
+    camera_ptz_port: int = 80
+    camera_ptz_username: str = ""       # กล้องที่ตั้งรหัสผ่านไว้ค่อยใส่
+    camera_ptz_password: str = ""
+    camera_ptz_speed: float = 0.6       # ความเร็วหมุน 0..1
+    camera_ptz_zoom_speed: float = 0.6
+    # กดปุ่ม 1 ครั้ง = หมุนนานเท่านี้แล้วหยุดเอง
+    # ฝั่งเซิร์ฟเวอร์เป็นคนสั่งหยุด ไม่ได้รอให้มือถือส่ง stop มา —
+    # ถ้าเน็ตมือถือหลุดกลางทาง กล้องจะได้ไม่หมุนค้างไม่มีที่สิ้นสุด
+    camera_ptz_duration_ms: int = 600
+    camera_ptz_max_duration_ms: int = 3000
+    camera_ptz_invert_pan: bool = False   # ติดกล้องกลับด้านค่อยเปิด
+    camera_ptz_invert_tilt: bool = False
+    camera_timeout_seconds: float = 8.0
+
+    # ฟังเสียงจากไมค์ของกล้อง (ขาเข้าอย่างเดียว)
+    # กล้องรุ่นที่ใช้อยู่ไม่มีลำโพงและไม่เปิด RTSP backchannel จึงพูดกลับไม่ได้
+    camera_audio_enabled: bool = True
+    camera_rtsp_url: str = "rtsp://192.168.1.101:554"
+    camera_audio_bitrate: str = "32k"
+    ffmpeg_path: str = ""   # เว้นว่าง = ให้ระบบหาเอง
+
     # โดเมนที่อนุญาตให้เรียก API จากเบราว์เซอร์ (คั่นด้วยจุลภาค)
     # production: ตั้งเป็นโดเมนจริง เช่น "https://checkin.example.com"
     allowed_origins: str = "*"

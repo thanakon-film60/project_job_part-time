@@ -107,3 +107,45 @@ export default function MonthCalendar({ value, onChange, onSelectDate, renderCel
     </div>
   );
 }
+
+export function MonthCalendarSkeleton() {
+  return (
+    <div className="w-full">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          <div className="size-8 rounded-md bg-muted/70 animate-pulse" />
+          <div className="min-w-[9.5rem] flex justify-center">
+            <div className="h-5 w-32 rounded bg-muted/80 animate-pulse" />
+          </div>
+          <div className="size-8 rounded-md bg-muted/70 animate-pulse" />
+        </div>
+        <div className="h-8 w-14 rounded-md bg-muted/60 animate-pulse" />
+      </div>
+
+      <div className="grid grid-cols-7 gap-px text-center">
+        {WEEKDAYS.map((w) => (
+          <div key={w} className="text-muted-foreground pb-1.5 text-[11px] font-medium sm:text-xs">
+            {w}
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-border grid grid-cols-7 gap-px overflow-hidden rounded-lg border">
+        {Array.from({ length: 35 }).map((_, i) => (
+          <div
+            key={i}
+            className="bg-card flex min-h-16 flex-col gap-1.5 p-1 sm:min-h-28 sm:p-2"
+          >
+            <div className="size-4 sm:size-5 rounded bg-muted/70 animate-pulse" />
+            {i % 3 === 0 && (
+              <div className="space-y-1 mt-auto sm:mt-1">
+                <div className="h-3 w-full rounded bg-muted/60 animate-pulse sm:h-4" />
+                <div className="hidden sm:block h-3 w-2/3 rounded bg-muted/40 animate-pulse" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -40,7 +40,8 @@ if db.query(CheckIn).filter(CheckIn.employee_id == emp.id).count() == 0:
         day = datetime.utcnow() - timedelta(days=d)
         for kind, hour in (("in", 8), ("out", 17)):
             ts = day.replace(hour=hour, minute=5 * d, second=0, microsecond=0)
-            dist, within = evaluate_location(*office)
+            # evaluate_location คืน 3 ค่าตั้งแต่รองรับหลายสถานที่ (dist, within, office ที่ match)
+            dist, within, matched_office = evaluate_location(*office)
             db.add(
                 CheckIn(
                     employee_id=emp.id,
@@ -50,6 +51,7 @@ if db.query(CheckIn).filter(CheckIn.employee_id == emp.id).count() == 0:
                     longitude=office[1],
                     distance_km=dist,
                     within_geofence=within,
+                    office_name=matched_office.get("name"),
                     face_detected=True,
                 )
             )

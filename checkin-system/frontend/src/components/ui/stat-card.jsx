@@ -5,9 +5,26 @@ import { cn } from "@/lib/utils";
 /** แทน Statistic ของ antd — ตัวเลขสรุปหนึ่งค่า พร้อมไอคอนและหน่วย
  *  จอเล็กบีบตัวเลขลงเองด้วย text-2xl → sm:text-3xl จะได้ไม่ล้นการ์ด
  */
-function StatCard({ icon, label, value, suffix, tone = "default", className }) {
+function StatCard({ icon, label, value, suffix, tone = "default", className, onClick, ...props }) {
+  const interactive = typeof onClick === "function";
   return (
-    <Card className={cn("gap-0 py-4", className)}>
+    <Card
+      className={cn(
+        "gap-0 py-4",
+        interactive && "cursor-pointer transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        className,
+      )}
+      onClick={onClick}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={interactive ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick(event);
+        }
+      } : undefined}
+      {...props}
+    >
       <div className="flex items-start gap-3 px-4">
         {icon && (
           <span

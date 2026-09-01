@@ -14,6 +14,27 @@ Flutter app  ──(GPS ตลอดเวลา + สแกนหน้า)─�
 เว็บจริงที่ใช้งานอยู่: **https://thanakronpart-time.com**
 (ใช้ได้ทั้ง `thanakronpart-time.com`, `www.thanakronpart-time.com` และ `api.thanakronpart-time.com` — ชี้ที่เดียวกันหมด)
 
+### เปิดเองทุกครั้งที่เปิดเครื่อง
+
+**ดับเบิลคลิก `ติดตั้งเปิดอัตโนมัติ.bat` ครั้งเดียว** (หรือกดปุ่ม **ติดตั้ง Auto-start** ในแผงควบคุม)
+หลังจากนั้นทุกครั้งที่เปิดเครื่อง ระบบจะขึ้นเองครบทุกส่วน:
+
+| ส่วน | วิธีเริ่มเอง |
+|---|---|
+| IIS (หน้าเว็บ :80) | Windows Service แบบ Automatic |
+| FastAPI (:8001) | Scheduled Task `MardodiCheckinAPI` แบบ AtStartup |
+| Cloudflare Tunnel | Windows Service แบบ Automatic |
+| แผงควบคุม (GUI) | Scheduled Task `ThanakonCheckinPanel` แบบ AtLogOn (หน่วง 25 วินาที) |
+
+หน้าต่างแผงควบคุมที่เด้งขึ้นตอนล็อกอินจะรันด้วย `-AutoStart` คือ **ตรวจแล้วสั่งเปิด Production ให้เองทันที**
+(เผื่อกรณีบูตแล้วมีบางตัวไม่ติด) ถ้าเปิดหน้าต่างค้างไว้อยู่แล้วจะไม่เด้งซ้อนอีกบาน
+
+ยกเลิกไม่ให้หน้าต่างเด้งเอง:
+
+```powershell
+.\deploy\windows-server\install-gui-autostart.ps1 -Uninstall
+```
+
 ---
 
 ## องค์ประกอบ
@@ -57,11 +78,50 @@ OFFICES=[{"name":"THANAKON-BOX","lat":13.9231953,"lng":100.5195808,"radius_km":2
 ---
 
 ## 1) รัน Back-end (แนะนำใช้ Docker)
-```bash
+
+`docker-compose.yml` ยก **2 container** ให้: `db` (PostgreSQL 16) + `backend` (FastAPI)
+เป็นสภาพแวดล้อม **แยกจาก production** — ไม่แตะ IIS / uvicorn :8001 / PostgreSQL บนเครื่อง
+
+```powershell
 cd checkin-system
-docker compose up --build
+copy .env.example .env      # ครั้งแรกครั้งเดียว แล้วแก้ POSTGRES_PASSWORD
+docker compose up -d --build
+docker compose run --rm backend python seed.py   # ใส่ข้อมูลตัวอย่าง (ครั้งแรก)
 ```
-เปิด API docs ที่ http://localhost:8000/docs
+เปิด API docs ที่ http://localhost:8010/docs
+
+| อยู่ที่ | พอร์ตฝั่ง Windows | หมายเหตุ |
+|---|---|---|
+| API ใน container | `8010` | เลี่ยง 8000/8001 ที่ถูกใช้อยู่ |
+| PostgreSQL ใน container | `5433` | เลี่ยง 5432 ของ production |
+
+> **พอร์ตห้ามชนกัน** — เครื่องนี้มี PostgreSQL 16 จริงที่ `5432`, backend production ที่ `8001`
+> และ IIS ที่ `80` อยู่แล้ว ค่าใน `.env` (`DB_HOST_PORT` / `API_HOST_PORT`) จึงตั้งเลี่ยงไว้
+>
+> **ข้อมูลคนละก้อน** — DB ใน container เริ่มจากศูนย์ (เก็บใน volume `pgdata`)
+> ไม่ใช่ฐานข้อมูล production จะย้ายข้อมูลมาต้อง dump/restore เอง
+>
+> `LINE_NOTIFY_ENABLED` และ `CAMERA_PTZ_ENABLED` ถูกบังคับเป็น `false` ใน compose
+> เพื่อไม่ให้ container ทดสอบยิงแจ้งเตือนเข้ากลุ่ม LINE จริงหรือสั่งกล้องจริง
+
+คำสั่งที่ใช้บ่อย:
+
+```powershell
+docker compose logs -f backend    # ดู log
+docker compose ps                 # ดูสถานะ + health ของ db
+docker compose down               # หยุด (ข้อมูลยังอยู่ใน volume)
+docker compose down -v            # หยุด + ล้างข้อมูลใน DB ทิ้ง
+```
+
+**สภาพแวดล้อมของเครื่องนี้** — Docker Desktop ติดตั้งไว้ที่ `F:\Docker` และเก็บ image/volume ที่
+`F:\DockerData` (ไม่ใช่ C: ที่เหลือที่น้อย) ถ้าต้องลงใหม่ให้ใช้ flag ครบทั้งสองตัว:
+
+```powershell
+& "F:\Docker Desktop Installer.exe" install --quiet --accept-license --backend=wsl-2 `
+  --installation-dir="F:\Docker" --wsl-default-data-root="F:\DockerData"
+```
+
+> Windows Server 2022 ต้องมี WSL2 ก่อน — `wsl --install --no-distribution` แล้วรีสตาร์ตเครื่อง 1 ครั้ง
 
 ### หรือรันเอง (ไม่ใช้ Docker)
 ```bash
@@ -177,6 +237,17 @@ cd checkin-system\deploy
 
 ---
 
+## กล้องวงจรปิด (CCTV)
+
+หัวหน้าดูภาพสด หมุนกล้อง และฟังเสียงจากไมค์กล้องได้ผ่านแอป — ใช้จากนอกวง LAN ได้
+เพราะแอปคุยกับ backend ไม่ได้คุยกับกล้องตรง ๆ จึงไม่ต้องเปิดพอร์ตกล้องออกอินเทอร์เน็ต
+
+**เงื่อนไข: เครื่องที่รัน backend ต้องอยู่วง LAN เดียวกับกล้อง**
+
+วิธีติดตั้งและตารางแก้ปัญหา: [`deploy/camera/CAMERA_SETUP.md`](deploy/camera/CAMERA_SETUP.md)
+
+---
+
 ## API หลัก
 | Method | Path | ใช้ทำอะไร |
 |---|---|---|
@@ -188,6 +259,8 @@ cd checkin-system\deploy
 | GET | `/faces/me` | ประวัติใบหน้าของตัวเอง |
 | GET | `/faces/employee/{id}` | ประวัติใบหน้าของพนักงาน (ผู้จัดการ/เจ้าของ) |
 | GET | `/faces/{id}/photo` | สตรีมไฟล์รูป (เฉพาะเจ้าของหรือผู้จัดการ) |
+| PUT | `/faces/order` | จัดลำดับรูปของตัวเอง — ใบแรกคือรูปประจำตัวที่ระบบใช้แสดงทุกที่ (เจ้าของเท่านั้น) |
+| DELETE | `/faces/{id}` | ลบรูปอ้างอิงทิ้ง (เจ้าของหรือผู้จัดการ) ไม่แตะรูปที่แนบกับการลงเวลา |
 | POST | `/locations/ping` | ส่งพิกัด GPS ต่อเนื่อง |
 | GET | `/reports/employees` | รายชื่อพนักงาน (เฉพาะผู้จัดการ) |
 | GET | `/reports/calendar` | สรุปเข้า-ออกรายวันสำหรับปฏิทิน (เฉพาะผู้จัดการ) |

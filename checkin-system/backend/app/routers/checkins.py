@@ -1,9 +1,19 @@
 import logging
 import os
+import shutil
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -11,6 +21,7 @@ from ..database import get_db
 from ..geofence import (
     describe_offices,
     evaluate_location,
+    location_category,
     location_category_label,
     office_by_name,
 )
@@ -21,6 +32,9 @@ from ..security import get_current_employee
 
 router = APIRouter(prefix="/checkins", tags=["checkins"])
 log = logging.getLogger("checkins")
+
+# ใน DB เก็บเวลาเป็น UTC — ต้องบวกออฟเซ็ตก่อนถึงจะตัด "วันนี้" ตามเวลาไทยได้ถูก
+LOCAL_OFFSET = timedelta(hours=settings.timezone_offset_hours)
 
 
 def _distance_text(distance_km: float) -> str:
@@ -35,25 +49,42 @@ def _employee_display_name(emp: Employee) -> str:
     return (emp.full_name or "").strip() or emp.employee_code
 
 
-def notify_checkin(emp: Employee, record: CheckIn, office: dict | None = None) -> None:
+def notify_checkin(
+    employee_name: str,
+    kind: str,
+    timestamp: datetime,
+    distance_km: float,
+    office_name: str | None,
+    office: dict | None = None,
+) -> None:
     """แจ้งเข้ากลุ่ม LINE ว่ามีคนเช็คอิน/เช็คเอาท์
 
     ห่อ try ทั้งก้อน — ถ้า LINE มีปัญหาต้องไม่ทำให้การเช็คอินล้มเหลว
     """
     try:
-        local_time = record.timestamp + timedelta(
-            hours=settings.timezone_offset_hours
-        )
-        action = "เข้างาน" if record.kind == "in" else "ออกจากงาน"
+        local_time = timestamp + timedelta(hours=settings.timezone_offset_hours)
+        action = "เข้างาน" if kind == "in" else "ออกจากงาน"
         time_text = local_time.strftime("%H:%M น. %d/%m/%Y")
-        distance_text = _distance_text(record.distance_km)
-        office_info = office or office_by_name(record.office_name)
+        distance_text = _distance_text(distance_km)
+        office_info = office or office_by_name(office_name)
         category_label = location_category_label(office_info)
-        office_name = record.office_name or (office_info or {}).get("name") or "-"
+        display_office_name = office_name or (office_info or {}).get("name") or "-"
+
+        # อยู่บ้าน = ไม่ได้ไปทำงาน การลงเวลาที่บ้านจึงเป็นแค่ "กลับถึงบ้านแล้ว"
+        # ไม่ใช่การเข้างาน และไม่ต้องมีออกงานตามมา
+        if location_category(office_info) == "home":
+            headline = f"{employee_name} อยู่บ้านแล้ว ({time_text})"
+            note = "อยู่บ้าน = ไม่ได้ไปทำงาน ไม่นับเป็นการเข้างานและไม่มีออกงาน"
+        else:
+            headline = (
+                f"{employee_name} ได้ทำการ{action}แล้ว ({time_text})"
+            )
+            note = f"ประเภทสถานที่: {category_label}"
+
         push_text(
-            f"{_employee_display_name(emp)} ได้ทำการ{action}แล้ว ({time_text})\n"
-            f"ประเภทสถานที่: {category_label}\n"
-            f"สถานที่ใกล้สุด: {office_name}\n"
+            f"{headline}\n"
+            f"{note}\n"
+            f"สถานที่ใกล้สุด: {display_office_name}\n"
             f"ระยะห่างจาก{category_label}: {distance_text}"
         )
     except Exception as e:
@@ -61,7 +92,8 @@ def notify_checkin(emp: Employee, record: CheckIn, office: dict | None = None) -
 
 
 @router.post("", response_model=CheckInOut)
-async def create_checkin(
+def create_checkin(
+    background_tasks: BackgroundTasks,
     latitude: float = Form(...),
     longitude: float = Form(...),
     kind: str = Form("in"),
@@ -90,7 +122,10 @@ async def create_checkin(
             f"ห่าง {distance_km:.2f} กม. (อนุญาตไม่เกิน {office['radius_km']} กม.) "
             f"| สถานที่ที่อนุญาต: {describe_offices(work_only=checkout_only)}",
         )
-    if not face_detected:
+    # หัวหน้าลงเวลาผ่านแอปของหัวหน้า ซึ่งไม่มีกล้อง/ไม่มีการสแกนใบหน้า
+    # จึงยกเว้นเงื่อนไขนี้ให้เฉพาะบัญชี is_manager
+    # พนักงานทั่วไปยังต้องสแกนหน้าผ่าน liveness ทุกครั้งเหมือนเดิม
+    if not face_detected and not emp.is_manager:
         raise HTTPException(
             status_code=422, detail="ไม่พบใบหน้า/liveness ไม่ผ่าน เช็คอินไม่ได้"
         )
@@ -101,8 +136,10 @@ async def create_checkin(
         ext = os.path.splitext(photo.filename or "")[1] or ".jpg"
         fname = f"{emp.employee_code}_{uuid.uuid4().hex}{ext}"
         full = os.path.join(settings.storage_dir, fname)
+        # Endpoint นี้เป็น sync เพื่อให้ FastAPI ย้ายงานเขียนไฟล์และ SQLAlchemy
+        # ไปทำใน thread pool โดยไม่บล็อก event loop
         with open(full, "wb") as f:
-            f.write(await photo.read())
+            shutil.copyfileobj(photo.file, f)
         photo_path = full
 
     record = CheckIn(
@@ -121,19 +158,49 @@ async def create_checkin(
     db.commit()
     db.refresh(record)
 
-    # แจ้งเข้ากลุ่ม LINE — ทำหลัง commit และห้ามให้พังจนกระทบการเช็คอิน
-    notify_checkin(emp, record, office)
+    # ส่ง LINE หลังตอบ request โดยใช้ sync background task ใน thread pool
+    # ส่งเฉพาะค่า primitive เพื่อไม่ผูก task กับ SQLAlchemy session ที่กำลังจะปิด
+    background_tasks.add_task(
+        notify_checkin,
+        _employee_display_name(emp),
+        record.kind,
+        record.timestamp,
+        record.distance_km,
+        record.office_name,
+        office,
+    )
 
     return record
 
 
 @router.get("/me", response_model=list[CheckInOut])
 def my_checkins(
-    emp: Employee = Depends(get_current_employee), db: Session = Depends(get_db)
+    days: int | None = Query(
+        None,
+        ge=1,
+        le=366,
+        description="ย้อนหลังกี่วัน นับตามเวลาไทย (ไม่ส่ง = ทั้งหมด)",
+    ),
+    limit: int | None = Query(None, ge=1, le=1000),
+    emp: Employee = Depends(get_current_employee),
+    db: Session = Depends(get_db),
 ):
-    return (
-        db.query(CheckIn)
-        .filter(CheckIn.employee_id == emp.id)
-        .order_by(CheckIn.timestamp.desc())
-        .all()
-    )
+    """ประวัติการลงเวลาของตัวเอง — แอปมือถือใช้ days=1 ดึงเฉพาะของวันนี้
+
+    ไม่ส่งพารามิเตอร์มา = พฤติกรรมเดิม (คืนทั้งหมด) เพื่อให้ client รุ่นเก่าไม่พัง
+    """
+    query = db.query(CheckIn).filter(CheckIn.employee_id == emp.id)
+
+    if days is not None:
+        # ตัดวันตามเวลาไทยก่อน แล้วแปลงกลับเป็น UTC ให้ตรงกับที่เก็บใน DB
+        # (days=1 = ตั้งแต่เที่ยงคืนของวันนี้ตามเวลาไทย)
+        today_local = (datetime.utcnow() + LOCAL_OFFSET).date()
+        start_local = datetime.combine(today_local, time.min) - timedelta(
+            days=days - 1
+        )
+        query = query.filter(CheckIn.timestamp >= start_local - LOCAL_OFFSET)
+
+    query = query.order_by(CheckIn.timestamp.desc())
+    if limit is not None:
+        query = query.limit(limit)
+    return query.all()

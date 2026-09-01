@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 from app.database import SessionLocal
+from app.geofence import location_category, office_by_name
 from app.models import CheckIn, Employee
 from app.notify_line import is_configured, push_text
 
@@ -23,6 +24,12 @@ def local_now() -> datetime:
     # Keep a naive value for compatibility with the existing SQLite columns,
     # but obtain UTC from the timezone-aware API (utcnow is deprecated).
     return datetime.now(timezone.utc).replace(tzinfo=None) + TZ
+
+
+def is_home_record(record: CheckIn) -> bool:
+    """ลงเวลาไว้ที่บ้าน — อยู่บ้านคือไม่ได้ไปทำงาน จึงไม่นับเป็นการเข้างาน
+    และไม่ต้องเตือนว่ายังไม่สแกนออก"""
+    return location_category(office_by_name(record.office_name)) == "home"
 
 
 def format_attendance_line(emp: Employee, recs: list[CheckIn]) -> str:
@@ -36,6 +43,12 @@ def format_attendance_line(emp: Employee, recs: list[CheckIn]) -> str:
         else "ยังไม่สแกนออกงาน"
     )
     return f"  • {emp.full_name}  {first_in}–{last_out}"
+
+
+def format_home_line(emp: Employee, recs: list[CheckIn]) -> str:
+    """คนที่วันนั้นมีแต่การบันทึกที่บ้าน = ไม่ได้ไปทำงาน"""
+    arrived = (recs[-1].timestamp + TZ).strftime("%H:%M")
+    return f"  • {emp.full_name}  ถึงบ้าน {arrived}"
 
 
 def build_summary(day: datetime.date) -> str:
@@ -70,15 +83,28 @@ def build_summary(day: datetime.date) -> str:
     lines = [f"📋 สรุปการเข้างาน {day.strftime('%d/%m/%Y')}", ""]
 
     present = []
+    at_home = []
     for emp in employees:
         recs = by_emp.get(emp.id, [])
         if not recs:
             continue
 
-        present.append(format_attendance_line(emp, recs))
+        # แยกรายการที่บ้านออกก่อน เหลือเฉพาะที่นับเป็นการไปทำงานจริง
+        work_recs = [record for record in recs if not is_home_record(record)]
+        home_recs = [record for record in recs if is_home_record(record)]
+
+        if work_recs:
+            present.append(format_attendance_line(emp, work_recs))
+        elif home_recs:
+            at_home.append(format_home_line(emp, home_recs))
 
     lines.append(f"✅ มาทำงาน {len(present)} คน")
     lines.extend(present or ["  (ไม่มี)"])
+
+    if at_home:
+        lines.append("")
+        lines.append(f"🏠 อยู่บ้าน ไม่ได้ไปทำงาน {len(at_home)} คน")
+        lines.extend(at_home)
 
     return "\n".join(lines)
 

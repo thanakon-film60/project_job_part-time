@@ -3,7 +3,12 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { toast } from "sonner";
 import { Download, Link2, Smartphone, TriangleAlert } from "lucide-react";
-import { appDownloadUrl, getAppInfo } from "../api";
+import {
+  appDownloadUrl,
+  bossAppDownloadUrl,
+  getAppInfo,
+  getBossAppInfo,
+} from "../api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,21 +30,23 @@ function prettySize(bytes) {
  *  ข้อมูลไฟล์มาจาก GET /app/info (backend อ่านจาก storage/app)
  *  ถ้ายังไม่เคย build APK จะขึ้นข้อความบอกว่ายังไม่มีไฟล์ แทนที่จะโชว์ปุ่มเสีย ๆ
  */
-export default function AppDownloadCard() {
+export default function AppDownloadCard({ variant = "employee" }) {
+  const isBossApp = variant === "boss";
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const url = appDownloadUrl();
+  const url = isBossApp ? bossAppDownloadUrl() : appDownloadUrl();
 
   useEffect(() => {
     let alive = true;
-    getAppInfo()
+    const loadInfo = isBossApp ? getBossAppInfo : getAppInfo;
+    loadInfo()
       .then((data) => alive && setInfo(data))
       .catch(() => alive && setInfo({ available: false }))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
-  }, []);
+  }, [isBossApp]);
 
   async function copyLink() {
     try {
@@ -65,26 +72,43 @@ export default function AppDownloadCard() {
           <div className="min-w-0">
             <h3 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
               <Smartphone className="size-4.5 shrink-0" />
-              <span className="min-w-0">แอปเช็คอิน THANAKON-ROOM</span>
+              <span className="min-w-0">
+                {isBossApp ? "แอปหัวหน้า THANAKON-BOX" : "แอปเช็คอิน THANAKON-ROOM"}
+              </span>
             </h3>
             <p className="text-muted-foreground mt-0.5 text-sm">
-              ใช้เช็คอินด้วย GPS + สแกนใบหน้า จากมือถือได้โดยตรง
+              {isBossApp
+                ? "สำหรับหัวหน้าดูภาพรวมทีม ข้อมูลพนักงาน และแผนที่ติดตามจากมือถือ"
+                : "ใช้เช็คอินด้วย GPS + สแกนใบหน้า จากมือถือได้โดยตรง"}
             </p>
           </div>
         </div>
 
         {loading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-2/3" />
-            <Skeleton className="h-11 w-full sm:w-56" />
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Skeleton className="h-5 w-16 rounded-md" />
+              <Skeleton className="h-5 w-24 rounded-md" />
+              <Skeleton className="h-5 w-20 rounded-md" />
+              <Skeleton className="h-5 w-32 rounded-md" />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Skeleton className="h-11 w-full rounded-md sm:w-48" />
+              <Skeleton className="h-11 w-full rounded-md sm:w-36" />
+            </div>
+            <div className="space-y-1.5 pt-1">
+              <Skeleton className="h-3.5 w-full" />
+              <Skeleton className="h-3.5 w-4/5" />
+            </div>
           </div>
         ) : !info?.available ? (
           <Alert variant="warning">
             <TriangleAlert />
             <AlertTitle>ยังไม่มีไฟล์ติดตั้งบนเซิร์ฟเวอร์</AlertTitle>
             <AlertDescription>
-              ผู้ดูแลระบบต้อง build แอปก่อน (deploy\windows-server\build-flutter-apk.ps1)
-              แล้วปุ่มดาวน์โหลดจะขึ้นเอง
+              {isBossApp
+                ? "ยังไม่ได้วาง APK ของแอปบอสไว้ที่ backend/storage/boss-app"
+                : "ผู้ดูแลระบบต้อง build แอปก่อน (deploy\\windows-server\\build-flutter-apk.ps1) แล้วปุ่มดาวน์โหลดจะขึ้นเอง"}
             </AlertDescription>
           </Alert>
         ) : (
@@ -114,7 +138,7 @@ export default function AppDownloadCard() {
               <Button asChild size="lg" className="w-full sm:w-auto">
                 <a href={url} download>
                   <Download />
-                  ดาวน์โหลดแอป (.apk)
+                  {isBossApp ? "ดาวน์โหลดแอปบอส (.apk)" : "ดาวน์โหลดแอป (.apk)"}
                 </a>
               </Button>
               <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={copyLink}>
@@ -127,6 +151,7 @@ export default function AppDownloadCard() {
               วิธีติดตั้งบน Android: เปิดลิงก์นี้จากมือถือ → กดดาวน์โหลด → เปิดไฟล์ที่โหลดมา
               → ถ้าขึ้นเตือน ให้กด “ตั้งค่า” แล้วอนุญาต “ติดตั้งแอปที่ไม่รู้จัก” ให้เบราว์เซอร์
               → กดติดตั้ง แล้วเข้าสู่ระบบด้วยบัญชีเดียวกับเว็บ
+              {isBossApp && " (ระบบอนุญาตเฉพาะบัญชีหัวหน้า)"}
               <br />
               iPhone ยังไม่มีไฟล์ติดตั้ง ให้ใช้เว็บนี้แทน (กดแชร์ → “เพิ่มไปยังหน้าจอโฮม”)
             </p>

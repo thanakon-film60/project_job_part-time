@@ -9,6 +9,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Depends, Header, Request
+from starlette.concurrency import run_in_threadpool
 
 from ..config import settings
 from ..models import Employee
@@ -65,7 +66,8 @@ async def webhook(request: Request, x_line_signature: str | None = Header(None))
         if etype in ("join", "memberJoined"):
             reply_token = event.get("replyToken")
             if reply_token:
-                reply_ok = reply_text(
+                reply_ok = await run_in_threadpool(
+                    reply_text,
                     reply_token,
                     "สวัสดีครับ ผมคือบอทแจ้งเตือนเข้างาน THANAKON-ROOM\n\n"
                     f"ID ของห้องนี้คือ:\n{sid}\n\n"
@@ -81,7 +83,8 @@ async def webhook(request: Request, x_line_signature: str | None = Header(None))
             text = (msg.get("text") or "").strip().lower()
             reply_token = event.get("replyToken")
             if text in ("id", "groupid", "group id", "ไอดี") and reply_token:
-                reply_ok = reply_text(
+                reply_ok = await run_in_threadpool(
+                    reply_text,
                     reply_token,
                     f"ID ของห้องนี้คือ:\n{sid}\n\n"
                     "เอาไปใส่ LINE_TARGET_ID ใน .env แล้ว restart backend",

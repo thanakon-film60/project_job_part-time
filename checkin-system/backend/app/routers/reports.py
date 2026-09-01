@@ -1,13 +1,17 @@
+from calendar import monthrange
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
-from ..models import CheckIn, Employee
-from ..schemas import EmployeeOut, GeofenceInfo
+from ..geofence import location_category, office_by_name
+from ..employee_profiles import employee_profile
+from ..models import CheckIn, Employee, EmployeeEvent, FaceProfile
+from .faces import ordered_faces
+from ..schemas import EmployeeHistoryOut, EmployeeProfileOut, GeofenceInfo
 from ..security import require_manager
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -42,6 +46,15 @@ def _local_iso(dt: datetime) -> str:
     return _to_local(dt).replace(tzinfo=LOCAL_TZ).isoformat()
 
 
+def _is_home(record: CheckIn) -> bool:
+    """ลงเวลาไว้ที่บ้าน
+
+    อยู่บ้าน = ไม่ได้ไปทำงาน จึงไม่นับเป็นเวลาเข้างาน/ออกงานของวันนั้น
+    (พนักงานยังต้องเข้าสู่ระบบทุกวัน ระบบจึงยังรู้ว่าอยู่ที่ไหน)
+    """
+    return location_category(office_by_name(record.office_name)) == "home"
+
+
 def _month_range_utc(year: int, month: int) -> tuple[datetime, datetime]:
     """ขอบเขตของเดือนนั้น "ตามเวลาไทย" แปลงกลับเป็น UTC เพื่อใช้ query
 
@@ -70,11 +83,69 @@ def geofence_info():
     )
 
 
-@router.get("/employees", response_model=list[EmployeeOut])
+@router.get("/employees", response_model=list[EmployeeProfileOut])
 def list_employees(
     _: Employee = Depends(require_manager), db: Session = Depends(get_db)
 ):
-    return db.query(Employee).order_by(Employee.full_name).all()
+    employees = db.query(Employee).order_by(Employee.full_name).all()
+    return [employee_profile(employee) for employee in employees]
+
+
+@router.get("/employees/{employee_id}/history", response_model=EmployeeHistoryOut)
+def employee_history(
+    employee_id: int,
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    _: Employee = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
+    """ประวัติลงเวลารายบุคคลในเดือนที่เลือก สำหรับ Boss เท่านั้น."""
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if employee is None:
+        raise HTTPException(status_code=404, detail="ไม่พบพนักงาน")
+
+    start_utc, end_utc = _month_range_utc(year, month)
+    checkins = (
+        db.query(CheckIn)
+        .filter(
+            CheckIn.employee_id == employee_id,
+            CheckIn.timestamp >= start_utc,
+            CheckIn.timestamp < end_utc,
+        )
+        .order_by(CheckIn.timestamp.desc())
+        .all()
+    )
+    events = (
+        db.query(EmployeeEvent)
+        .filter(EmployeeEvent.employee_id == employee_id)
+        .order_by(EmployeeEvent.created_at.desc())
+        .all()
+    )
+    if not events:
+        legacy_event = EmployeeEvent(
+            employee_id=employee.id,
+            actor_employee_id=None,
+            event_type="legacy_account",
+            title="บัญชีเดิมก่อนระบบแฟ้มพนักงาน",
+            detail={"note": "นำบัญชีและประวัติเดิมมาประสานกับโครงสร้างใหม่แล้ว"},
+            created_at=employee.created_at,
+        )
+        db.add(legacy_event)
+        db.commit()
+        db.refresh(legacy_event)
+        events = [legacy_event]
+
+    # ใช้ตัวเรียงเดียวกับ /faces/* เพื่อให้ "รูปแรก" ที่หน้าแฟ้มพนักงานเอาไป
+    # ทำรูปประจำตัว เป็นใบเดียวกับที่พนักงานเลือกไว้เองในแอป
+    faces = ordered_faces(db, employee_id)
+    return EmployeeHistoryOut(
+        employee=employee_profile(employee),
+        year=year,
+        month=month,
+        checkins=checkins,
+        face_profiles=faces,
+        events=events,
+    )
 
 
 @router.get("/calendar")
@@ -107,6 +178,8 @@ def calendar(
             "first_in": None,
             "last_out": None,
             "within_geofence": False,
+            # วันนั้นมีแต่การลงเวลาที่บ้าน = ไม่ได้ไปทำงาน
+            "home_only": True,
             "count": 0,
         }
     )
@@ -117,6 +190,12 @@ def calendar(
         d["count"] += 1
         if r.within_geofence:
             d["within_geofence"] = True
+
+        # อยู่บ้านไม่ใช่การเข้างาน จึงไม่เอามาเป็นเวลาเข้า/ออกของวันนั้น
+        if _is_home(r):
+            continue
+        d["home_only"] = False
+
         t = _local_iso(r.timestamp)
         if r.kind == "in":
             if d["first_in"] is None or t < d["first_in"]:
@@ -163,7 +242,12 @@ def team_calendar(
     _: Employee = Depends(require_manager),
     db: Session = Depends(get_db),
 ):
-    """สรุปว่าแต่ละวันมีพนักงานคนใดลงเวลา เพื่อใช้ในปฏิทินรวมของ Boss"""
+    """สรุปว่าแต่ละวันมีพนักงานคนใดลงเวลา เพื่อใช้ในปฏิทินรวมของ Boss
+
+    นอกจากคนที่ลงเวลาแล้ว ยังคืน `missing` = คนที่ "ยังไม่ได้ยืนยันตัวตน"
+    ของวันนั้นด้วย เพราะการรู้ว่าใครไม่ได้ลงเวลาสำคัญกว่าการรู้ว่าใครลงเวลา
+    (ดู UNVERIFIED_* ฝั่งเว็บ — ข้อความเตือนใช้ชุดเดียวกับแอปพนักงาน)
+    """
     start_utc, end_utc = _month_range_utc(year, month)
     rows = (
         db.query(CheckIn, Employee)
@@ -189,10 +273,22 @@ def team_calendar(
                 "first_in": None,
                 "last_out": None,
                 "locations": [],
+                # วันนั้นมีแต่การลงเวลาที่บ้าน = ไม่ได้ไปทำงาน
+                "home_only": True,
                 "count": 0,
             },
         )
         person["count"] += 1
+
+        location = _location_label(checkin.office_name, checkin.within_geofence)
+        if location not in person["locations"]:
+            person["locations"].append(location)
+
+        # อยู่บ้านไม่ใช่การเข้างาน จึงไม่เอามาเป็นเวลาเข้า/ออกของวันนั้น
+        if _is_home(checkin):
+            continue
+        person["home_only"] = False
+
         timestamp = _local_iso(checkin.timestamp)
         if checkin.kind == "in" and (
             person["first_in"] is None or timestamp < person["first_in"]
@@ -203,21 +299,61 @@ def team_calendar(
         ):
             person["last_out"] = timestamp
 
-        location = _location_label(checkin.office_name, checkin.within_geofence)
-        if location not in person["locations"]:
-            person["locations"].append(location)
-
     # เรียงป้ายสถานที่: ที่ทำงานก่อน แล้วค่อยนอกเขต/ที่บ้าน
     # (sorted ของ Python เสถียร ป้ายที่ระดับเดียวกันจึงยังเรียงตามเวลาที่ลงจริง)
     for people in people_by_day.values():
         for person in people.values():
             person["locations"].sort(key=_location_rank)
 
-    days = [
-        {
-            "date": day,
-            "people": sorted(people.values(), key=lambda item: item["full_name"]),
-        }
-        for day, people in sorted(people_by_day.items())
-    ]
+    # ---- ใครยังไม่ได้ยืนยันตัวตนในวันไหนบ้าง ----
+    # การลงเวลาทุกครั้งต้องสแกนใบหน้าผ่านก่อน วันที่ไม่มีการลงเวลาเลยจึงแปลว่า
+    # วันนั้นไม่มีการยืนยันตัวตน ส่วนคนที่ยังไม่เคยลงทะเบียนใบหน้าคือสแกนไม่ได้
+    # ตั้งแต่แรก ต้องแยกบอกให้หัวหน้ารู้ว่าติดที่ขั้นตอนไหน
+    staff = (
+        db.query(Employee)
+        .filter(Employee.is_manager.is_(False))
+        .order_by(Employee.full_name)
+        .all()
+    )
+    enrolled_ids = {
+        employee_id for (employee_id,) in db.query(FaceProfile.employee_id).distinct()
+    }
+    today_local = datetime.now(LOCAL_TZ).date()
+
+    days = []
+    for day_number in range(1, monthrange(year, month)[1] + 1):
+        current = date(year, month, day_number)
+        key = current.isoformat()
+        people = people_by_day.get(key, {})
+        for person in people.values():
+            person["face_enrolled"] = person["employee_id"] in enrolled_ids
+
+        missing = []
+        # วันที่ยังมาไม่ถึงยังไม่ถือว่าขาด ไม่งั้นทั้งเดือนจะขึ้นแดงตั้งแต่วันที่ 1
+        if current <= today_local:
+            for employee in staff:
+                if employee.id in people:
+                    continue
+                # คนที่เพิ่งเข้าระบบทีหลัง ไม่ต้องย้อนไปทวงวันก่อนหน้านั้น
+                if _to_local(employee.created_at).date() > current:
+                    continue
+                missing.append(
+                    {
+                        "employee_id": employee.id,
+                        "employee_code": employee.employee_code,
+                        "full_name": employee.full_name,
+                        "face_enrolled": employee.id in enrolled_ids,
+                    }
+                )
+
+        if not people and not missing:
+            continue
+        days.append(
+            {
+                "date": key,
+                "people": sorted(people.values(), key=lambda item: item["full_name"]),
+                "missing": missing,
+            }
+        )
+
     return {"year": year, "month": month, "days": days}

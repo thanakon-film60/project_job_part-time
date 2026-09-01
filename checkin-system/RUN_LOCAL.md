@@ -102,8 +102,32 @@ npm run dev
 | 8001 | backend production | Scheduled Task `ThanakonBoxCheckinAPI` |
 | **8002** | **backend ตอน dev** | ใช้ตัวนี้เวลาเขียนโค้ด |
 | 5173 | React dev server (vite) | |
+| 5432 | PostgreSQL 16 บนเครื่อง | ฐานข้อมูล production |
+| **8010** | backend ใน Docker | `docker-compose.yml` |
+| **5433** | PostgreSQL ใน Docker | `docker-compose.yml` |
 
 ฐานข้อมูล dev แยกเป็นคนละไฟล์ (`checkin-dev.db`) จึงแก้อะไรก็ไม่กระทบข้อมูล production
+
+---
+
+## วิธีที่ 3 — Docker Desktop (ยกทั้ง backend + PostgreSQL)
+
+ได้สภาพแวดล้อมใกล้เคียง production กว่า SQLite เพราะเป็น PostgreSQL จริง แต่ยังแยกจากของจริงสนิท
+
+```powershell
+cd checkin-system
+copy .env.example .env      # ครั้งแรกครั้งเดียว แล้วแก้ POSTGRES_PASSWORD
+docker compose up -d --build
+docker compose run --rm backend python seed.py
+```
+เปิด http://localhost:8010/docs · ฝั่ง React ตั้ง `$env:VITE_API_BASE = "http://localhost:8010"`
+
+รายละเอียดและคำสั่งที่ใช้บ่อยอยู่ในหัวข้อ "รัน Back-end" ของ [`README.md`](README.md)
+
+> **ข้อกำหนดของเครื่อง** — Docker Desktop บน Windows Server 2022 ต้องมี WSL2
+> ถ้า `docker info` ขึ้น *"Docker Desktop is unable to start"* ให้รัน `wsl --install --no-distribution`
+> แล้ว **รีสตาร์ตเครื่อง 1 ครั้ง** (การรีสตาร์ตจะทำให้เว็บ production ล่มชั่วคราว —
+> IIS / Scheduled Task `ThanakonBoxCheckinAPI` / Cloudflare Tunnel ตั้ง auto-start ไว้แล้ว จะกลับมาเอง)
 
 ---
 

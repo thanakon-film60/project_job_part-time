@@ -1,12 +1,15 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
     Integer,
+    JSON,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,8 +26,43 @@ class Employee(Base):
     hashed_password: Mapped[str] = mapped_column(String(255))
     is_manager: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    national_id_encrypted: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    national_id_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    address_line: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    subdistrict: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    district: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    province: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    position: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     checkins: Mapped[list["CheckIn"]] = relationship(back_populates="employee")
+
+
+class EmploymentOption(Base):
+    __tablename__ = "employment_options"
+    __table_args__ = (UniqueConstraint("kind", "name", name="uq_employment_option_kind_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EmployeeEvent(Base):
+    __tablename__ = "employee_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    actor_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    event_type: Mapped[str] = mapped_column(String(40), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
 class CheckIn(Base):
@@ -65,6 +103,9 @@ class FaceProfile(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, index=True
     )
+    # ลำดับที่พนักงานจัดเอง (0 = รูปแรก ใช้เป็นรูปประจำตัว)
+    # NULL = ยังไม่เคยจัดลำดับ ให้เรียงตามเวลาที่บันทึก (ใหม่สุดขึ้นก่อน)
+    sort_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     employee: Mapped["Employee"] = relationship()
 
