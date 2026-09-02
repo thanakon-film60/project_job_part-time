@@ -15,6 +15,8 @@ class TrackingController extends ChangeNotifier {
   bool _running = false;
   bool _preparing = false;
   DateTime? _lastPingAt;
+  double? _lastLatitude;
+  double? _lastLongitude;
   bool _askedBatteryExemption = false;
   StreamSubscription<TrackingUpdate>? _updates;
 
@@ -22,6 +24,8 @@ class TrackingController extends ChangeNotifier {
   bool get running => _running;
   bool get preparing => _preparing;
   DateTime? get lastPingAt => _lastPingAt;
+  double? get lastLatitude => _lastLatitude;
+  double? get lastLongitude => _lastLongitude;
 
   /// ส่งพิกัดล่าสุดนานเกินไปแล้ว (ปิด GPS / เน็ตหลุด / ระบบฆ่า service)
   bool get isStale {
@@ -80,7 +84,13 @@ class TrackingController extends ChangeNotifier {
       final started = await initBackgroundService();
       _updates ??= trackingUpdates().listen((update) {
         _running = true;
-        if (!update.isError) _lastPingAt = update.sentAt;
+        if (!update.isError) {
+          _lastPingAt = update.sentAt;
+          if (update.latitude != null && update.longitude != null) {
+            _lastLatitude = update.latitude;
+            _lastLongitude = update.longitude;
+          }
+        }
         notifyListeners();
       });
       _running = started && await isTrackingRunning();
@@ -95,6 +105,8 @@ class TrackingController extends ChangeNotifier {
     await stopBackgroundService();
     _running = false;
     _lastPingAt = null;
+    _lastLatitude = null;
+    _lastLongitude = null;
   }
 
   @override

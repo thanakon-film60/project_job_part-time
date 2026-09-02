@@ -278,8 +278,17 @@ class ApiService {
       );
     }
 
-    // ต้องถอดรหัสเป็น utf8 เอง ไม่งั้นข้อความไทยจาก backend จะกลายเป็นตัวยึกยือ
-    return jsonDecode(utf8.decode(res.bodyBytes));
+    try {
+      // ต้องถอดรหัสเป็น utf8 เอง ไม่งั้นข้อความไทยจาก backend จะกลายเป็นตัวยึกยือ
+      return jsonDecode(utf8.decode(res.bodyBytes));
+    } on FormatException {
+      final contentType = res.headers['content-type'] ?? 'unknown';
+      throw ApiException(
+        '$errorText: เซิร์ฟเวอร์ตอบข้อมูลผิดรูปแบบ ($contentType) '
+        'กรุณาตรวจ IIS reverse proxy ของเส้นทาง $path',
+        statusCode: res.statusCode,
+      );
+    }
   }
 
   static Future<List<Map<String, dynamic>>> _jsonList(
@@ -370,8 +379,7 @@ class ApiService {
       throw HttpException('โหลดข้อมูลสถานที่ไม่สำเร็จ (${res.statusCode})');
     }
 
-    final data =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     final rawOffices = data['offices'];
     if (rawOffices is List && rawOffices.isNotEmpty) {
       return rawOffices

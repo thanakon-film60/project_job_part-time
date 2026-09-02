@@ -180,8 +180,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
     final scaffold = Scaffold(
       appBar: AppBar(
+        titleSpacing: 0,
         title: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
               'assets/images/logo-checkin.png',
@@ -190,13 +190,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               fit: BoxFit.contain,
             ),
             const SizedBox(width: 8),
-            Text(current.label),
+            Expanded(
+              child: Text(
+                current.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         actions: [
           if (account != null)
             Padding(
-              padding: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.only(left: 4, right: 8),
               child: Tooltip(
                 message: 'เปิดบัญชีของฉัน',
                 child: InkWell(
@@ -205,7 +211,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   child: EmployeeFacePhoto(
                     employeeId: account.id,
                     fallbackText: account.initial,
-                    size: 38,
+                    size: 34,
                   ),
                 ),
               ),

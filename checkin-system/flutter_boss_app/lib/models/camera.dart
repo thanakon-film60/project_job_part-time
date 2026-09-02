@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 /// สถานะกล้องวงจรปิดที่เซิร์ฟเวอร์รายงานกลับมา (GET /camera/status)
 ///
 /// กล้องเป็นอุปกรณ์ในวง LAN ของออฟฟิศ แอปคุยกับกล้องตรงๆ ไม่ได้ —
@@ -26,8 +28,9 @@ class CameraStatus {
 
   /// พูดกลับออกลำโพงกล้องได้ไหม
   ///
-  /// กล้องที่ใช้อยู่ตอนนี้ตอบว่าไม่ได้ — ไม่มีลำโพงและไม่เปิด RTSP backchannel
-  /// เก็บเป็นฟิลด์ไว้เผื่อเปลี่ยนไปใช้กล้องที่มีลำโพง แอปจะได้ไม่ต้องแก้
+  /// กล้องที่ใช้อยู่ตอนนี้ "มีลำโพง" (ONVIF ตอบ AudioOutputs = 1) แต่เฟิร์มแวร์
+  /// ไม่เปิดช่องให้ส่งเสียงเข้า จึงยังกดพูดไม่ได้ ดูรายละเอียดที่ตรวจไว้ใน
+  /// backend/app/routers/camera.py — แอปพร้อมแสดงปุ่มทันทีที่เซิร์ฟเวอร์ตอบ true
   final bool talkbackSupported;
 
   const CameraStatus({
@@ -65,6 +68,22 @@ class CameraStatus {
       talkbackSupported: json['talkback_supported'] == true,
     );
   }
+}
+
+/// ภาพนิ่ง 1 เฟรมจากเซิร์ฟเวอร์ พร้อม "อายุ" ที่เซิร์ฟเวอร์บอกมา
+///
+/// เซิร์ฟเวอร์ใช้ภาพร่วมกันทุกคนและเก็บภาพล่าสุดไว้ส่งต่อตอนกล้องสะดุด
+/// อายุจึงเป็นตัวบอกว่ากำลังดูภาพสดหรือภาพค้าง — ไม่ใช่เดาจากเวลาที่แอปได้รับ
+class CameraFrame {
+  final Uint8List bytes;
+  final Duration age;
+
+  const CameraFrame(this.bytes, this.age);
+
+  /// เก่ากว่านี้ = เซิร์ฟเวอร์ส่งภาพเก็บไว้มาให้ เพราะดึงจากกล้องรอบนี้ไม่ผ่าน
+  static const Duration staleAfter = Duration(seconds: 3);
+
+  bool get isStale => age >= staleAfter;
 }
 
 /// ทิศที่สั่งกล้องได้ — ต้องตรงกับ CameraPtzAction ฝั่ง backend
