@@ -26,12 +26,20 @@ class CameraStatus {
   /// ฟังเสียงจากไมค์ของกล้องได้ไหม (เซิร์ฟเวอร์ต้องมี ffmpeg ด้วย)
   final bool audioSupported;
 
+  /// เหตุผลที่ฟังเสียงไม่ได้ ตามที่เซิร์ฟเวอร์บอกมา (null = ฟังได้ปกติ)
+  ///
+  /// ให้เซิร์ฟเวอร์เป็นคนบอกเหตุผล แทนที่แอปจะเดาเอง — เพราะเงื่อนไขอยู่ที่
+  /// ฝั่งนั้นทั้งหมด (ปิดระบบเสียงไว้ / ยังไม่ได้ลง ffmpeg)
+  final String? audioNote;
+
   /// พูดกลับออกลำโพงกล้องได้ไหม
   ///
-  /// กล้องที่ใช้อยู่ตอนนี้ "มีลำโพง" (ONVIF ตอบ AudioOutputs = 1) แต่เฟิร์มแวร์
-  /// ไม่เปิดช่องให้ส่งเสียงเข้า จึงยังกดพูดไม่ได้ ดูรายละเอียดที่ตรวจไว้ใน
-  /// backend/app/routers/camera.py — แอปพร้อมแสดงปุ่มทันทีที่เซิร์ฟเวอร์ตอบ true
+  /// เซิร์ฟเวอร์ไปถามกล้องจริงทุกครั้ง (RTSP DESCRIBE + Require backchannel)
+  /// ไม่ได้เขียนคำตอบตายตัวไว้ เปลี่ยนกล้องหรืออัปเฟิร์มแวร์แล้วปุ่มจะโผล่เอง
   final bool talkbackSupported;
+
+  /// เหตุผลที่พูดกลับไม่ได้ ตามที่เซิร์ฟเวอร์ถามกล้องมา (null = พูดได้)
+  final String? talkbackNote;
 
   const CameraStatus({
     required this.enabled,
@@ -42,7 +50,9 @@ class CameraStatus {
     this.firmware,
     this.homeSupported = false,
     this.audioSupported = false,
+    this.audioNote,
     this.talkbackSupported = false,
+    this.talkbackNote,
   });
 
   /// สั่งกล้องได้ก็ต่อเมื่อเปิดระบบไว้ และเซิร์ฟเวอร์ต่อกล้องติด
@@ -65,7 +75,9 @@ class CameraStatus {
       firmware: json['firmware']?.toString(),
       homeSupported: json['home_supported'] == true,
       audioSupported: json['audio_supported'] == true,
+      audioNote: json['audio_note']?.toString(),
       talkbackSupported: json['talkback_supported'] == true,
+      talkbackNote: json['talkback_note']?.toString(),
     );
   }
 }

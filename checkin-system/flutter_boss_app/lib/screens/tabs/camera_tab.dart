@@ -23,6 +23,13 @@ const Duration _maxBackoff = Duration(seconds: 15);
 /// ต่อกล้องไม่ติด ให้ลองเช็คสถานะใหม่เองเป็นระยะ ไม่ต้องรอผู้ใช้กดปุ่ม
 const Duration _statusRetryInterval = Duration(seconds: 20);
 
+/// สถานะที่เพิ่งโหลดมาไม่เกินเท่านี้ ถือว่ายังใช้ได้ ไม่ต้องโหลดซ้ำ
+///
+/// ใช้ตอนผู้ใช้กลับเข้ามาดูแท็บหรือสลับกลับมาที่แอป — กันไม่ให้ยิงซ้ำรัวๆ
+/// เวลาสลับแท็บไปมาเร็วๆ แต่ก็สั้นพอที่ความสามารถฝั่งเซิร์ฟเวอร์ที่เพิ่งเปลี่ยน
+/// จะขึ้นมาให้เห็นทันที
+const Duration _statusFreshFor = Duration(seconds: 15);
+
 /// รอเสียงเริ่มไหลนานสุดเท่านี้ — กล้องปกติใช้เวลาราว 6 วินาที
 /// ไม่ใส่เพดานไว้ ปุ่มจะค้างที่ "กำลังต่อเสียง..." ไปตลอดเมื่อสตรีมไม่มา
 const Duration _audioConnectTimeout = Duration(seconds: 25);
@@ -82,6 +89,13 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   Timer? _timer;
   Timer? _statusRetry;
 
+  /// สถานะที่โหลดมายัง "สด" อยู่ไหม — ตัวจับเวลาข้างล่างเป็นคนพลิกเป็น false
+  ///
+  /// ใช้ตัวจับเวลาแทนการเทียบ DateTime.now() เพราะเป็นกลไกเดียวกับลูปดึงภาพ
+  /// อ่านง่ายกว่า และทดสอบได้ด้วยนาฬิกาจำลองของ widget test
+  bool _statusFresh = false;
+  Timer? _statusFreshTimer;
+
   /// แท็บนี้ถูกเปิดดูอยู่จริงไหม (IndexedStack เก็บแท็บที่ซ่อนไว้ให้ยังมีชีวิต)
   bool _visible = true;
 
@@ -117,6 +131,7 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
     if (visible == _visible) return;
     _visible = visible;
     _syncPolling();
+    if (visible) _refreshStatusIfStale();
   }
 
   @override
@@ -124,6 +139,7 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _statusRetry?.cancel();
+    _statusFreshTimer?.cancel();
     _audioEvents?.cancel();
     _player?.dispose();
     // เฟรมสุดท้ายยังค้างอยู่ในแคชรูปของ Flutter ถ้าไม่ไล่ออก
@@ -136,6 +152,27 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
     _foreground = state == AppLifecycleState.resumed;
     // เสียงปล่อยให้เล่นต่อได้ตอนย่อแอป — หัวหน้าอาจอยากฟังเสียงไปทำอย่างอื่นไป
     _syncPolling();
+    if (_foreground) _refreshStatusIfStale();
+  }
+
+  /// โหลดสถานะใหม่เมื่อผู้ใช้กลับเข้ามาดู (สลับกลับมาที่แท็บ หรือกลับเข้าแอป)
+  ///
+  /// จำเป็นเพราะความสามารถฝั่งเซิร์ฟเวอร์เปลี่ยนได้ระหว่างที่แอปเปิดค้างอยู่
+  /// เช่นเพิ่งติดตั้ง ffmpeg ที่เซิร์ฟเวอร์ ปุ่มฟังเสียงก็ควรโผล่มาเอง
+  ///
+  /// ตัวจับเวลาลองใหม่ทุก 20 วินาทีช่วยเคสนี้ไม่ได้ เพราะมันทำงานเฉพาะตอน
+  /// "ต่อกล้องไม่ติด" ซึ่งไม่ใช่กรณีนี้ — กล้องปกติดี แค่ความสามารถเปลี่ยน
+  /// ก่อนหน้านี้ค่าเก่าจึงค้างจนกว่าผู้ใช้จะลากรีเฟรชเองหรือปิดแอปเปิดใหม่
+  void _refreshStatusIfStale() {
+    if (!_visible || !_foreground || _loadingStatus || _statusFresh) return;
+    _loadStatus(silent: true);
+  }
+
+  /// เพิ่งคุยกับ /camera/status มา — อีกสักพักค่อยถือว่าเก่าพอที่จะถามใหม่
+  void _markStatusLoaded() {
+    _statusFreshTimer?.cancel();
+    _statusFresh = true;
+    _statusFreshTimer = Timer(_statusFreshFor, () => _statusFresh = false);
   }
 
   // -------------------------------------------------------------------
@@ -246,6 +283,7 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
         _loadingStatus = false;
         _failStreak = 0;
       });
+      _markStatusLoaded();
       // กล้องหลุดไปแล้วกลับมา — เริ่มดึงภาพต่อทันที
       _syncPolling();
     } on ApiException catch (err) {
@@ -261,6 +299,9 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
       _statusError = message;
       _loadingStatus = false;
     });
+    // นับเป็น "เพิ่งลองไป" ด้วย กันไม่ให้สลับแท็บไปมาแล้วยิงซ้ำรัวๆ
+    // ตอนเซิร์ฟเวอร์ล่ม (ตัวจับเวลา 20 วินาทีรับหน้าที่ลองใหม่อยู่แล้ว)
+    _markStatusLoaded();
     _syncPolling();
   }
 
@@ -362,6 +403,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
     });
 
     try {
+      // สร้างตัวเล่นใหม่ทุกครั้งที่เริ่มฟัง — ตัวเก่าถูกทิ้งไปตอนกดหยุดแล้ว
+      // (ดูเหตุผลที่ _releasePlayer)
       final player = _player ??= AudioPlayer();
       _watchAudio(player);
       await player
@@ -411,12 +454,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   }
 
   Future<void> _onAudioFailed(String message) async {
-    // ตัวเล่นที่ต่อไม่สำเร็จอาจค้างสถานะไว้ ล้างก่อนให้กดใหม่ได้สะอาดๆ
-    try {
-      await _player?.stop();
-    } catch (_) {
-      // ปิดไม่สำเร็จก็ไม่เป็นไร กดใหม่ทีหลังจะ setAudioSource ทับอยู่แล้ว
-    }
+    // ตัวเล่นที่ต่อไม่สำเร็จอาจค้างสถานะไว้ ทิ้งไปเลยให้กดใหม่ได้สะอาดๆ
+    await _releasePlayer();
     if (!mounted) return;
     setState(() {
       _audioConnecting = false;
@@ -426,14 +465,32 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   }
 
   Future<void> _stopListening() async {
+    await _releasePlayer();
+    if (mounted) setState(() => _listening = false);
+  }
+
+  /// เลิกใช้ตัวเล่นเสียงให้ขาดจริง ๆ ไม่ใช่แค่หยุดเล่น
+  ///
+  /// ต้อง dispose ไม่ใช่ stop() เพราะ just_audio บน Android ไม่ได้ให้ ExoPlayer
+  /// ต่อ URL ของเราตรง ๆ — ตอนที่ส่ง header ไปด้วย มันจะตั้งพร็อกซีเล็ก ๆ ในเครื่อง
+  /// แล้วให้พร็อกซีเป็นคนดึงจากเซิร์ฟเวอร์ให้ stop() หยุดแค่การเล่น
+  /// แต่พร็อกซีตัวนั้นยังคาสายไว้กับเซิร์ฟเวอร์
+  ///
+  /// ผลคือ ffmpeg ฝั่งเซิร์ฟเวอร์ไม่รู้ว่าไม่มีคนฟังแล้ว จึงเปิด RTSP ค้างไว้กับ
+  /// กล้องต่อไป (ยืนยันแล้วด้วยการนับ process: กดหยุดแล้ว ffmpeg ยังอยู่)
+  /// ซึ่งกินโควตาการเชื่อมต่อของกล้อง แล้วทำให้ภาพนิ่ง/หมุนกล้องพลอยช้าไปด้วย
+  Future<void> _releasePlayer() async {
     _audioEvents?.cancel();
     _audioEvents = null;
+
+    final player = _player;
+    _player = null;
+    if (player == null) return;
     try {
-      await _player?.stop();
+      await player.dispose();
     } catch (_) {
-      // ปิดเสียงไม่สำเร็จไม่ใช่เรื่องคอขาดบาดตาย
+      // ปิดไม่สำเร็จไม่ใช่เรื่องคอขาดบาดตาย ครั้งหน้าสร้างตัวใหม่อยู่แล้ว
     }
-    if (mounted) setState(() => _listening = false);
   }
 
   // -------------------------------------------------------------------
@@ -807,12 +864,12 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   Widget _buildAudioRow() {
     final status = _status;
     if (status == null || !status.audioSupported) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 4),
-        child: Text(
-          'เซิร์ฟเวอร์นี้ยังส่งเสียงจากกล้องไม่ได้',
-          style: TextStyle(fontSize: 11, color: Colors.white38),
-        ),
+      return _buildUnavailableNote(
+        // ให้เซิร์ฟเวอร์เป็นคนบอกเหตุผล แอปไม่ต้องเดา — เงื่อนไขอยู่ฝั่งนั้นหมด
+        status?.audioNote ?? 'เซิร์ฟเวอร์นี้ยังส่งเสียงจากกล้องไม่ได้',
+        // ความสามารถนี้เปิดเพิ่มที่เซิร์ฟเวอร์ได้ตลอด (เช่นเพิ่งลง ffmpeg)
+        // จึงต้องมีทางให้ผู้ใช้สั่งเช็คใหม่ ไม่ใช่ปล่อยให้เจอทางตัน
+        showRetry: true,
       );
     }
 
@@ -838,12 +895,15 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
             ),
           ),
         if (!status.talkbackSupported)
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
-              'กล้องมีลำโพง แต่เฟิร์มแวร์ยังไม่เปิดช่องส่งเสียงเข้า '
-              'จึงยังกดพูดออกกล้องไม่ได้',
-              style: TextStyle(fontSize: 11, color: Colors.white38),
+              // เซิร์ฟเวอร์ถามกล้องจริงมาแล้วว่าติดตรงไหน จึงบอกได้ตรงจุด
+              // (ข้อความสำรองไว้เผื่อเซิร์ฟเวอร์รุ่นเก่าที่ยังไม่ส่งฟิลด์นี้มา)
+              status.talkbackNote == null
+                  ? 'กล้องตัวนี้ยังไม่เปิดช่องส่งเสียงเข้า จึงกดพูดออกกล้องไม่ได้'
+                  : 'กดพูดออกกล้องไม่ได้ — ${status.talkbackNote}',
+              style: const TextStyle(fontSize: 11, color: Colors.white38),
             ),
           ),
         if (_audioError != null)
@@ -855,6 +915,40 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
             ),
           ),
       ],
+    );
+  }
+
+  /// ข้อความ "ทำสิ่งนี้ไม่ได้" พร้อมทางออกให้ผู้ใช้กดลองใหม่
+  ///
+  /// ของเดิมเป็นข้อความเฉยๆ ผู้ใช้เจอทางตัน ไม่รู้ว่าต้องทำอะไรต่อ ทั้งที่
+  /// บางทีเซิร์ฟเวอร์พร้อมแล้วแต่แอปยังถือค่าเก่าอยู่
+  Widget _buildUnavailableNote(String message, {bool showRetry = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(fontSize: 11, color: Colors.white38),
+            ),
+          ),
+          if (showRetry) ...[
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: _loadingStatus ? null : () => _loadStatus(),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('ลองเช็คใหม่', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white70,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

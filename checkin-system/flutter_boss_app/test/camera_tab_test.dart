@@ -32,6 +32,10 @@ class _FakeCameraServer {
   bool failSnapshots = false;
   int snapshotAgeMs = 0;
 
+  /// เซิร์ฟเวอร์เปิดให้ฟังเสียงได้หรือยัง — สลับกลางเทสต์ได้ เพื่อจำลอง
+  /// เคสที่แอดมินเพิ่งติดตั้ง ffmpeg ที่เซิร์ฟเวอร์ตอนแอปเปิดค้างอยู่
+  bool audioSupported = false;
+
   Future<_FakeResponse> handle(String method, Uri uri, String? body) async {
     final path = uri.path;
 
@@ -45,8 +49,12 @@ class _FakeCameraServer {
         'model': 'cloudCam',
         'firmware': '43.4.0.0',
         'home_supported': true,
-        'audio_supported': false,
+        'audio_supported': audioSupported,
+        'audio_note': audioSupported
+            ? null
+            : 'เซิร์ฟเวอร์ยังไม่ได้ติดตั้ง ffmpeg จึงแปลงเสียงจากกล้องไม่ได้',
         'talkback_supported': false,
+        'talkback_note': 'กล้องไม่มีช่องเสียงขาเข้าใน SDP (ไม่พบ a=sendonly)',
       });
     }
 
@@ -276,6 +284,9 @@ Widget host({required bool visible}) => MaterialApp(
 ///
 /// pump() เปล่าๆ ไม่พอ เพราะลูปดึงภาพนัดรอบถัดไปด้วย Timer ซึ่งต้องมีเวลา
 /// เดินจริงในนาฬิกาจำลองของเทสต์ถึงจะทำงาน
+/// รอให้เลยช่วงที่ถือว่าสถานะ "ยังสดอยู่" (_statusFreshFor ในหน้าจอกล้อง)
+const Duration _statusStaleGap = Duration(seconds: 20);
+
 Future<void> settle(WidgetTester tester) async {
   for (var i = 0; i < 4; i++) {
     await tester.pump(const Duration(milliseconds: 50));
@@ -441,6 +452,92 @@ void main() {
     // ค่ามากกว่า 300 จึงเป็นหลักฐานว่าระยะถูกสะสมข้ามเฟรมจริง
     expect(server.ptzDurations.single, greaterThan(500),
         reason: 'ระยะลากต้องสะสมข้ามเฟรม ไม่ใช่เหลือแค่ก้าวสุดท้าย');
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('เซิร์ฟเวอร์เปิดเสียงทีหลัง แล้วกลับเข้าแท็บ ปุ่มต้องโผล่เอง',
+      (tester) async {
+    // เปิดแท็บตอนเซิร์ฟเวอร์ยังส่งเสียงไม่ได้
+    await tester.pumpWidget(host(visible: true));
+    await settle(tester);
+
+    expect(find.text('ฟังเสียงจากกล้อง'), findsNothing);
+    expect(
+      find.text('เซิร์ฟเวอร์ยังไม่ได้ติดตั้ง ffmpeg จึงแปลงเสียงจากกล้องไม่ได้'),
+      findsOneWidget,
+      reason: 'ต้องบอกเหตุผลตามที่เซิร์ฟเวอร์ส่งมา ไม่ใช่ข้อความกลางๆ',
+    );
+
+    // แอดมินติดตั้ง ffmpeg ที่เซิร์ฟเวอร์ระหว่างที่แอปยังเปิดค้าง
+    server.audioSupported = true;
+    final statusCallsBefore = server.statusCalls;
+
+    // ผู้ใช้สลับไปแท็บอื่น แล้วกลับมา
+    await tester.pumpWidget(host(visible: false));
+    await settle(tester);
+    await tester.pump(_statusStaleGap);
+    await tester.pumpWidget(host(visible: true));
+    await settle(tester);
+
+    expect(server.statusCalls, greaterThan(statusCallsBefore),
+        reason: 'กลับเข้าแท็บแล้วต้องถามสถานะใหม่');
+    expect(find.text('ฟังเสียงจากกล้อง'), findsOneWidget,
+        reason: 'ปุ่มฟังเสียงต้องโผล่เองโดยผู้ใช้ไม่ต้องลากรีเฟรช');
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('สลับแท็บไปมาเร็วๆ ต้องไม่ยิงถามสถานะรัวๆ', (tester) async {
+    await tester.pumpWidget(host(visible: true));
+    await settle(tester);
+    final before = server.statusCalls;
+
+    for (var i = 0; i < 5; i++) {
+      await tester.pumpWidget(host(visible: false));
+      await settle(tester);
+      await tester.pumpWidget(host(visible: true));
+      await settle(tester);
+    }
+
+    expect(server.statusCalls, before,
+        reason: 'สถานะที่เพิ่งโหลดมายังสดอยู่ ไม่ควรโหลดซ้ำ');
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('ปุ่ม "ลองเช็คใหม่" ข้างข้อความเสียง สั่งโหลดสถานะได้',
+      (tester) async {
+    await tester.pumpWidget(host(visible: true));
+    await settle(tester);
+
+    final before = server.statusCalls;
+    server.audioSupported = true;
+
+    // แผงควบคุมอยู่ใต้จอภาพ ในจอเทสต์ขนาด 800x600 ปุ่มจึงตกอยู่นอกพื้นที่ที่เห็น
+    // ต้องเลื่อนให้เห็นก่อน ไม่งั้นการแตะจะไปตกที่ว่างนอกจอ
+    await tester.ensureVisible(find.text('ลองเช็คใหม่'));
+    await tester.pump();
+    await tester.tap(find.text('ลองเช็คใหม่'));
+    await settle(tester);
+
+    expect(server.statusCalls, greaterThan(before));
+    expect(find.text('ฟังเสียงจากกล้อง'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('บอกเหตุผลที่กดพูดไม่ได้ตามที่เซิร์ฟเวอร์ถามกล้องมา',
+      (tester) async {
+    server.audioSupported = true;
+    await tester.pumpWidget(host(visible: true));
+    await settle(tester);
+
+    expect(
+      find.textContaining('ไม่พบ a=sendonly'),
+      findsOneWidget,
+      reason: 'ต้องบอกสาเหตุจริงจากกล้อง ไม่ใช่ข้อความคาดเดา',
+    );
 
     await tester.pump(const Duration(seconds: 5));
   });

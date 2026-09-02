@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 
-from camera_audio import AudioStream, find_ffmpeg
+from camera_audio import AudioHub, AudioStream, backchannel_supported, find_ffmpeg
 from camera_onvif import OnvifError, OnvifPtz
 
 from ..config import settings
@@ -132,6 +132,32 @@ class SnapshotCache:
 
 _snapshots = SnapshotCache()
 
+# เสียงใช้ ffmpeg ตัวเดียวร่วมกันทุกคน — สร้างตอนมีคนฟังคนแรก
+_audio_hub: AudioHub | None = None
+_audio_hub_lock = threading.Lock()
+
+
+def get_audio_hub() -> AudioHub:
+    """ตัวแจกเสียงของทั้งระบบ — มี ffmpeg ได้ทีละตัวไม่ว่าจะมีคนฟังกี่คน
+
+    กล้องรับผู้เชื่อมต่อได้จำกัด ถ้าปล่อยให้คำขอละหนึ่ง ffmpeg หัวหน้าสองคน
+    เปิดฟังพร้อมกันก็กินโควตาไปสองที่แล้ว และถ้าแอปไม่ปิดสายให้ (ซึ่งเกิดจริง)
+    ตัวเก่าจะค้างสะสมจนกล้องช้าลงทั้งระบบ
+    """
+    global _audio_hub
+
+    with _audio_hub_lock:
+        if _audio_hub is None:
+            _audio_hub = AudioHub(
+                make_stream=lambda: AudioStream(
+                    rtsp_url=settings.camera_rtsp_url,
+                    ffmpeg_path=settings.ffmpeg_path or None,
+                    bitrate=settings.camera_audio_bitrate,
+                ).start(),
+                max_seconds=settings.camera_audio_max_seconds,
+            )
+        return _audio_hub
+
 
 def _require_enabled() -> None:
     if not settings.camera_ptz_enabled:
@@ -195,6 +221,24 @@ def camera_status(_: Employee = Depends(require_manager)):
             message=f"เชื่อมต่อกล้องไม่ได้: {exc}",
         )
 
+    ffmpeg = find_ffmpeg(settings.ffmpeg_path or None)
+    if not settings.camera_audio_enabled:
+        audio_note = "ระบบเสียงถูกปิดไว้ที่เซิร์ฟเวอร์ (CAMERA_AUDIO_ENABLED)"
+    elif ffmpeg is None:
+        audio_note = "เซิร์ฟเวอร์ยังไม่ได้ติดตั้ง ffmpeg จึงแปลงเสียงจากกล้องไม่ได้"
+    else:
+        audio_note = None
+
+    # ถามกล้องจริงว่ารับเสียงเข้าได้ไหม แทนการเขียนคำตอบตายตัวไว้
+    #
+    # ของเดิมฝังไว้ว่า False ซึ่งถูกกับกล้องตัวที่ใช้อยู่ แต่จะกลายเป็นคำตอบผิด
+    # เงียบ ๆ ทันทีที่เปลี่ยนกล้องหรืออัปเฟิร์มแวร์ ตัวนี้จำผลไว้ 5 นาที
+    # และจะไม่จำถ้าต่อกล้องไม่ติดตอนนั้น (กล้องสะดุดชั่วคราวจะได้ไม่ปิดปุ่มค้าง)
+    talkback, talkback_note = backchannel_supported(
+        settings.camera_rtsp_url,
+        timeout=settings.camera_backchannel_timeout_seconds,
+    )
+
     return CameraStatusOut(
         enabled=True,
         reachable=True,
@@ -203,29 +247,10 @@ def camera_status(_: Employee = Depends(require_manager)):
         model=info.get("Model") or None,
         firmware=info.get("FirmwareVersion") or None,
         home_supported=camera.home_supported,
-        audio_supported=(
-            settings.camera_audio_enabled
-            and find_ffmpeg(settings.ffmpeg_path or None) is not None
-        ),
-        # พูดกลับออกลำโพงกล้องยังทำไม่ได้ — ไม่ใช่เพราะกล้องไม่มีลำโพง
-        #
-        # ตรวจกับกล้องจริงแล้ว (cloudCam fw 43.4.0.0) กล้อง "มี" ลำโพง:
-        #   GetCapabilities        -> AudioOutputs = 1
-        #   GetAudioOutputConfigs  -> token AudioOutputToken, G711, OutputLevel 10
-        #                             SendPrimacy = .../HalfDuplex/Auto (คุยสองทาง)
-        #
-        # แต่เฟิร์มแวร์ไม่เปิด "ช่องส่งเสียงเข้า" ให้เลยสักทาง:
-        #   RTSP OPTIONS           -> DESCRIBE, PLAY, SETUP, TEARDOWN, SET_PARAMETER
-        #                             (ไม่มี ANNOUNCE/RECORD)
-        #   DESCRIBE + Require: www.onvif.org/ver20/backchannel
-        #                          -> ได้ SDP เดิม ไม่มี track a=sendonly
-        #                             ลองครบทุกเส้นทาง (/H265, /, /onvif1, ...)
-        #   พอร์ตที่เปิด            -> มีแค่ 80 กับ 554 ไม่มีพอร์ตโปรโตคอลผู้ผลิต
-        #
-        # แปลว่าถ้าอยากได้ปุ่มกดพูด ต้องแก้ที่ตัวกล้อง (เปิดใน setting ของกล้อง
-        # หรืออัปเฟิร์มแวร์ให้รองรับ backchannel) ไม่ใช่แก้ที่แอป —
-        # เปลี่ยนค่านี้เป็น True ได้ทันทีที่ DESCRIBE ตอบ track a=sendonly มา
-        talkback_supported=False,
+        audio_supported=settings.camera_audio_enabled and ffmpeg is not None,
+        audio_note=audio_note,
+        talkback_supported=talkback,
+        talkback_note=None if talkback else talkback_note,
     )
 
 
@@ -335,11 +360,14 @@ async def camera_audio(
 ):
     """ฟังเสียงจากไมค์ของกล้องแบบสด
 
-    เป็นเสียงขาเข้าอย่างเดียว — กล้องรุ่นนี้ไม่มีลำโพงและไม่เปิด RTSP
-    backchannel จึงพูดกลับออกกล้องไม่ได้
+    เป็นเสียงขาเข้าอย่างเดียว เพราะกล้องไม่เปิดช่องรับเสียงผ่าน ONVIF/RTSP
+    (ดู talkback_supported ใน /camera/status ซึ่งไปถามกล้องจริงทุกครั้ง)
 
-    เสียงเริ่มดังช้าประมาณ 6 วินาที เพราะต้องรอกล้อง setup RTSP ให้เสร็จก่อน
+    เสียงเริ่มดังช้าประมาณ 7-9 วินาที เพราะต้องรอกล้อง setup RTSP ให้เสร็จก่อน
     ไม่ใช่เพราะฝั่งเซิร์ฟเวอร์ช้า
+
+    ทุกคนที่กดฟังใช้ ffmpeg ตัวเดียวร่วมกัน (ดู get_audio_hub) — กล้องรับ
+    ผู้เชื่อมต่อได้จำกัด ถ้าเปิดคนละตัวจะกินโควตากล้องจนภาพนิ่งพลอยหลุดไปด้วย
     """
     _require_enabled()
 
@@ -355,26 +383,23 @@ async def camera_audio(
             detail="เซิร์ฟเวอร์นี้ยังไม่ได้ติดตั้ง ffmpeg จึงส่งเสียงไม่ได้",
         )
 
-    stream = AudioStream(
-        rtsp_url=settings.camera_rtsp_url,
-        ffmpeg_path=settings.ffmpeg_path or None,
-        bitrate=settings.camera_audio_bitrate,
-    ).start()
+    hub = get_audio_hub()
+    listener = hub.subscribe()
 
     async def chunks():
         # ต้องเป็น async generator — ตัว sync generator ที่ StreamingResponse
         # รันใน threadpool จะไม่ถูก close() เมื่อแอปตัดการเชื่อมต่อ ทำให้
-        # ffmpeg ค้างคาเครื่องและเปิด RTSP ค้างไว้กับกล้องไปเรื่อยๆ
+        # ผู้ฟังรายนี้ค้างอยู่ในรายชื่อของ hub ไปเรื่อยๆ
         try:
             while True:
                 if await request.is_disconnected():
                     break
-                chunk = await run_in_threadpool(stream.read)
+                chunk = await run_in_threadpool(hub.read, listener)
                 if not chunk:
                     break
                 yield chunk
         finally:
-            stream.close()
+            hub.unsubscribe(listener)
 
     return StreamingResponse(
         chunks(),
