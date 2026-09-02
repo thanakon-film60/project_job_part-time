@@ -172,11 +172,25 @@ widget ไม่ถูก dispose → `initState()` ไม่ถูกเรี�
 
 ### 2. ARR อาจ buffer สตรีมเสียง — ยังไม่ยืนยัน ทีมเซิร์ฟเวอร์รับไปดูต่อ
 
-ตรวจ `applicationHost.config` พบว่า `responseBufferThreshold` ยังเป็นค่า default (256 KB)
-เสียงถูกเข้ารหัสที่ 32 kbit/s ≈ 4 KB/s → กว่าบัฟเฟอร์จะเต็มใช้เวลา **~64 วินาที**
+ตรวจ `applicationHost.config` พบว่า ARR proxy ตั้งไว้แค่
+
+```xml
+<proxy enabled="true" preserveHostHeader="false" reverseRewriteHostInResponseHeaders="false" />
+```
+
+ที่เหลือใช้ค่า default ตาม `arr_schema.xml` ซึ่งมี 2 ตัวที่กระทบสตรีมโดยตรง:
+
+| attribute | ค่า default | ผลต่อสตรีมเสียง |
+| --- | --- | --- |
+| `minResponseBuffer` | 256 (KB) | ARR สะสมข้อมูลให้ถึงเกณฑ์ก่อนค่อยส่งต่อให้ client |
+| `bufferChunkedResponses` | true | บัฟเฟอร์ response แบบ chunked ซึ่งเป็นวิธีที่ FastAPI ใช้ส่งสตรีม |
+
+เสียงเข้ารหัสที่ 32 kbit/s ≈ 4 KB/s → กว่าจะสะสมครบ 256 KB ใช้เวลา **~64 วินาที**
 ขณะที่แอปตั้ง `_audioConnectTimeout` ไว้ [25 วินาที](lib/screens/tabs/camera_tab.dart#L28)
 
 **ยังไม่ได้ยืนยัน** เพราะ `/camera/audio` ต้องใช้ token ผู้จัดการ ทดสอบทะลุ IIS ไม่ได้
+ทีมเซิร์ฟเวอร์มีขั้นตอนวัดผลอยู่ใน
+[`SERVER_TASKS_CAMERA_AUDIO.md`](../deploy/windows-server/SERVER_TASKS_CAMERA_AUDIO.md) แล้ว
 
 ถ้าหลังแก้เรื่อง refresh แล้วปุ่มขึ้นมา แต่กดแล้วขึ้นว่า
 **"ต่อเสียงไม่ทัน — กล้องไม่ส่งเสียงมา"** ให้แจ้งทีมเซิร์ฟเวอร์

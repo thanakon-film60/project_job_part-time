@@ -102,6 +102,10 @@ venv\Scripts\python.exe camera_audio_check.py
 | `1-2` | ปกติ ถ้ามีคนกำลังฟังเสียงอยู่จริง |
 | `3` ขึ้นไป | มีตัวค้างสะสม — ต้องเก็บกวาด |
 
+> **ผลตรวจเมื่อ 2 ก.ย. 2026: ได้ `0`** — ไม่มีตัวค้าง ไม่ต้องเก็บกวาดรอบนี้
+> (backend เพิ่งถูก restart ไปตอนแก้ routing และยังไม่มีใครกดฟังเสียงหลังจากนั้น)
+> ยังต้องเช็คซ้ำหลังเปิดใช้งานจริงไปสัก 1-2 วันตามที่เขียนไว้ข้างล่าง
+
 **เก็บกวาด** (ทำตอนไม่มีใครฟังเสียงอยู่):
 
 ```powershell
@@ -122,8 +126,15 @@ Get-Process ffmpeg -ErrorAction SilentlyContinue | Stop-Process -Force
 
 ### เรื่องมันคืออะไร
 
-ARR (ตัวที่ IIS ใช้ส่งต่อคำขอไป backend) มีค่า `responseBufferThreshold`
-= "สะสมข้อมูลไว้กี่ไบต์ก่อนจะเริ่มส่งให้ client"
+ARR (ตัวที่ IIS ใช้ส่งต่อคำขอไป backend) มีค่า `minResponseBuffer`
+= "สะสมข้อมูลไว้กี่ KB ก่อนจะเริ่มส่งให้ client"
+
+> ⚠️ **แก้ชื่อ attribute เมื่อ 2 ก.ย. 2026** — เอกสารฉบับก่อนเขียนว่า
+> `responseBufferThreshold` ซึ่ง **ไม่มีอยู่จริง** ตรวจแล้วไม่พบใน schema ใด ๆ ของ IIS
+> (`C:\Windows\System32\inetsrv\config\schema\`) คำสั่งเดิมจะ error ทันทีที่รัน
+> ชื่อจริงในหมวด `system.webServer/proxy` มี 3 ตัวที่เกี่ยวกับบัฟเฟอร์:
+> `minResponseBuffer`, `responseBufferLimit`, `bufferChunkedResponses`
+> และหน่วยเป็น **KB ไม่ใช่ไบต์**
 
 สำหรับหน้าเว็บทั่วไปไม่มีปัญหา เพราะ response จบในตัวและสั้น
 แต่เสียงเป็น **สตรีมที่ไม่มีวันจบ** ถ้า ARR รอให้ครบตามค่านั้นก่อนถึงจะปล่อย
@@ -131,11 +142,14 @@ ARR (ตัวที่ IIS ใช้ส่งต่อคำขอไป backen
 
 วัดอัตราเสียงจริงจากกล้องตัวนี้ได้ **~4.8 KB ต่อวินาที** (ที่ 32 kbit/s) ดังนั้น:
 
-| ค่า responseBufferThreshold | กว่าเสียงจะเริ่มดัง |
+| ค่า `minResponseBuffer` | กว่าเสียงจะเริ่มดัง |
 |---|---|
 | `0` (ปิดการสะสม) | ทันทีที่กล้องส่งมา (~7-9 วินาที) |
-| `262144` (256 KB) | **~53 วินาที** — แอปยอมรอแค่ 25 วินาที จะขึ้นว่าต่อเสียงไม่ทัน |
-| `4194304` (4 MB) | ~14 นาที = ใช้ไม่ได้เลย |
+| `256` (256 KB — **ค่า default**) | **~53 วินาที** — แอปยอมรอแค่ 25 วินาที จะขึ้นว่าต่อเสียงไม่ทัน |
+| `4096` (4 MB) | ~14 นาที = ใช้ไม่ได้เลย |
+
+อีกตัวที่ต้องดูคู่กันคือ `bufferChunkedResponses` (default `true`)
+FastAPI ส่งสตรีมแบบ chunked ถ้า ARR บัฟเฟอร์ chunked ไว้ก็หน่วงได้เหมือนกัน
 
 ### ตรวจค่าปัจจุบัน
 
@@ -143,17 +157,46 @@ ARR (ตัวที่ IIS ใช้ส่งต่อคำขอไป backen
 C:\Windows\System32\inetsrv\appcmd.exe list config -section:system.webServer/proxy
 ```
 
-มองหาบรรทัด `responseBufferThreshold`
+**ผลตรวจเมื่อ 2 ก.ย. 2026:**
+
+```xml
+<proxy enabled="true" preserveHostHeader="false" reverseRewriteHostInResponseHeaders="false">
+  <cache />
+</proxy>
+```
+
+> `appcmd` แสดงเฉพาะค่าที่ตั้งไว้ชัดเจน **ไม่แสดงค่า default**
+> ไม่เห็น `minResponseBuffer` = ยังใช้ค่า default 256 KB = แถวสีแดงในตารางข้างบน
+> ค่า default อ้างอิงจาก `C:\Windows\System32\inetsrv\config\schema\arr_schema.xml`
 
 ### ถ้าค่าไม่ใช่ 0 ให้แก้เป็น 0
 
 ```powershell
-C:\Windows\System32\inetsrv\appcmd.exe set config -section:system.webServer/proxy /responseBufferThreshold:0 /commit:apphost
+C:\Windows\System32\inetsrv\appcmd.exe set config -section:system.webServer/proxy /minResponseBuffer:"0" /responseBufferLimit:"0" /commit:apphost
+iisreset /noforce
+```
+
+ถ้ายังหน่วงอยู่ ค่อยเพิ่มตัวนี้ (แยกคนละขั้นจะได้รู้ว่าตัวไหนเป็นตัวแก้):
+
+```powershell
+C:\Windows\System32\inetsrv\appcmd.exe set config -section:system.webServer/proxy /bufferChunkedResponses:"false" /commit:apphost
 iisreset /noforce
 ```
 
 > ตั้งเป็น 0 = ส่งต่อทันทีไม่ต้องสะสม เป็นค่าที่แนะนำสำหรับ reverse proxy
 > ที่ต้องส่งสตรีม (เสียง, SSE, WebSocket) หน้าเว็บกับ API ปกติไม่ได้รับผลกระทบ
+>
+> ⚠️ ค่านี้เป็น **ระดับเครื่อง** มีผลกับทุกอย่างที่ ARR proxy บนเครื่องนี้
+> ตามคอมเมนต์ใน `web.config` เครื่องนี้มีโปรเจ็กต์อื่นใช้พอร์ต 8000 อยู่
+> ถ้าโปรเจ็กต์นั้นผ่าน ARR ด้วยให้แจ้งเจ้าของก่อน และ `iisreset` ทำให้เว็บสะดุด
+> ไม่กี่วินาที ควรทำนอกเวลาที่พนักงานลงเวลากันเยอะ
+
+**ถ้าต้องย้อนกลับ:**
+
+```powershell
+C:\Windows\System32\inetsrv\appcmd.exe set config -section:system.webServer/proxy /minResponseBuffer:"256" /responseBufferLimit:"4096" /bufferChunkedResponses:"true" /commit:apphost
+iisreset /noforce
+```
 
 ### ตรวจว่าหายแล้ว
 
