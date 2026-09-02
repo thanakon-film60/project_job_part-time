@@ -122,6 +122,12 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
         _statusError = err.message;
         _loadingStatus = false;
       });
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _statusError = 'เช็คสถานะกล้องไม่สำเร็จ: $err';
+        _loadingStatus = false;
+      });
     }
   }
 
@@ -142,6 +148,9 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
       // ภาพหลุดเป็นครั้งคราวถือเป็นเรื่องปกติของกล้อง IP — ไม่ล้างภาพเดิมทิ้ง
       // ยังโชว์เฟรมล่าสุดค้างไว้พร้อมข้อความ ดีกว่าจอดำกะพริบ
       setState(() => _frameError = err.message);
+    } catch (err) {
+      if (!mounted) return;
+      setState(() => _frameError = 'โหลดภาพจากกล้องไม่สำเร็จ: $err');
     } finally {
       _fetchingFrame = false;
     }
@@ -161,6 +170,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
       await _fetchFrame();
     } on ApiException catch (err) {
       if (mounted) setState(() => _commandError = err.message);
+    } catch (err) {
+      if (mounted) setState(() => _commandError = 'สั่งกล้องไม่สำเร็จ: $err');
     } finally {
       if (mounted) setState(() => _moving = false);
       // ลูกศรบนภาพค้างไว้แป๊บนึงแล้วค่อยจาง
@@ -175,6 +186,10 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
       await ApiService.stopCamera();
     } on ApiException catch (err) {
       if (mounted) setState(() => _commandError = err.message);
+    } catch (err) {
+      if (mounted) {
+        setState(() => _commandError = 'สั่งหยุดกล้องไม่สำเร็จ: $err');
+      }
     }
   }
 
@@ -338,7 +353,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
                 onPressed: _loadStatus,
                 icon: const Icon(Icons.refresh, size: 18),
                 label: const Text('ลองใหม่'),
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.white70),
+                style:
+                    OutlinedButton.styleFrom(foregroundColor: Colors.white70),
               ),
             ],
           ),
@@ -436,7 +452,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
             ),
             const Spacer(),
             if (_listening) ...[
-              const Icon(Icons.volume_up, color: Colors.lightBlueAccent, size: 14),
+              const Icon(Icons.volume_up,
+                  color: Colors.lightBlueAccent, size: 14),
               const SizedBox(width: 4),
             ],
             Text(
@@ -478,7 +495,9 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
                     ? 'ภาพสะดุด — ยังโชว์ภาพล่าสุด'
                     : 'ลากนิ้วบนภาพเพื่อเลื่อนกล้อง',
                 style: TextStyle(
-                  color: _frameError != null ? Colors.orangeAccent : Colors.white60,
+                  color: _frameError != null
+                      ? Colors.orangeAccent
+                      : Colors.white60,
                   fontSize: 11,
                 ),
               ),
@@ -528,8 +547,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
                 child: _consoleButton(
                   label: 'ซูมเข้า',
                   icon: Icons.zoom_in,
-                  onTap: () => _send(CameraAction.zoomIn,
-                      durationMs: _tapDurationMs),
+                  onTap: () =>
+                      _send(CameraAction.zoomIn, durationMs: _tapDurationMs),
                   onLongPress: () => _send(CameraAction.zoomIn,
                       durationMs: _longPressDurationMs),
                 ),
@@ -539,8 +558,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
                 child: _consoleButton(
                   label: 'ซูมออก',
                   icon: Icons.zoom_out,
-                  onTap: () => _send(CameraAction.zoomOut,
-                      durationMs: _tapDurationMs),
+                  onTap: () =>
+                      _send(CameraAction.zoomOut, durationMs: _tapDurationMs),
                   onLongPress: () => _send(CameraAction.zoomOut,
                       durationMs: _longPressDurationMs),
                 ),
@@ -689,7 +708,9 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
                 : Colors.white;
 
     return Material(
-      color: highlight ? Colors.lightBlueAccent.withValues(alpha: 0.15) : Colors.white10,
+      color: highlight
+          ? Colors.lightBlueAccent.withValues(alpha: 0.15)
+          : Colors.white10,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),

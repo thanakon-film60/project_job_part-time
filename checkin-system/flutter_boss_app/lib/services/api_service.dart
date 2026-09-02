@@ -200,6 +200,7 @@ class ApiService {
     String path, {
     Map<String, String>? query,
     Object? body,
+    Duration? timeout,
   }) async {
     if (!await ensureSession()) {
       throw const ApiException(Config.sessionExpiredMessage, statusCode: 401);
@@ -226,7 +227,7 @@ class ApiService {
         default:
           request = http.get(uri, headers: headers);
       }
-      return await request.timeout(_requestTimeout);
+      return await request.timeout(timeout ?? _requestTimeout);
     } on TimeoutException {
       throw const ApiException('เชื่อมต่อเซิร์ฟเวอร์นานเกินไป กรุณาลองใหม่');
     } on SocketException {
@@ -278,8 +279,17 @@ class ApiService {
       );
     }
 
-    // ต้องถอดรหัสเป็น utf8 เอง ไม่งั้นข้อความไทยจาก backend จะกลายเป็นตัวยึกยือ
-    return jsonDecode(utf8.decode(res.bodyBytes));
+    try {
+      // ต้องถอดรหัสเป็น utf8 เอง ไม่งั้นข้อความไทยจาก backend จะกลายเป็นตัวยึกยือ
+      return jsonDecode(utf8.decode(res.bodyBytes));
+    } on FormatException {
+      final contentType = res.headers['content-type'] ?? 'unknown';
+      throw ApiException(
+        '$errorText: เซิร์ฟเวอร์ตอบข้อมูลผิดรูปแบบ ($contentType) '
+        'กรุณาตรวจ IIS reverse proxy ของเส้นทาง $path',
+        statusCode: res.statusCode,
+      );
+    }
   }
 
   static Future<List<Map<String, dynamic>>> _jsonList(
@@ -370,8 +380,7 @@ class ApiService {
       throw HttpException('โหลดข้อมูลสถานที่ไม่สำเร็จ (${res.statusCode})');
     }
 
-    final data =
-        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     final rawOffices = data['offices'];
     if (rawOffices is List && rawOffices.isNotEmpty) {
       return rawOffices
@@ -818,8 +827,18 @@ class ApiService {
 
   /// ภาพนิ่งล่าสุดจากกล้อง — ต้องแนบ token จึงใช้ Image.network ตรงๆ ไม่ได้
   /// (เหมือน fetchFacePhoto) แอปเรียกซ้ำเป็นระยะเพื่อทำเป็นภาพสด
-  static Future<Uint8List> fetchCameraSnapshot() async {
-    final res = await _send('GET', '/camera/snapshot');
+  ///
+  /// เพดานเวลาสั้นกว่า API ตัวอื่นมาก เพราะภาพเป็นของที่ยิงทุกวินาที —
+  /// ถ้ายอมรอ 30 วินาทีเหมือน endpoint อื่น เน็ตสะดุดทีเดียวภาพจะค้างยาว
+  /// รอบที่หลุดไปทิ้งแล้วยิงรอบใหม่ดีกว่ารอ
+  static const Duration cameraSnapshotTimeout = Duration(seconds: 8);
+
+  static Future<CameraFrame> fetchCameraSnapshot() async {
+    final res = await _send(
+      'GET',
+      '/camera/snapshot',
+      timeout: cameraSnapshotTimeout,
+    );
     if (res.statusCode == 401) {
       await logout();
       throw const ApiException(
@@ -833,7 +852,21 @@ class ApiService {
         statusCode: res.statusCode,
       );
     }
-    return res.bodyBytes;
+
+    final bytes = res.bodyBytes;
+    // ตัวกลาง (IIS/Cloudflare) ที่ตอบหน้า error มาแทนภาพจะไม่ขึ้นต้นด้วย
+    // ลายเซ็นของ JPEG — ปล่อยผ่านไปให้ Image.memory จะได้กรอบดำเปล่าๆ
+    // ที่หาสาเหตุไม่ได้ ดักไว้ตรงนี้แล้วบอกไปเลยว่าไม่ใช่ภาพ
+    if (bytes.length < 2 || bytes[0] != 0xFF || bytes[1] != 0xD8) {
+      throw ApiException(
+        'เซิร์ฟเวอร์ไม่ได้ส่งภาพกลับมา '
+        '(${res.headers['content-type'] ?? 'ไม่ระบุชนิดข้อมูล'})',
+        statusCode: res.statusCode,
+      );
+    }
+
+    final ageMs = int.tryParse(res.headers['x-snapshot-age-ms'] ?? '') ?? 0;
+    return CameraFrame(bytes, Duration(milliseconds: ageMs));
   }
 
   /// ที่อยู่สตรีมเสียงจากไมค์กล้อง

@@ -7,6 +7,7 @@
 """
 
 import threading
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
@@ -31,6 +32,107 @@ _client_lock = threading.Lock()
 _command_lock = threading.Lock()
 
 
+class SnapshotCache:
+    """ภาพนิ่งล่าสุดที่ทุกคนใช้ร่วมกัน
+
+    หัวใจของความนิ่งอยู่ตรงนี้ ก่อนหน้านี้ทุกคำขอยิงเข้ากล้องตรงๆ ซึ่งพังสองทาง:
+
+      * กล้องตัวนี้รับคนดึงภาพพร้อมกันหลายรายไม่ไหว หัวหน้าเปิดสองเครื่อง =
+        ยิงวินาทีละ 2 ครั้ง กล้องเริ่มตอบช้า แล้วหลุดเป็นช่วงๆ
+      * คำขอที่รอกล้องจะจองเธรดของ FastAPI ไว้ (endpoint แบบ sync รันใน
+        threadpool ที่แชร์กันทั้งแอป) กล้องช้าทีเดียวลากทั้งระบบช้าตาม
+
+    ตัวนี้แก้ด้วยสามอย่าง: ภาพที่เพิ่งดึงใช้ซ้ำได้ระยะสั้นๆ, ดึงจากกล้อง
+    ทีละรายเท่านั้น (คนที่เหลือรับภาพล่าสุดไปก่อน ไม่ต้องยืนรอ), และภาพหลุด
+    ชั่วคราวยังส่งภาพล่าสุดที่ยังไม่เก่าเกินไปแทนการตอบ error
+    """
+
+    def __init__(self) -> None:
+        self._fetch_lock = threading.Lock()
+        self._state_lock = threading.Lock()
+        self._image: bytes | None = None
+        self._at: float = 0.0
+        self._failures: int = 0
+
+    def _cached(self, max_age: float) -> tuple[bytes, float] | None:
+        with self._state_lock:
+            if self._image is None:
+                return None
+            age = time.monotonic() - self._at
+            return (self._image, age) if age <= max_age else None
+
+    def _store(self, image: bytes) -> None:
+        with self._state_lock:
+            self._image = image
+            self._at = time.monotonic()
+            self._failures = 0
+
+    def _should_reconnect(self) -> bool:
+        """นับความล้มเหลว แล้วบอกว่าถึงคราวต่อกล้องใหม่หรือยัง
+
+        ตัวนับถูกล้างทุกครั้งที่สั่งต่อใหม่ ไม่งั้นพอพลาดครบเพดานครั้งแรกแล้ว
+        ทุกครั้งถัดไปจะเข้าเงื่อนไข ">= เพดาน" ตลอด กลายเป็นรีเซ็ตกล้องรัวๆ
+        ซึ่งคือพายุ reconnect แบบเดียวกับที่ตั้งใจจะเลี่ยงตั้งแต่แรก
+        """
+        with self._state_lock:
+            self._failures += 1
+            if self._failures < settings.camera_reconnect_after_failures:
+                return False
+            self._failures = 0
+            return True
+
+    def get(self, camera: OnvifPtz) -> tuple[bytes, float]:
+        """คืน (ภาพ, อายุของภาพเป็นวินาที) — โยน OnvifError เมื่อไม่มีภาพให้ส่งจริงๆ"""
+        fresh = settings.camera_snapshot_cache_ms / 1000
+        stale = settings.camera_snapshot_stale_ms / 1000
+
+        cached = self._cached(fresh)
+        if cached is not None:
+            return cached
+
+        # กล้องกำลังหมุนอยู่ ให้กล้องได้ทำทีละอย่าง — ระหว่างนี้ส่งภาพเดิมไปก่อน
+        if _command_lock.locked():
+            cached = self._cached(stale)
+            if cached is not None:
+                return cached
+
+        # มีคนกำลังดึงจากกล้องอยู่แล้ว: รับภาพล่าสุดไปก่อนดีกว่าจองเธรดยืนรอ
+        if not self._fetch_lock.acquire(blocking=False):
+            cached = self._cached(stale)
+            if cached is not None:
+                return cached
+            self._fetch_lock.acquire()
+
+        try:
+            # ระหว่างรอคิว คนข้างหน้าอาจดึงภาพใหม่มาให้แล้ว
+            cached = self._cached(fresh)
+            if cached is not None:
+                return cached
+
+            try:
+                image = camera.fetch_snapshot(
+                    timeout=settings.camera_snapshot_timeout_seconds
+                )
+            except OnvifError:
+                # ต่อกล้องใหม่ต่อเมื่อพลาดติดกันหลายครั้ง — พลาดครั้งเดียวแล้ว
+                # รีเซ็ตทันทีทำให้รอบถัดไปต้องคุย SOAP ใหม่ 4 ครั้งก่อนได้ภาพ
+                # ยิ่งช้าก็ยิ่งพลาด กลายเป็นวนไม่จบ (นี่คือต้นเหตุที่ภาพดับยาว)
+                if self._should_reconnect():
+                    reset_camera()
+                cached = self._cached(stale)
+                if cached is not None:
+                    return cached
+                raise
+
+            self._store(image)
+            return image, 0.0
+        finally:
+            self._fetch_lock.release()
+
+
+_snapshots = SnapshotCache()
+
+
 def _require_enabled() -> None:
     if not settings.camera_ptz_enabled:
         raise HTTPException(
@@ -51,6 +153,7 @@ def get_camera() -> OnvifPtz:
                 username=settings.camera_ptz_username or None,
                 password=settings.camera_ptz_password,
                 timeout=settings.camera_timeout_seconds,
+                snapshot_timeout=settings.camera_snapshot_timeout_seconds,
             )
         return _client
 
@@ -59,6 +162,8 @@ def reset_camera() -> None:
     """ทิ้ง client ที่ค้างอยู่ ครั้งหน้าจะต่อใหม่
 
     ใช้เมื่อกล้องรีสตาร์ต/เปลี่ยน IP แล้ว token เดิมใช้ไม่ได้
+    ภาพที่ค้างอยู่ใน cache ไม่ต้องทิ้ง — ยังเป็นภาพจากกล้องตัวเดิมอยู่ดี
+    และเป็นสิ่งเดียวที่แอปมีให้ดูระหว่างที่กำลังต่อใหม่
     """
     global _client
 
@@ -102,7 +207,24 @@ def camera_status(_: Employee = Depends(require_manager)):
             settings.camera_audio_enabled
             and find_ffmpeg(settings.ffmpeg_path or None) is not None
         ),
-        # กล้องรุ่นนี้ไม่มีลำโพง ตรวจแล้วด้วย RTSP DESCRIBE + Require backchannel
+        # พูดกลับออกลำโพงกล้องยังทำไม่ได้ — ไม่ใช่เพราะกล้องไม่มีลำโพง
+        #
+        # ตรวจกับกล้องจริงแล้ว (cloudCam fw 43.4.0.0) กล้อง "มี" ลำโพง:
+        #   GetCapabilities        -> AudioOutputs = 1
+        #   GetAudioOutputConfigs  -> token AudioOutputToken, G711, OutputLevel 10
+        #                             SendPrimacy = .../HalfDuplex/Auto (คุยสองทาง)
+        #
+        # แต่เฟิร์มแวร์ไม่เปิด "ช่องส่งเสียงเข้า" ให้เลยสักทาง:
+        #   RTSP OPTIONS           -> DESCRIBE, PLAY, SETUP, TEARDOWN, SET_PARAMETER
+        #                             (ไม่มี ANNOUNCE/RECORD)
+        #   DESCRIBE + Require: www.onvif.org/ver20/backchannel
+        #                          -> ได้ SDP เดิม ไม่มี track a=sendonly
+        #                             ลองครบทุกเส้นทาง (/H265, /, /onvif1, ...)
+        #   พอร์ตที่เปิด            -> มีแค่ 80 กับ 554 ไม่มีพอร์ตโปรโตคอลผู้ผลิต
+        #
+        # แปลว่าถ้าอยากได้ปุ่มกดพูด ต้องแก้ที่ตัวกล้อง (เปิดใน setting ของกล้อง
+        # หรืออัปเฟิร์มแวร์ให้รองรับ backchannel) ไม่ใช่แก้ที่แอป —
+        # เปลี่ยนค่านี้เป็น True ได้ทันทีที่ DESCRIBE ตอบ track a=sendonly มา
         talkback_supported=False,
     )
 
@@ -182,9 +304,8 @@ def camera_snapshot(_: Employee = Depends(require_manager)):
 
     camera = get_camera()
     try:
-        image = camera.fetch_snapshot()
+        image, age = _snapshots.get(camera)
     except OnvifError as exc:
-        reset_camera()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"ดึงภาพจากกล้องไม่สำเร็จ: {exc}",
@@ -193,8 +314,13 @@ def camera_snapshot(_: Employee = Depends(require_manager)):
     return Response(
         content=image,
         media_type="image/jpeg",
-        # ภาพสด — ห้ามให้ตัวกลางไหนแคชไว้ ไม่งั้นแอปจะได้ภาพเก่าเดิมซ้ำๆ
-        headers={"Cache-Control": "no-store"},
+        headers={
+            # ภาพสด — ห้ามให้ตัวกลางไหนแคชไว้ ไม่งั้นแอปจะได้ภาพเก่าเดิมซ้ำๆ
+            # (การใช้ภาพซ้ำทำที่นี่ที่เดียว ซึ่งรู้ว่าภาพเก่าไปกี่มิลลิวินาที)
+            "Cache-Control": "no-store",
+            # อายุของภาพ — แอปเอาไปบอกผู้ใช้ได้ว่ากำลังดูภาพสดหรือภาพค้าง
+            "X-Snapshot-Age-Ms": str(int(age * 1000)),
+        },
     )
 
 

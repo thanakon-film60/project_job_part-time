@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -7,9 +6,26 @@ import 'package:just_audio/just_audio.dart';
 import '../../models/camera.dart';
 import '../../services/api_service.dart';
 
-/// ดึงภาพนิ่งถี่แค่ไหน — ถี่กว่านี้เปลืองเน็ตมือถือโดยไม่ได้ภาพลื่นขึ้นจริง
-/// (ภาพละ ~35KB ทุก 1 วินาที = ~2MB ต่อนาที)
+/// ดึงภาพนิ่งถี่แค่ไหนตอนทุกอย่างปกติ — ถี่กว่านี้เปลืองเน็ตมือถือโดยไม่ได้
+/// ภาพลื่นขึ้นจริง (ภาพละ ~35KB ทุก 1 วินาที = ~2MB ต่อนาที)
+///
+/// นับจาก "รอบก่อนหน้าดึงเสร็จ" ไม่ใช่เดินนาฬิกาทุก 1 วินาทีตายตัว —
+/// เน็ตช้ากว่า 1 วินาทีเมื่อไร แบบเดินนาฬิกาจะยิงทับกันจนคิวบวม
 const Duration _snapshotInterval = Duration(seconds: 1);
+
+/// ดึงภาพไม่ผ่านติดกัน ให้ถอยห่างขึ้นเรื่อยๆ แทนที่จะยิงรัวเท่าเดิม
+///
+/// กล้องหรือเน็ตมีปัญหาอยู่แล้ว การยิงซ้ำวินาทีละครั้งไม่ได้ช่วยให้กลับมาเร็วขึ้น
+/// มีแต่ทำให้เซิร์ฟเวอร์และกล้องแย่ลง แถมกินแบตมือถือทิ้งเปล่า
+const Duration _minBackoff = Duration(seconds: 2);
+const Duration _maxBackoff = Duration(seconds: 15);
+
+/// ต่อกล้องไม่ติด ให้ลองเช็คสถานะใหม่เองเป็นระยะ ไม่ต้องรอผู้ใช้กดปุ่ม
+const Duration _statusRetryInterval = Duration(seconds: 20);
+
+/// รอเสียงเริ่มไหลนานสุดเท่านี้ — กล้องปกติใช้เวลาราว 6 วินาที
+/// ไม่ใส่เพดานไว้ ปุ่มจะค้างที่ "กำลังต่อเสียง..." ไปตลอดเมื่อสตรีมไม่มา
+const Duration _audioConnectTimeout = Duration(seconds: 25);
 
 /// แตะปุ่มทิศทาง 1 ครั้ง = หมุนสั้นๆ, กดค้าง = หมุนไกลขึ้น
 /// เพดานจริงถูกจำกัดอีกชั้นที่เซิร์ฟเวอร์ด้วย CAMERA_PTZ_MAX_DURATION_MS
@@ -37,8 +53,12 @@ class CameraTab extends StatefulWidget {
 
 class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   CameraStatus? _status;
-  Uint8List? _frame;
+
+  /// ภาพที่โชว์อยู่ — เก็บเป็น MemoryImage ไม่ใช่ bytes ดิบ เพราะต้องถือ
+  /// ตัวเดิมไว้ไล่ออกจากแคชของ Flutter ตอนเปลี่ยนเฟรม (ดู _showFrame)
+  MemoryImage? _frameImage;
   DateTime? _frameAt;
+  bool _frameStale = false;
 
   String? _statusError;
   String? _frameError;
@@ -50,6 +70,9 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   /// กันไม่ให้รอบถัดไปยิงซ้อนรอบที่ยังไม่จบ (เน็ตช้า/กล้องตอบช้า)
   bool _fetchingFrame = false;
 
+  /// ดึงภาพไม่ผ่านติดกันกี่รอบแล้ว — ใช้คำนวณระยะถอย
+  int _failStreak = 0;
+
   /// กำลังรอกล้องหมุนอยู่ — ปิดปุ่มไว้ก่อน กันกดรัวจนคำสั่งกองกัน
   bool _moving = false;
 
@@ -57,9 +80,24 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   String? _lastDirection;
 
   Timer? _timer;
+  Timer? _statusRetry;
+
+  /// แท็บนี้ถูกเปิดดูอยู่จริงไหม (IndexedStack เก็บแท็บที่ซ่อนไว้ให้ยังมีชีวิต)
+  bool _visible = true;
+
+  /// แอปอยู่หน้าจอไหม — ย่อแอปแล้วยังดึงภาพต่อ = เปลืองเน็ตทิ้งเปล่า
+  bool _foreground = true;
+
+  /// ระยะลากนิ้วสะสมของท่าทางที่กำลังทำอยู่
+  ///
+  /// ต้องเป็นตัวแปรของ State ไม่ใช่ตัวแปรใน build — ภาพเปลี่ยนทุกวินาที
+  /// ทำให้ build ใหม่ตลอด ถ้าเก็บไว้ใน build ระยะที่ลากมาจะถูกล้างกลางคัน
+  /// แล้วการลากจะสั่งกล้องเพี้ยนหรือไม่สั่งเลย
+  Offset _dragTotal = Offset.zero;
 
   // ---- เสียง ----
   AudioPlayer? _player;
+  StreamSubscription<PlaybackEvent>? _audioEvents;
   bool _listening = false;
   bool _audioConnecting = false;
   String? _audioError;
@@ -72,57 +110,158 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // app_shell ห่อแท็บที่ซ่อนอยู่ด้วย TickerMode(enabled: false) ไว้ให้แล้ว
+    final visible = TickerMode.of(context);
+    if (visible == _visible) return;
+    _visible = visible;
+    _syncPolling();
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _statusRetry?.cancel();
+    _audioEvents?.cancel();
     _player?.dispose();
+    // เฟรมสุดท้ายยังค้างอยู่ในแคชรูปของ Flutter ถ้าไม่ไล่ออก
+    _frameImage?.evict();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // ย่อแอปไปแล้วยังดึงภาพต่อ = เปลืองเน็ตทิ้งเปล่า เพราะไม่มีใครดู
-    if (state == AppLifecycleState.resumed) {
-      _startPolling();
+    _foreground = state == AppLifecycleState.resumed;
+    // เสียงปล่อยให้เล่นต่อได้ตอนย่อแอป — หัวหน้าอาจอยากฟังเสียงไปทำอย่างอื่นไป
+    _syncPolling();
+  }
+
+  // -------------------------------------------------------------------
+  // จังหวะดึงภาพ
+  // -------------------------------------------------------------------
+
+  /// ตอนนี้ควรดึงภาพอยู่หรือไม่ — เงื่อนไขทั้งหมดรวมไว้ที่เดียว
+  bool get _shouldPoll =>
+      mounted &&
+      _visible &&
+      _foreground &&
+      !_paused &&
+      (_status?.canControl ?? false);
+
+  /// ให้ลูปดึงภาพตรงกับสถานการณ์ปัจจุบัน — เรียกได้ทุกครั้งที่เงื่อนไขเปลี่ยน
+  void _syncPolling() {
+    if (_shouldPoll) {
+      _scheduleNext(Duration.zero);
     } else {
       _timer?.cancel();
       _timer = null;
-      // เสียงปล่อยให้เล่นต่อได้ตอนย่อแอป — หัวหน้าอาจอยากฟังเสียงไปทำอย่างอื่นไป
     }
+    _syncStatusRetry();
+  }
+
+  /// ตั้งรอบถัดไป — ลูปแบบ "จบรอบแล้วค่อยนัดรอบใหม่" ไม่ใช่ Timer.periodic
+  /// รอบที่ยังไม่จบจึงไม่มีวันถูกยิงทับ ต่อให้เน็ตช้ากว่าจังหวะที่ตั้งไว้
+  void _scheduleNext(Duration delay) {
+    _timer?.cancel();
+    if (!_shouldPoll) {
+      _timer = null;
+      return;
+    }
+    _timer = Timer(delay, () async {
+      await _fetchFrame();
+      if (!mounted) return;
+      _scheduleNext(_nextDelay());
+    });
+  }
+
+  /// ปกติ 1 วินาที, พลาดแล้วถอยเป็น 2 → 4 → 8 → 15 วินาที
+  Duration _nextDelay() {
+    if (_failStreak == 0) return _snapshotInterval;
+    final shift = (_failStreak - 1).clamp(0, 3);
+    final ms = _minBackoff.inMilliseconds << shift;
+    return Duration(
+      milliseconds: ms.clamp(
+        _minBackoff.inMilliseconds,
+        _maxBackoff.inMilliseconds,
+      ),
+    );
+  }
+
+  /// เอาเฟรมใหม่ขึ้นจอ แล้วไล่เฟรมเก่าออกจากแคชรูปของ Flutter
+  ///
+  /// MemoryImage แต่ละก้อนนับเป็นคนละรูปในแคช (เทียบกันด้วยตัวออบเจ็กต์
+  /// ไม่ใช่เนื้อภาพ) ถ้าปล่อยไว้ แคชจะโตขึ้นวินาทีละภาพจนชนเพดาน ~100MB
+  /// แล้วแอปจะเริ่มกระตุก และเครื่องแรมน้อยจะถูกระบบฆ่าทิ้ง
+  /// นี่คือสาเหตุที่ยิ่งเปิดหน้ากล้องทิ้งไว้นาน ยิ่งหน่วง
+  void _showFrame(CameraFrame frame) {
+    final previous = _frameImage;
+    setState(() {
+      _frameImage = MemoryImage(frame.bytes);
+      _frameAt = DateTime.now().subtract(frame.age);
+      _frameStale = frame.isStale;
+      _frameError = null;
+    });
+    previous?.evict();
+  }
+
+  void _syncStatusRetry() {
+    // ต่อกล้องไม่ติด/เช็คสถานะไม่ผ่าน แล้วผู้ใช้ยังเปิดหน้านี้ค้างอยู่ —
+    // ลองใหม่ให้เองเป็นระยะ กล้องกลับมาเมื่อไรภาพจะขึ้นเองโดยไม่ต้องกดอะไร
+    final needsRetry = _visible &&
+        _foreground &&
+        !_loadingStatus &&
+        (_statusError != null || !(_status?.canControl ?? false));
+
+    if (!needsRetry) {
+      _statusRetry?.cancel();
+      _statusRetry = null;
+      return;
+    }
+    _statusRetry ??= Timer.periodic(_statusRetryInterval, (_) {
+      if (mounted) _loadStatus(silent: true);
+    });
   }
 
   // -------------------------------------------------------------------
   // ข้อมูล
   // -------------------------------------------------------------------
 
-  void _startPolling() {
-    _timer?.cancel();
-    if (_paused || !(_status?.canControl ?? false)) return;
-    _fetchFrame();
-    _timer = Timer.periodic(_snapshotInterval, (_) => _fetchFrame());
-  }
-
-  Future<void> _loadStatus() async {
-    setState(() {
-      _loadingStatus = true;
-      _statusError = null;
-    });
+  /// silent = ลองเองเบื้องหลัง ไม่ต้องล้างจอเป็น "กำลังเช็คสถานะ..."
+  Future<void> _loadStatus({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loadingStatus = true;
+        _statusError = null;
+      });
+    }
 
     try {
       final status = await ApiService.fetchCameraStatus();
       if (!mounted) return;
       setState(() {
         _status = status;
+        _statusError = null;
         _loadingStatus = false;
+        _failStreak = 0;
       });
-      _startPolling();
+      // กล้องหลุดไปแล้วกลับมา — เริ่มดึงภาพต่อทันที
+      _syncPolling();
     } on ApiException catch (err) {
-      if (!mounted) return;
-      setState(() {
-        _statusError = err.message;
-        _loadingStatus = false;
-      });
+      _onStatusFailed(err.message);
+    } catch (err) {
+      _onStatusFailed('เช็คสถานะกล้องไม่สำเร็จ: $err');
     }
+  }
+
+  void _onStatusFailed(String message) {
+    if (!mounted) return;
+    setState(() {
+      _statusError = message;
+      _loadingStatus = false;
+    });
+    _syncPolling();
   }
 
   Future<void> _fetchFrame() async {
@@ -130,21 +269,36 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
     _fetchingFrame = true;
 
     try {
-      final bytes = await ApiService.fetchCameraSnapshot();
+      final frame = await ApiService.fetchCameraSnapshot();
       if (!mounted) return;
-      setState(() {
-        _frame = bytes;
-        _frameAt = DateTime.now();
-        _frameError = null;
-      });
+      _failStreak = 0;
+      _showFrame(frame);
     } on ApiException catch (err) {
-      if (!mounted) return;
+      // 401 = เซสชันหมดอายุ ถูกเด้งออกไปแล้ว ยิงต่อก็ไม่มีวันผ่าน —
+      // ล้างสถานะกล้องเพื่อให้ _shouldPoll เป็น false แล้วลูปหยุดเองจริงๆ
+      // (แค่ cancel timer ไม่พอ เพราะรอบที่กำลังทำงานอยู่จะตั้งรอบใหม่ต่อทันที)
+      if (err.statusCode == 401) {
+        if (mounted) setState(() => _status = null);
+        _onStatusFailed(err.message);
+        return;
+      }
       // ภาพหลุดเป็นครั้งคราวถือเป็นเรื่องปกติของกล้อง IP — ไม่ล้างภาพเดิมทิ้ง
       // ยังโชว์เฟรมล่าสุดค้างไว้พร้อมข้อความ ดีกว่าจอดำกะพริบ
-      setState(() => _frameError = err.message);
+      _onFrameFailed(err.message);
+    } catch (err) {
+      _onFrameFailed('โหลดภาพจากกล้องไม่สำเร็จ: $err');
     } finally {
       _fetchingFrame = false;
     }
+  }
+
+  void _onFrameFailed(String message) {
+    if (!mounted) return;
+    setState(() {
+      _failStreak++;
+      _frameError = message;
+      _frameStale = true;
+    });
   }
 
   Future<void> _send(String action, {int? durationMs}) async {
@@ -157,12 +311,17 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
 
     try {
       await ApiService.moveCamera(action, durationMs: durationMs);
-      // กล้องเพิ่งขยับ — ดึงภาพใหม่ทันทีจะได้เห็นผลโดยไม่ต้องรอรอบถัดไป
-      await _fetchFrame();
     } on ApiException catch (err) {
       if (mounted) setState(() => _commandError = err.message);
+    } catch (err) {
+      if (mounted) setState(() => _commandError = 'สั่งกล้องไม่สำเร็จ: $err');
     } finally {
-      if (mounted) setState(() => _moving = false);
+      if (mounted) {
+        setState(() => _moving = false);
+        // กล้องเพิ่งขยับ — ขอภาพใหม่ทันทีจะได้เห็นผลโดยไม่ต้องรอรอบถัดไป
+        // (ยิงผ่านลูปเดิม ไม่เรียก _fetchFrame ตรงๆ จะได้ไม่ซ้อนรอบที่ค้างอยู่)
+        _scheduleNext(Duration.zero);
+      }
       // ลูกศรบนภาพค้างไว้แป๊บนึงแล้วค่อยจาง
       Future.delayed(const Duration(milliseconds: 700), () {
         if (mounted) setState(() => _lastDirection = null);
@@ -175,17 +334,16 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
       await ApiService.stopCamera();
     } on ApiException catch (err) {
       if (mounted) setState(() => _commandError = err.message);
+    } catch (err) {
+      if (mounted) {
+        setState(() => _commandError = 'สั่งหยุดกล้องไม่สำเร็จ: $err');
+      }
     }
   }
 
   void _togglePause() {
     setState(() => _paused = !_paused);
-    if (_paused) {
-      _timer?.cancel();
-      _timer = null;
-    } else {
-      _startPolling();
-    }
+    _syncPolling();
   }
 
   // -------------------------------------------------------------------
@@ -205,29 +363,71 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
 
     try {
       final player = _player ??= AudioPlayer();
-      await player.setAudioSource(
-        AudioSource.uri(
-          Uri.parse(ApiService.cameraAudioUrl),
-          headers: ApiService.cameraAudioHeaders,
-        ),
-      );
+      _watchAudio(player);
+      await player
+          .setAudioSource(
+            AudioSource.uri(
+              Uri.parse(ApiService.cameraAudioUrl),
+              headers: ApiService.cameraAudioHeaders,
+            ),
+          )
+          .timeout(_audioConnectTimeout);
       unawaited(player.play());
       if (!mounted) return;
       setState(() {
         _listening = true;
         _audioConnecting = false;
       });
+    } on TimeoutException {
+      await _onAudioFailed('ต่อเสียงไม่ทัน — กล้องไม่ส่งเสียงมา ลองใหม่อีกครั้ง');
     } catch (err) {
-      if (!mounted) return;
-      setState(() {
-        _audioConnecting = false;
-        _listening = false;
-        _audioError = 'ต่อเสียงไม่ได้: $err';
-      });
+      await _onAudioFailed('ต่อเสียงไม่ได้: $err');
     }
   }
 
+  /// เฝ้าสตรีมเสียงไว้ — ffmpeg ที่เซิร์ฟเวอร์ตายหรือกล้องตัดสายกลางคัน
+  /// ถ้าไม่ดักไว้ ปุ่มจะยังขึ้น "หยุดฟังเสียง" ทั้งที่ไม่มีเสียงแล้ว
+  void _watchAudio(AudioPlayer player) {
+    _audioEvents?.cancel();
+    _audioEvents = player.playbackEventStream.listen(
+      (event) {
+        if (!mounted || !_listening) return;
+        if (event.processingState == ProcessingState.completed) {
+          setState(() {
+            _listening = false;
+            _audioError = 'สตรีมเสียงจบลง — กดฟังใหม่ได้';
+          });
+        }
+      },
+      onError: (Object err, StackTrace _) {
+        if (!mounted) return;
+        setState(() {
+          _listening = false;
+          _audioConnecting = false;
+          _audioError = 'เสียงหลุด: $err';
+        });
+      },
+    );
+  }
+
+  Future<void> _onAudioFailed(String message) async {
+    // ตัวเล่นที่ต่อไม่สำเร็จอาจค้างสถานะไว้ ล้างก่อนให้กดใหม่ได้สะอาดๆ
+    try {
+      await _player?.stop();
+    } catch (_) {
+      // ปิดไม่สำเร็จก็ไม่เป็นไร กดใหม่ทีหลังจะ setAudioSource ทับอยู่แล้ว
+    }
+    if (!mounted) return;
+    setState(() {
+      _audioConnecting = false;
+      _listening = false;
+      _audioError = message;
+    });
+  }
+
   Future<void> _stopListening() async {
+    _audioEvents?.cancel();
+    _audioEvents = null;
     try {
       await _player?.stop();
     } catch (_) {
@@ -240,7 +440,9 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   // ลากนิ้วบนภาพเพื่อเลื่อนกล้อง
   // -------------------------------------------------------------------
 
-  void _onDragEnd(DragEndDetails details, Offset total) {
+  void _onDragEnd() {
+    final total = _dragTotal;
+    _dragTotal = Offset.zero;
     if (_moving) return;
 
     final dx = total.dx;
@@ -273,7 +475,7 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
     return Container(
       color: _consoleBg,
       child: RefreshIndicator(
-        onRefresh: _loadStatus,
+        onRefresh: () => _loadStatus(),
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
@@ -291,7 +493,10 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   /// โซนดูภาพ — ภาพเต็มความกว้าง มีแถบสถานะทับด้านบน/ล่างแบบจอ CCTV
   Widget _buildViewport() {
     final status = _status;
-    final live = status?.canControl == true && !_paused && _frame != null;
+    final live = status?.canControl == true &&
+        !_paused &&
+        _frameImage != null &&
+        !_frameStale;
 
     return AspectRatio(
       aspectRatio: 16 / 9,
@@ -333,12 +538,18 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white60),
               ),
+              const SizedBox(height: 6),
+              const Text(
+                'ระบบจะลองต่อใหม่ให้เองทุก 20 วินาที',
+                style: TextStyle(color: Colors.white30, fontSize: 11),
+              ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: _loadStatus,
+                onPressed: () => _loadStatus(),
                 icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('ลองใหม่'),
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.white70),
+                label: const Text('ลองใหม่เดี๋ยวนี้'),
+                style:
+                    OutlinedButton.styleFrom(foregroundColor: Colors.white70),
               ),
             ],
           ),
@@ -346,8 +557,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
       );
     }
 
-    final frame = _frame;
-    if (frame == null) {
+    final image = _frameImage;
+    if (image == null) {
       return const Center(
         child: Text('กำลังรอภาพจากกล้อง...',
             style: TextStyle(color: Colors.white54)),
@@ -356,14 +567,14 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
 
     // ลากนิ้วบนภาพ = สั่งกล้องหมุน (เก็บระยะรวมเองเพราะ DragEndDetails
     // ให้มาแต่ความเร็ว ไม่ได้บอกว่าลากไปไกลแค่ไหน)
-    Offset total = Offset.zero;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPanStart: (_) => total = Offset.zero,
-      onPanUpdate: (d) => total += d.delta,
-      onPanEnd: (d) => _onDragEnd(d, total),
-      child: Image.memory(
-        frame,
+      onPanStart: (_) => _dragTotal = Offset.zero,
+      onPanUpdate: (d) => _dragTotal += d.delta,
+      onPanEnd: (_) => _onDragEnd(),
+      onPanCancel: () => _dragTotal = Offset.zero,
+      child: Image(
+        image: image,
         fit: BoxFit.contain,
         // ไม่ใส่ gaplessPlayback ภาพจะกะพริบขาวทุกรอบที่เปลี่ยนเฟรม
         gaplessPlayback: true,
@@ -400,6 +611,16 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
 
   Widget _buildTopBar(bool live) {
     final status = _status;
+    final String label;
+    if (_paused) {
+      label = 'หยุดภาพ';
+    } else if (live) {
+      label = 'LIVE';
+    } else if (_frameImage != null) {
+      label = 'ภาพค้าง';
+    } else {
+      label = 'ออฟไลน์';
+    }
 
     return Positioned(
       top: 0,
@@ -420,13 +641,17 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: live ? Colors.redAccent : Colors.white38,
+                color: live
+                    ? Colors.redAccent
+                    : (_frameImage != null && !_paused
+                        ? Colors.orangeAccent
+                        : Colors.white38),
                 shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 6),
             Text(
-              live ? 'LIVE' : (_paused ? 'หยุดภาพ' : 'ออฟไลน์'),
+              label,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 12,
@@ -436,7 +661,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
             ),
             const Spacer(),
             if (_listening) ...[
-              const Icon(Icons.volume_up, color: Colors.lightBlueAccent, size: 14),
+              const Icon(Icons.volume_up,
+                  color: Colors.lightBlueAccent, size: 14),
               const SizedBox(width: 4),
             ],
             Text(
@@ -457,6 +683,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
             '${at.minute.toString().padLeft(2, '0')}:'
             '${at.second.toString().padLeft(2, '0')}';
 
+    final trouble = _frameError != null || _frameStale;
+
     return Positioned(
       bottom: 0,
       left: 0,
@@ -474,11 +702,11 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
           children: [
             Expanded(
               child: Text(
-                _frameError != null
-                    ? 'ภาพสะดุด — ยังโชว์ภาพล่าสุด'
+                trouble
+                    ? 'ภาพสะดุด — โชว์ภาพล่าสุดไว้ กำลังลองใหม่'
                     : 'ลากนิ้วบนภาพเพื่อเลื่อนกล้อง',
                 style: TextStyle(
-                  color: _frameError != null ? Colors.orangeAccent : Colors.white60,
+                  color: trouble ? Colors.orangeAccent : Colors.white60,
                   fontSize: 11,
                 ),
               ),
@@ -487,7 +715,9 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
                 style: const TextStyle(color: Colors.white70, fontSize: 11)),
             const SizedBox(width: 8),
             InkWell(
-              onTap: _status?.canControl == true ? _togglePause : _loadStatus,
+              onTap: _status?.canControl == true
+                  ? _togglePause
+                  : () => _loadStatus(),
               child: Icon(
                 _status?.canControl != true
                     ? Icons.refresh
@@ -528,8 +758,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
                 child: _consoleButton(
                   label: 'ซูมเข้า',
                   icon: Icons.zoom_in,
-                  onTap: () => _send(CameraAction.zoomIn,
-                      durationMs: _tapDurationMs),
+                  onTap: () =>
+                      _send(CameraAction.zoomIn, durationMs: _tapDurationMs),
                   onLongPress: () => _send(CameraAction.zoomIn,
                       durationMs: _longPressDurationMs),
                 ),
@@ -539,8 +769,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
                 child: _consoleButton(
                   label: 'ซูมออก',
                   icon: Icons.zoom_out,
-                  onTap: () => _send(CameraAction.zoomOut,
-                      durationMs: _tapDurationMs),
+                  onTap: () =>
+                      _send(CameraAction.zoomOut, durationMs: _tapDurationMs),
                   onLongPress: () => _send(CameraAction.zoomOut,
                       durationMs: _longPressDurationMs),
                 ),
@@ -596,6 +826,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
           icon: _listening ? Icons.volume_up : Icons.mic,
           onTap: _audioConnecting ? null : _toggleListen,
           highlight: _listening,
+          // ปุ่มเสียงไม่ควรถูกล็อกตามการหมุนกล้อง — คนละเรื่องกัน
+          ignoreMoving: true,
         ),
         if (_audioConnecting)
           const Padding(
@@ -609,7 +841,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
           const Padding(
             padding: EdgeInsets.only(top: 6),
             child: Text(
-              'กล้องรุ่นนี้ไม่มีลำโพง จึงพูดกลับออกกล้องไม่ได้',
+              'กล้องมีลำโพง แต่เฟิร์มแวร์ยังไม่เปิดช่องส่งเสียงเข้า '
+              'จึงยังกดพูดออกกล้องไม่ได้',
               style: TextStyle(fontSize: 11, color: Colors.white38),
             ),
           ),
@@ -678,8 +911,9 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
     VoidCallback? onLongPress,
     bool highlight = false,
     bool danger = false,
+    bool ignoreMoving = false,
   }) {
-    final enabled = onTap != null && !_moving;
+    final enabled = onTap != null && (ignoreMoving || !_moving);
     final Color fg = !enabled
         ? Colors.white24
         : danger
@@ -689,7 +923,9 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
                 : Colors.white;
 
     return Material(
-      color: highlight ? Colors.lightBlueAccent.withValues(alpha: 0.15) : Colors.white10,
+      color: highlight
+          ? Colors.lightBlueAccent.withValues(alpha: 0.15)
+          : Colors.white10,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),

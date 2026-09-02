@@ -75,6 +75,10 @@ class _PlacesTabState extends State<PlacesTab> {
   Widget build(BuildContext context) {
     final offices = LocationService.offices;
     final tracking = widget.tracking;
+    final trackingLat = tracking.isStale ? null : tracking.lastLatitude;
+    final trackingLng = tracking.isStale ? null : tracking.lastLongitude;
+    final fromLat = _pos?.latitude ?? trackingLat;
+    final fromLng = _pos?.longitude ?? trackingLng;
 
     return RefreshIndicator(
       onRefresh: _refresh,
@@ -116,7 +120,13 @@ class _PlacesTabState extends State<PlacesTab> {
             ],
           ),
           const SizedBox(height: 4),
-          ...offices.map((office) => _OfficeCard(office: office, from: _pos)),
+          ...offices.map(
+            (office) => _OfficeCard(
+              office: office,
+              fromLat: fromLat,
+              fromLng: fromLng,
+            ),
+          ),
           const SizedBox(height: 8),
           const Text(
             'รายการนี้ดึงจากเซิร์ฟเวอร์ (/reports/geofence) ทุกครั้งที่เปิดแท็บ '
@@ -176,17 +186,22 @@ class _SessionCard extends StatelessWidget {
 
 class _OfficeCard extends StatelessWidget {
   final Office office;
-  final Position? from;
+  final double? fromLat;
+  final double? fromLng;
 
-  const _OfficeCard({required this.office, required this.from});
+  const _OfficeCard({
+    required this.office,
+    required this.fromLat,
+    required this.fromLng,
+  });
 
   @override
   Widget build(BuildContext context) {
     double? distanceKm;
-    if (from != null) {
+    if (fromLat != null && fromLng != null) {
       distanceKm = LocationService.distanceBetweenKm(
-        from!.latitude,
-        from!.longitude,
+        fromLat!,
+        fromLng!,
         office.lat,
         office.lng,
       );

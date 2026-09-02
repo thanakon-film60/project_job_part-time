@@ -171,10 +171,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final account = ApiService.account;
 
     // IndexedStack = สลับแท็บแล้วสถานะของแท็บเดิมยังอยู่ (ไม่ต้องโหลดใหม่ทุกครั้ง)
+    //
+    // แต่ "สถานะยังอยู่" แปลว่าแท็บที่มองไม่เห็นก็ยังทำงานอยู่ด้วย — แท็บกล้อง
+    // ดึงภาพวินาทีละครั้งต่อไปทั้งที่ไม่มีใครดู เปลืองเน็ต เปลืองแบต และเพิ่ม
+    // ภาระให้กล้องฟรีๆ ห่อด้วย TickerMode ให้แท็บที่ซ่อนอยู่รู้ตัวว่าถูกซ่อน
+    // แล้วหยุดงานเป็นจังหวะของตัวเองได้ (แอนิเมชันของแท็บอื่นก็หยุดตามไปด้วย)
     final body = IndexedStack(
       index: _index,
       children: [
-        for (final tab in _tabs) Builder(builder: tab.builder),
+        for (var i = 0; i < _tabs.length; i++)
+          TickerMode(
+            enabled: i == _index,
+            child: Builder(builder: _tabs[i].builder),
+          ),
       ],
     );
 
