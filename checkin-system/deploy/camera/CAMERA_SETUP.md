@@ -285,13 +285,14 @@ Copy-Item .\build\app\outputs\flutter-apk\app-release.apk C:\Temp\thanakon-boss.
 | หมุน/ก้ม/เงย/ซูม | ใช้ได้ | ผ่าน ONVIF `ContinuousMove` + `Stop` |
 | กลับตำแหน่งตั้งต้น | ใช้ได้ | `GotoHomePosition` |
 | ฟังเสียงจากกล้อง | ใช้ได้ | RTSP มี track `PCMA/8000` |
-| **พูดออกลำโพงกล้อง** | **ทำไม่ได้** | กล้องไม่มีลำโพงและไม่เปิด RTSP backchannel |
+| **พูดออกลำโพงกล้อง** | **ยังไม่ได้ในระบบเรา** | แอป iCam365 ทำได้ แต่กล้องไม่เปิด RTSP backchannel มาตรฐาน |
 | `AbsoluteMove` / `RelativeMove` | ทำไม่ได้ | เฟิร์มแวร์ตอบ `space not supported by the PTZ Node` |
 
 **เรื่องพูดกลับ** — ยิง `DESCRIBE` พร้อม `Require: www.onvif.org/ver20/backchannel`
-แล้วกล้องตอบ SDP เดิมไม่มี track ขาส่งเพิ่ม เป็นข้อจำกัดของฮาร์ดแวร์ แก้ด้วยโค้ดไม่ได้
-ถ้าเปลี่ยนไปใช้กล้องที่มีลำโพง ฝั่ง API มีฟิลด์ `talkback_supported` รออยู่แล้ว
-แอปจะรู้เองโดยไม่ต้องแก้โค้ด Flutter
+แล้วกล้องตอบ SDP เดิมไม่มี track ขาส่งเพิ่ม จึงทำไม่ได้ผ่าน ONVIF/RTSP มาตรฐาน
+ที่ระบบเราใช้ตอนนี้ แต่ไม่ใช่ข้อสรุปว่าฮาร์ดแวร์ทำไม่ได้ เพราะแอป iCam365 พูดออกกล้องได้จริง
+ถ้าจะทำกับกล้องรุ่นนี้ต้องใช้ SDK/credential ของ Tange หรือจับแพ็กเก็ตตอน iCam365 กดพูด
+ดูขั้นต่อที่ [`ICAM365_TALKBACK.md`](ICAM365_TALKBACK.md)
 
 **เสียงเริ่มดังช้า ~6 วินาที** — เป็นเวลาที่กล้องใช้ setup RTSP เอง วัดแล้วปรับ
 flag ของ ffmpeg ยังไงก็ไม่ต่ำกว่านี้ (ลอง `-allowed_media_types audio` แล้วกล้องไม่ส่งอะไรเลย
