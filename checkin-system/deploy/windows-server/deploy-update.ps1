@@ -221,9 +221,29 @@ Ok "copy web.config เรียบร้อย"
 Step "restart backend ($TaskName)"
 Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 3
-Get-Process python -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -like "$root\backend*" } |
-    Stop-Process -Force -ErrorAction SilentlyContinue
+
+# ตาข่ายกันพลาด: ฆ่า uvicorn ที่ Stop-ScheduledTask ฆ่าไม่ตาย
+#
+# ต้องกรองด้วย CommandLine ไม่ใช่ .Path -- uvicorn แตกเป็น python 2 ตัว พ่อ-ลูก
+# ทั้งคู่มี CommandLine เดียวกัน (พาธ venv ในโปรเจกต์) แต่ Get-Process รายงาน
+# .Path ไม่เหมือนกัน:
+#
+#   ตัวพ่อ  .Path = F:\...\backend\venv\Scripts\python.exe      <- ของเดิมจับได้
+#   ตัวลูก  .Path = C:\Users\...\Python3xx\python.exe           <- ของเดิมจับไม่ได้
+#
+# และ "ตัวลูกคือตัวที่ยึดพอร์ต 8001 จริง" (ยืนยันด้วย Get-NetTCPConnection)
+# ของเดิมกรองด้วย $_.Path -like "$root\backend*" จึงฆ่าแต่ตัวพ่อ ปล่อยตัวลูกที่ถือ
+# พอร์ตไว้รอด โค้ดเก่าเลยเสิร์ฟต่อไปทั้งที่ deploy ขึ้นว่า "สำเร็จ"
+#
+# เกิดขึ้นมาแล้วกับฟีเจอร์เสียง: โปรเซสรันค้างข้ามวัน (เริ่ม 1 ก.ย. 17:29)
+# ส่วนโค้ดที่เพิ่ม /camera/audio เข้ามาทีหลัง (commit af8e7dd, 1 ก.ย. 18:00)
+# ไม่เคยถูกโหลดเลย -- /openapi.json บน production จึงไม่มี /camera/audio
+#
+# CommandLine มีพาธ venv อยู่ทั้งพ่อและลูก จึงจับได้ครบทั้งคู่
+Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like "*$root\backend*" } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+
 Start-ScheduledTask -TaskName $TaskName
 Ok "สั่ง restart แล้ว"
 

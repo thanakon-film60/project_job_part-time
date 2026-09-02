@@ -55,13 +55,31 @@
 
 ### 1. เงื่อนไขที่ backend ใช้ตอบ `audio_supported`
 
+> ## ❌ หัวข้อนี้สรุปผิด — แก้บันทึกเมื่อ 2 ก.ย. 2026
+>
+> ผลด้านล่างได้จากการรัน `find_ffmpeg()` กับ `settings` ผ่าน venv ของ repo
+> ซึ่งเป็นการทดสอบ **โค้ดใน working tree ไม่ใช่โปรเซส backend ที่รันอยู่จริง**
+> โปรเซสที่รันบน production เป็นโค้ดเก่ากว่า commit `af8e7dd` จึงไม่มีฟีเจอร์นี้เลย
+>
+> ตรวจของจริงได้จาก `/openapi.json` (ไม่ต้องล็อกอิน) ผลคือ **ไม่มี `/camera/audio`
+> และไม่มีฟิลด์ `audio_supported`** — เซิร์ฟเวอร์ไม่เคยตอบ `true` เลยสักครั้ง
+>
+> ```powershell
+> $spec = Invoke-RestMethod https://thanakronpart-time.com/openapi.json
+> $spec.paths.PSObject.Properties.Name | Where-Object { $_ -like "/camera*" }
+> ```
+>
+> **นี่คือต้นเหตุจริงของอาการทั้งหมด** ไม่ใช่ ffmpeg และไม่ใช่ ARR
+> รายละเอียดอยู่ใน [`SERVER_TASKS_CAMERA_AUDIO.md`](../deploy/windows-server/SERVER_TASKS_CAMERA_AUDIO.md) งานที่ 1
+
 `GET /camera/status` คำนวณจาก 2 อย่างที่ [`camera.py:206-208`](../backend/app/routers/camera.py#L206-L208)
-รันด้วย venv ของโปรเจกต์บนเครื่อง production ได้ผล:
+รันด้วย venv ของโปรเจกต์บนเครื่อง production ได้ผล
+(ย้ำ: สะท้อนโค้ดใน repo เท่านั้น ไม่ใช่สิ่งที่ production เสิร์ฟอยู่):
 
 ```
 camera_audio_enabled : True
 find_ffmpeg()        : C:\ProgramData\chocolatey\bin\ffmpeg.exe
-audio_supported      : True      <-- เซิร์ฟเวอร์ตอบ true แล้ว
+audio_supported      : True      <-- จริงเฉพาะกับโค้ดใน repo
 ```
 
 > เดิม ffmpeg ไม่ได้ถูกติดตั้ง (ขั้นที่ 1 ของ `CAMERA_SETUP.md` เขียนว่าข้ามได้

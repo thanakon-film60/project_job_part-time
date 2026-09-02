@@ -358,6 +358,16 @@ LISTENER_QUEUE_SIZE = 64
 # ไม่มีใครฟังนานเท่านี้ = ปิด ffmpeg (เผื่อผู้ฟังคนสุดท้ายตัดสายไปเงียบ ๆ)
 IDLE_GRACE_SECONDS = 5.0
 
+# ffmpeg เปิดอยู่แต่ไม่ส่งอะไรมานานเท่านี้ = ถือว่ามันค้าง ให้ปิดทิ้ง
+#
+# กล้องปกติเริ่มส่งเสียงภายใน 7-9 วินาที ถ้าเกินนี้ไปมากแปลว่าต่อไม่ติดจริง
+# (เคสที่เจอบ่อยสุด: มี ffmpeg ตัวเก่าค้างยึด RTSP สายเดียวของกล้องไว้อยู่
+#  ตัวใหม่จึงต่อได้แต่ไม่มีข้อมูลไหลมาเลย)
+NO_DATA_TIMEOUT_SECONDS = 20.0
+
+# ตัวเฝ้าระวังตื่นมาตรวจทุกกี่วินาที
+WATCHDOG_TICK_SECONDS = 1.0
+
 
 class AudioHub:
     """ผู้จัดการ ffmpeg ตัวเดียวที่แจกเสียงให้ผู้ฟังหลายราย"""
@@ -370,6 +380,11 @@ class AudioHub:
         self._stream = None
         self._worker = None
         self._stop = threading.Event()
+        # "ยังใช้งานได้อยู่" — ห้ามใช้ _worker.is_alive() แทนตัวนี้
+        # เธรดที่กำลังอยู่ใน finally: _shutdown() ก็ยังนับว่า alive ผู้ฟังใหม่
+        # จะไปเกาะ worker ที่กำลังจะตายแล้วรอเก้อจนหมดเวลา 30 วินาที
+        self._running = False
+        self._last_chunk_at = None
 
     # -- ฝั่งผู้ฟัง --------------------------------------------------
 
@@ -378,7 +393,7 @@ class AudioHub:
         listener = queue.Queue(maxsize=LISTENER_QUEUE_SIZE)
         with self._lock:
             self._listeners.append(listener)
-            if self._worker is None or not self._worker.is_alive():
+            if not self._running:
                 self._start_locked()
         return listener
 
@@ -405,8 +420,54 @@ class AudioHub:
     def _start_locked(self):
         self._stop.clear()
         self._stream = self._make_stream()
+        self._running = True
+        self._last_chunk_at = time.monotonic()
         self._worker = threading.Thread(target=self._pump, daemon=True)
         self._worker.start()
+        threading.Thread(target=self._watch, args=(self._stream,), daemon=True).start()
+
+    def _watch(self, stream):
+        """ตัวเฝ้าระวัง — ปลดล็อก _pump ที่ค้างอยู่ใน stream.read()
+
+        ทำไมต้องมี: _pump บล็อกอยู่ที่ self._stream.read() ซึ่งไม่มีวันคืนค่า
+        ถ้า ffmpeg เปิดอยู่แต่ไม่ส่งข้อมูล เงื่อนไขทางออกทุกข้อใน _pump
+        (เพดานอายุ, ไม่มีคนฟัง, _stop) ถูกตรวจ "หลัง" อ่านข้อมูลได้สำเร็จเท่านั้น
+        pump จึงค้างถาวร และเพราะ hub เป็นตัวเดียวใช้ร่วมกันทั้งระบบ
+        คนที่กดฟังทีหลังทุกคนจะได้ 0 ไบต์ไปเรื่อย ๆ จนกว่าจะ restart backend
+
+        เกิดขึ้นจริงบน production: จับได้ว่า ffmpeg อายุ 715 วินาที แต่กิน CPU
+        แค่ 0.3 วินาที และยังยึด RTSP สายเดียวของกล้องไว้
+
+        ตัวนี้ตรวจจากข้างนอกแทน ครบเงื่อนไขเมื่อไรก็ปิด stream ทิ้ง
+        การปิด stream ทำให้ read() ที่ค้างอยู่คืน b"" ทันที pump จึงหลุดออกมา
+        เก็บกวาดตัวเองได้ตามปกติ
+        """
+        started = time.monotonic()
+        idle_since = None
+        while not self._stop.is_set():
+            time.sleep(WATCHDOG_TICK_SECONDS)
+            with self._lock:
+                if self._stream is not stream:
+                    return                      # รอบใหม่เริ่มแล้ว ตัวนี้หมดหน้าที่
+                listeners = len(self._listeners)
+                last = self._last_chunk_at or started
+
+            now = time.monotonic()
+            reason = None
+            if now - last > NO_DATA_TIMEOUT_SECONDS:
+                reason = "ffmpeg ไม่ส่งข้อมูลมาเกิน %.0f วินาที" % NO_DATA_TIMEOUT_SECONDS
+            elif now - started > self._max_seconds:
+                reason = "ครบเพดานอายุสตรีม"
+            elif listeners == 0:
+                idle_since = idle_since or now
+                if now - idle_since > IDLE_GRACE_SECONDS:
+                    reason = "ไม่มีผู้ฟังเหลือแล้ว"
+            else:
+                idle_since = None
+
+            if reason:
+                stream.close()                  # ปลดล็อก read() ที่ค้างอยู่
+                return
 
     def _pump(self):
         started = time.monotonic()
@@ -416,6 +477,10 @@ class AudioHub:
                 chunk = self._stream.read()
                 if not chunk:
                     break
+
+                # ให้ตัวเฝ้าระวังรู้ว่าข้อมูลยังไหลอยู่ (ดู _watch)
+                with self._lock:
+                    self._last_chunk_at = time.monotonic()
 
                 if time.monotonic() - started > self._max_seconds:
                     # เพดานอายุ — กันสตรีมที่ไม่มีใครฟังแล้วแต่สายยังไม่ถูกปิด
@@ -452,6 +517,9 @@ class AudioHub:
 
     def _shutdown(self):
         with self._lock:
+            # ปลดธงก่อนอย่างอื่น — ผู้ฟังที่เข้ามาระหว่างนี้จะได้เริ่มรอบใหม่
+            # แทนที่จะไปเกาะ worker ตัวที่กำลังจะตายแล้วรอเก้อ
+            self._running = False
             stream, self._stream = self._stream, None
             listeners, self._listeners = self._listeners, []
             self._worker = None
