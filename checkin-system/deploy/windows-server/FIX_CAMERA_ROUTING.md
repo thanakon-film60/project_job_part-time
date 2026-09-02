@@ -3,6 +3,14 @@
 เอกสารนี้ใช้บน **เครื่อง production** (เครื่องที่รัน IIS + backend)
 ทำตามหัวข้อ [วิธีแก้](#วิธีแก้) อย่างเดียวก็จบ ประมาณ 2 นาที
 
+> ✅ **แก้ไปแล้วเมื่อ 2 ก.ย. 2026** — `web.config` ที่มี `camera` ถูก copy ขึ้น
+> `C:\inetpub\checkin` บนเครื่อง production เรียบร้อย ตรวจแล้ว
+> `/camera/status` ตอบ `application/json` (เดิม `text/html`) และ
+> `.\deploy-update.ps1 -CheckOnly` ขึ้น `[OK]` ครบทุก router
+> ของเดิมสำรองไว้ที่ `C:\inetpub\checkin\web.config.bak-20260902-091624`
+>
+> เก็บเอกสารนี้ไว้เป็นวิธีแก้ ถ้าอาการเดิมกลับมาอีกให้ทำตามข้างล่างได้เลย
+
 ---
 
 ## อาการ
@@ -56,7 +64,7 @@ backend จึงมีเส้นทางครบ แต่ IIS ยังไ
 เปิด **PowerShell แบบ Run as Administrator** บนเครื่อง production แล้ว:
 
 ```powershell
-cd C:\project_job_part-time\checkin-system\deploy\windows-server
+cd F:\GitHub\project_job_part-time\checkin-system\deploy\windows-server
 git pull
 .\deploy-update.ps1
 ```
@@ -66,7 +74,7 @@ git pull
 ### ถ้าอยากแก้เฉพาะไฟล์เดียว ไม่อยาก deploy ใหม่ทั้งชุด
 
 ```powershell
-cd C:\project_job_part-time\checkin-system\deploy\windows-server
+cd F:\GitHub\project_job_part-time\checkin-system\deploy\windows-server
 git pull
 Copy-Item .\web.config C:\inetpub\checkin\web.config -Force
 ```
@@ -79,7 +87,7 @@ IIS อ่าน `web.config` ใหม่เองทันที ไม่ต�
 ## วิธีตรวจว่าหายแล้ว
 
 ```powershell
-cd C:\project_job_part-time\checkin-system\deploy\windows-server
+cd F:\GitHub\project_job_part-time\checkin-system\deploy\windows-server
 .\deploy-update.ps1 -CheckOnly
 ```
 
@@ -137,7 +145,7 @@ curl.exe -s -o NUL -w "%{content_type}" https://thanakronpart-time.com/camera/st
 
 ---
 
-## หมายเหตุ: อีกเรื่องที่เจอระหว่างตรวจ (ยังไม่ได้แก้ ไม่ด่วน)
+## อีกเรื่องที่เจอระหว่างตรวจ: Location header หลุดที่อยู่ภายในเครื่อง
 
 เวลา backend ตอบรีไดเรกต์ 307 (เช่นตอนตัด `/` ท้าย path) IIS ส่ง header
 `Location` เป็น**ที่อยู่ภายในเครื่อง**ออกไปให้ client:
@@ -147,9 +155,41 @@ GET https://thanakronpart-time.com/checkins/
 -> 307  location: https://127.0.0.1:8001/checkins     <-- ควรเป็นโดเมนจริง
 ```
 
-ตอนนี้ยังไม่กระทบแอปหรือเว็บ เพราะทั้งคู่เรียก path แบบไม่มี `/` ท้ายอยู่แล้ว
+ยังไม่กระทบแอปหรือเว็บ เพราะทั้งคู่เรียก path แบบไม่มี `/` ท้ายอยู่แล้ว
 แต่ถ้าวันหลังมีใครเรียกโดยมี `/` ท้าย จะเจอ error แปลกๆ ที่หาต้นตอยาก
 
-แก้ได้โดยเปิด reverse-rewrite ของ Location header ใน ARR
-(IIS Manager -> Application Request Routing Cache -> Server Proxy Settings ->
-ติ๊ก **Reverse rewrite host in response headers**) หรือเพิ่ม `outboundRules` ใน `web.config`
+> ⚠️ **เขียนกฎแก้ไว้ใน `web.config` แล้ว แต่ยังไม่ได้ copy ขึ้นเครื่อง production**
+> ตอนนี้เครื่อง production ยังส่ง `https://127.0.0.1:8001/...` อยู่
+> ให้รันคำสั่งในหัวข้อ [วิธีแก้](#วิธีแก้) เพื่อเอาขึ้น แล้วตรวจด้วย:
+>
+> ```powershell
+> curl.exe -sI https://thanakronpart-time.com/checkins/ | Select-String location
+> ```
+>
+> ต้องได้ `location: https://thanakronpart-time.com/checkins`
+> ถ้ายังได้ `127.0.0.1:8001` แปลว่า `web.config` ยังไม่ถูก copy ขึ้นไป
+
+กฎที่ใช้แก้ (อยู่ใน [`web.config`](web.config) ต่อจาก `</rules>`) — เปลี่ยน host
+ใน `Location` กลับเป็นโดเมนที่ client เรียกเข้ามาจริง:
+
+```xml
+<outboundRules>
+  <rule name="RewriteBackendLocationHeader" preCondition="IsRedirect">
+    <match serverVariable="RESPONSE_Location" pattern="^https?://127\.0\.0\.1:8001(/.*)?$" />
+    <action type="Rewrite" value="https://{HTTP_HOST}{R:1}" />
+  </rule>
+  <preConditions>
+    <preCondition name="IsRedirect">
+      <add input="{RESPONSE_STATUS}" pattern="^3\d\d$" />
+    </preCondition>
+  </preConditions>
+</outboundRules>
+```
+
+อีกทางเลือกคือติ๊ก **Reverse rewrite host in response headers** ใน ARR
+(IIS Manager -> Application Request Routing Cache -> Server Proxy Settings)
+แต่นั่นเป็นค่าระดับเครื่อง ไม่ติดมากับ repo — ย้ายเครื่องเมื่อไรก็หายไป
+จึงเลือกใส่ใน `web.config` แทน
+
+> ถ้าเปลี่ยนพอร์ต backend (ตอนนี้ 8001) ต้องแก้เลขในกฎนี้ด้วย
+> เพราะเป็นเลขที่พิมพ์มือเหมือนกฎ `ProxyToBackend`
