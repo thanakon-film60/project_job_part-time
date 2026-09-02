@@ -1,8 +1,30 @@
 # iCam365 Talkback: ทำให้ระบบเราพูดออกกล้อง
 
-สถานะตอนนี้: **ทำได้ในเชิงเทคนิค แต่ยังทำไม่ได้ด้วยโค้ดปัจจุบันโดยตรง**
+> ## สถานะล่าสุด 2 ก.ย. 2026
+>
+> พบ **TiRTC Flutter SDK ทางการของ Tange** ที่รองรับ Voice Talkback แล้ว
+> แนวทางหลักจึงไม่ต้องถอด proprietary packet และไม่ต้องส่ง raw audio ผ่าน Python
+>
+> - ✅ backend ออก token อายุสั้น: `POST /camera/talkback/token`
+> - ✅ จำกัดเฉพาะหัวหน้าและไม่รับ `remote_id` จาก client
+> - ✅ token ใช้ HMAC-SHA256 ตามสัญญา Tange และห้าม cache
+> - ✅ มีสถานะ `talkback_ready`, transport และ stream ID ใน `/camera/status`
+> - ⬜ Flutter: งานส่งต่ออยู่ที่
+>   [`../../flutter_boss_app/TIRTC_TALKBACK_TASKS.md`](../../flutter_boss_app/TIRTC_TALKBACK_TASKS.md)
+> - ⬜ Production: รอ `AppId`, `AccessKeyId`, `SecretKeyId`, `device_id` และ
+>   การยืนยันว่ากล้อง retail ตัวปัจจุบันเข้า developer application ของเราได้
 
 เหตุผลไม่ใช่ว่ากล้องไม่มีลำโพง แอป iCam365 ของผู้ผลิตพูดออกกล้องได้จริง แปลว่ากล้องมีทางรับเสียงเข้าอยู่แล้ว เพียงแต่ทางที่เปิดให้เราใช้ตอนนี้ผ่าน ONVIF/RTSP ไม่ได้ประกาศช่องส่งเสียงกลับ
+
+## สถาปัตยกรรมที่เลือก
+
+```text
+Flutter boss app ──ขอ token──> Python backend
+       │                       (ตรวจสิทธิ์ + เซ็นอายุสั้น)
+       └──── TiRTC encrypted P2P/Cloud ────> iCam365 speaker
+```
+
+เสียงไม่วิ่งผ่าน Python และ `SecretKeyId` ไม่ออกจาก backend
 
 ## สิ่งที่ยืนยันแล้ว
 
@@ -35,7 +57,7 @@
 
 ## ทางทำให้ได้จริง
 
-### ทาง A: ขอ SDK/credential จาก Tange หรือผู้ขาย
+### ทาง A (เลือกใช้): TiRTC SDK/credential จาก Tange
 
 ถามผู้ขาย/ผู้ผลิตว่าขอข้อมูลสำหรับ client integration ได้ไหม:
 
@@ -46,13 +68,13 @@
 - วิธีออก connect token สำหรับกล้อง iCam365 ที่ขายอยู่
 - SDK Flutter/Android ที่รองรับ talkback กับ iCam365 retail device
 
-ถ้าได้ข้อมูลชุดนี้ เราทำในระบบเราได้สะอาดที่สุด:
+backend สำหรับข้อมูลชุดนี้ทำเสร็จแล้ว โฟลจริงคือ:
 
 1. backend ออก short-lived token ให้เฉพาะหัวหน้า
-2. boss app ใช้ SDK ต่อเข้ากล้อง
-3. app เปิดไมค์และส่งเสียงผ่าน SDK ไปกล้อง
+2. boss app ใช้ `tirtc_flutter` ต่อเข้ากล้อง
+3. SDK เปิดไมค์แบบ G.711 A-law 16 kHz mono และส่งไป stream ID 14
 
-### ทาง B: จับแพ็กเก็ตตอนกดพูด แล้วถอดโปรโตคอล
+### ทาง B (fallback): จับแพ็กเก็ตตอนกดพูด แล้วถอดโปรโตคอล
 
 ใช้เมื่อผู้ผลิตไม่ให้ SDK/API
 
@@ -84,9 +106,10 @@ checkin-system\deploy\camera\captures\icam365-talkback-*.pcapng
 
 ถ้า payload ไม่เข้ารหัสและเห็น framing ชัด เราค่อยเขียน backend talkback bridge ได้
 
-## งานโค้ดหลังรู้โปรโตคอล
+## งานโค้ดกรณี TiRTC ใช้กับกล้อง retail ตัวนี้ไม่ได้
 
-เมื่อรู้วิธีส่งเสียงเข้ากล้องแล้ว งานในระบบเราจะเป็น:
+หัวข้อนี้ใช้เฉพาะเมื่อ Tange ยืนยันว่า TiRTC developer credential ไม่สามารถ
+authorize กล้อง retail ตัวปัจจุบันได้ และต้องย้อนกลับไปถอด protocol เอง:
 
 1. เพิ่ม endpoint เช่น `POST /camera/talkback/start`, stream/chunk, และ `POST /camera/talkback/stop`
 2. จำกัดสิทธิ์ด้วย `require_manager` เหมือน `/camera/audio`
@@ -96,8 +119,9 @@ checkin-system\deploy\camera\captures\icam365-talkback-*.pcapng
 
 ## ข้อสรุป
 
-คำพูดว่า "ทำไม่ได้" เดิมต้องอ่านให้แคบลง:
+ระบบทำ backend ทาง SDK ทางการเสร็จแล้ว เหลือสองเงื่อนไขก่อนใช้งานจริง:
 
-> ทำไม่ได้ผ่าน ONVIF/RTSP มาตรฐานที่ระบบเราใช้ตอนนี้
+1. Tange ออก credential และอนุญาตกล้องตัวปัจจุบันให้ developer app ของเรา
+2. ทีม Flutter ทำตาม `TIRTC_TALKBACK_TASKS.md`
 
-แต่ถ้ายอมไปทาง SDK/credential ของ Tange หรือถอดโปรโตคอลจาก packet capture ได้ ระบบเราก็ทำปุ่มพูดออกกล้องได้
+ส่วน ONVIF/RTSP ยังใช้พูดกลับไม่ได้เหมือนเดิม แต่ไม่ใช่เส้นทางหลักแล้ว

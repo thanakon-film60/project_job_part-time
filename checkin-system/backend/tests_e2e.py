@@ -5,15 +5,28 @@
 GPS ping, ปฏิทินฝั่งผู้จัดการ, และการกันสิทธิ์พนักงาน
 """
 import datetime
+import base64
+import hashlib
+import hmac
+import json
 import logging
 import os
 import shutil
+import sys
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 # เก็บรูปที่เทสต์อัปโหลดไว้คนละที่กับของจริง ไม่งั้นไฟล์ปลอมจะไปปนใน storage/
 # ของเซิร์ฟเวอร์แล้วลบออกยาก (settings.storage_dir ถูกอ่านตอน import จึงต้องตั้งก่อน)
 os.environ["STORAGE_DIR"] = "./test_storage"
 os.environ["OFFICES"] = '[{"name":"THANAKON-BOX","lat":13.9231953,"lng":100.5195808,"radius_km":2.0,"category":"work"},{"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0,"category":"hospital"},{"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2,"category":"home"}]'
+os.environ["CAMERA_TIRTC_ENABLED"] = "true"
+os.environ["CAMERA_TIRTC_APP_ID"] = "test-app"
+os.environ["CAMERA_TIRTC_ACCESS_KEY_ID"] = "test-access"
+os.environ["CAMERA_TIRTC_SECRET_KEY_ID"] = "test-secret"
+os.environ["CAMERA_TIRTC_REMOTE_ID"] = "test-camera"
 if os.path.exists("test.db"):
     os.remove("test.db")
 shutil.rmtree("test_storage", ignore_errors=True)
@@ -78,9 +91,11 @@ def run():
     assert r.status_code == 422  # ไม่พบใบหน้า
 
     assert c.get("/reports/employees", headers=h).status_code == 403  # พนักงานเข้าไม่ได้
+    assert c.post("/camera/talkback/token", headers=h).status_code == 403
 
     mtok = c.post("/auth/login", data={"username": "BOSS001", "password": "boss1234"}).json()["access_token"]
     mh = {"Authorization": f"Bearer {mtok}"}
+    _test_tirtc_token(mh)
     now = datetime.datetime.now(datetime.UTC)
     emps = c.get("/reports/employees", headers=mh).json()
     eid = [e for e in emps if e["employee_code"] == "EMP001"][0]["id"]
@@ -89,6 +104,55 @@ def run():
 
     _test_face_gallery(h, mh, eid)
     print("ทุกเทสต์ผ่าน ✓")
+
+
+def _decode_base64url(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def _test_tirtc_token(manager_headers: dict) -> None:
+    """เฉพาะหัวหน้าออก token ได้ และ API ไม่ทำ SecretKeyId หลุดออกมา"""
+    # แม้ client พยายามส่งเป้าหมายอื่นมา endpoint ต้องไม่รับและยังใช้ค่าจาก env
+    first = c.post(
+        "/camera/talkback/token",
+        headers=manager_headers,
+        json={"remote_id": "attacker-selected-camera"},
+    )
+    second = c.post("/camera/talkback/token", headers=manager_headers)
+    assert first.status_code == 200, first.text
+    assert first.headers["cache-control"] == "no-store"
+    assert first.headers["pragma"] == "no-cache"
+
+    data = first.json()
+    assert data["provider"] == "tirtc"
+    assert data["app_id"] == "test-app"
+    assert data["remote_id"] == "test-camera"
+    assert data["stream_id"] == 14
+    assert data["expires_at"] - data["issued_at"] == 120
+    assert data["token"] != second.json()["token"], "token แต่ละครั้งต้องมี nonce ใหม่"
+    assert "test-secret" not in first.text
+
+    version, payload_b64, signature_b64 = data["token"].split(".")
+    assert version == "v1"
+    payload = json.loads(_decode_base64url(payload_b64))
+    assert payload["sub"] == "employee:BOSS001"
+    assert payload["scope"] == "connect:device://test-camera"
+    assert payload["iss"] == "test-access"
+    assert payload["exp"] == data["expires_at"]
+
+    expected = hmac.new(
+        b"test-secret",
+        payload_b64.encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    assert hmac.compare_digest(_decode_base64url(signature_b64), expected)
+
+    spec = c.get("/openapi.json").json()
+    assert "post" in spec["paths"]["/camera/talkback/token"]
+    status_fields = spec["components"]["schemas"]["CameraStatusOut"]["properties"]
+    assert {"talkback_ready", "talkback_transport", "talkback_token_path"} <= set(
+        status_fields
+    )
 
 
 def _test_face_gallery(h: dict, mh: dict, employee_id: int) -> None:

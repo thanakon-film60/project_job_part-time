@@ -364,3 +364,25 @@ class CameraStatusOut(BaseModel):
 
     # ทำไมถึงพูดกลับไม่ได้ — เอาไว้แสดงให้ผู้ใช้เห็นว่าติดที่กล้องไม่ใช่ที่แอป
     talkback_note: str | None = None
+
+    # พร้อมให้แอปของเราเริ่มพูดจริงหรือยัง ต่างจาก talkback_supported ที่บอก
+    # เพียงว่ากล้อง/โปรโตคอลมีความสามารถรับเสียง
+    talkback_ready: bool = False
+    talkback_transport: Literal["tirtc"] | None = None
+    talkback_token_path: str | None = None
+    talkback_stream_id: int | None = None
+
+
+class CameraTalkbackTokenOut(BaseModel):
+    """ข้อมูลชั่วคราวที่ Flutter ต้องใช้เปิด TiRTC connection ไปยังกล้อง"""
+
+    provider: Literal["tirtc"] = "tirtc"
+    app_id: str
+    remote_id: str
+    token: str
+    issued_at: int
+    expires_at: int
+    stream_id: int
+    audio_codec: Literal["g711a"] = "g711a"
+    sample_rate_hz: Literal[16000] = 16000
+    channels: Literal[1] = 1

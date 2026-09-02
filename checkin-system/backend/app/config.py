@@ -1,5 +1,6 @@
 import json
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -99,6 +100,19 @@ class Settings(BaseSettings):
     camera_audio_max_seconds: float = 600.0
     ffmpeg_path: str = ""   # เว้นว่าง = ให้ระบบหาเอง
 
+    # --- พูดออกลำโพงกล้องผ่าน Tange TiRTC ---
+    #
+    # เสียงไม่วิ่งผ่าน Python: backend ออก token อายุสั้นให้บัญชีหัวหน้า แล้ว
+    # Flutter TiRTC SDK ต่อ P2P/Cloud ไปยังกล้องโดยตรง SecretKeyId จึงต้องอยู่
+    # ที่ server เท่านั้น ห้ามใส่ใน APK หรือส่งคืนจาก API
+    camera_tirtc_enabled: bool = False
+    camera_tirtc_app_id: str = ""
+    camera_tirtc_access_key_id: str = ""
+    camera_tirtc_secret_key_id: str = ""
+    camera_tirtc_remote_id: str = ""
+    camera_tirtc_token_ttl_seconds: int = Field(default=120, ge=30, le=300)
+    camera_tirtc_stream_id: int = Field(default=14, ge=0, le=15)
+
     # โดเมนที่อนุญาตให้เรียก API จากเบราว์เซอร์ (คั่นด้วยจุลภาค)
     # production: ตั้งเป็นโดเมนจริง เช่น "https://checkin.example.com"
     allowed_origins: str = "*"
@@ -108,6 +122,21 @@ class Settings(BaseSettings):
         if self.allowed_origins.strip() == "*":
             return ["*"]
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    @property
+    def camera_tirtc_missing_fields(self) -> list[str]:
+        """ชื่อ env ที่ยังไม่มีค่า โดยไม่แตะหรือเปิดเผยค่าความลับ"""
+        fields = {
+            "CAMERA_TIRTC_APP_ID": self.camera_tirtc_app_id,
+            "CAMERA_TIRTC_ACCESS_KEY_ID": self.camera_tirtc_access_key_id,
+            "CAMERA_TIRTC_SECRET_KEY_ID": self.camera_tirtc_secret_key_id,
+            "CAMERA_TIRTC_REMOTE_ID": self.camera_tirtc_remote_id,
+        }
+        return [name for name, value in fields.items() if not value.strip()]
+
+    @property
+    def camera_tirtc_ready(self) -> bool:
+        return self.camera_tirtc_enabled and not self.camera_tirtc_missing_fields
 
     @property
     def offices_list(self) -> list[dict]:

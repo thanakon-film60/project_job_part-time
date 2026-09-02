@@ -3,14 +3,14 @@
 เอกสารนี้สำหรับ **คนดูแลเครื่อง production** (เครื่องที่รัน IIS + backend + Cloudflare Tunnel)
 ทุกอย่างในนี้ทำที่เครื่องนั้น ฝั่งแอปแก้เสร็จและทดสอบกับกล้องจริงแล้ว
 
-**สรุปสั้น: มี 4 งาน** — งานที่ 1 กับ 2 ต้องทำ, งานที่ 3 ต้องตรวจก่อนว่าจำเป็นไหม, งานที่ 4 เป็นการตัดสินใจ
+**สรุปสั้น: มี 4 งาน** — งานที่ 1 กับ 2 ต้องทำ, งานที่ 3 ต้องตรวจก่อนว่าจำเป็นไหม, งานที่ 4 รอ credential แล้วตั้งค่า TiRTC
 
 | # | งาน | ความเร่งด่วน | เวลา |
 |---|---|---|---|
 | 1 | [เอาโค้ด backend ตัวใหม่ขึ้น](#งานที่-1-เอาโค้ด-backend-ตัวใหม่ขึ้น) | **ต้องทำ** | 5 นาที |
 | 2 | [เก็บกวาด ffmpeg ที่ค้างอยู่](#งานที่-2-เก็บกวาด-ffmpeg-ที่ค้างอยู่) | **ต้องทำ** | 2 นาที |
 | 3 | [ตรวจว่า IIS หน่วงสตรีมเสียงหรือเปล่า](#งานที่-3-ตรวจว่า-iis-หน่วงสตรีมเสียงหรือเปล่า) | ตรวจก่อน | 5 นาที |
-| 4 | [เรื่องปุ่มกดพูด (iCam365)](#งานที่-4-เรื่องปุ่มกดพูด-icam365) | ตัดสินใจ | — |
+| 4 | [เรื่องปุ่มกดพูด (iCam365)](#งานที่-4-เรื่องปุ่มกดพูด-icam365) | ขอ credential + deploy | 10 นาทีหลังได้ค่า |
 
 ---
 
@@ -344,69 +344,61 @@ $stream.Close()
 
 ## งานที่ 4: เรื่องปุ่มกดพูด (iCam365)
 
-**สถานะ: กล้องทำได้ แต่ระบบเรายังไม่มีช่องคุยแบบเดียวกับ iCam365**
+**สถานะใหม่: backend สำหรับ TiRTC SDK ทางการทำเสร็จแล้ว** เหลือ credential,
+การตั้งค่า production และงาน Flutter ตาม
+[`../../flutter_boss_app/TIRTC_TALKBACK_TASKS.md`](../../flutter_boss_app/TIRTC_TALKBACK_TASKS.md)
 
-แอป iCam365 ของผู้ผลิตกดพูดออกกล้องได้ แปลว่า **ตัวกล้องรองรับ**
-แต่ทางที่ iCam365 ใช้ไม่ใช่ ONVIF/RTSP มาตรฐานที่ระบบเราใช้ตอนนี้
-ตรวจกับกล้องจริงแล้วทั้งหมดนี้:
+### 4.1 ขอสิทธิ์จาก Tange
 
-| ตรวจอะไร | ผล |
-|---|---|
-| ONVIF `GetCapabilities` | มีลำโพงจริง (`AudioOutputs = 1`) |
-| ONVIF `GetAudioOutputConfigurations` | มี config จริง `SendPrimacy = HalfDuplex/Auto` |
-| ONVIF `GetAudioDecoderConfigurations` (media1 + media2) | **Optional Action Not Implemented** |
-| RTSP `OPTIONS` พอร์ต 554 | `DESCRIBE, PLAY, SETUP, TEARDOWN, SET_PARAMETER` — ไม่มี `ANNOUNCE`/`RECORD` |
-| RTSP `DESCRIBE` + Require backchannel | ได้ SDP เดิม ไม่มี track `a=sendonly` (ลองครบทุกเส้นทาง) |
-| RTSP พอร์ต 8001 (TAS-Tech) | วิดีโอ H264 อย่างเดียว ไม่มีเสียงเลย |
-| HTTP API ของผู้ผลิต | ไม่มี — พอร์ต 80 ตอบแต่ ONVIF, ที่เหลือ 404 |
+ใช้ข้อความที่เตรียมไว้ใน
+[`../camera/TANGE_TIRTC_ACCESS_REQUEST.md`](../camera/TANGE_TIRTC_ACCESS_REQUEST.md)
+ประเด็นสำคัญคือต้องให้ Tange ยืนยันว่ากล้อง iCam365 retail ตัวเดิมสามารถถูก
+authorize เข้า developer application ของเราได้
 
-สแกนพอร์ตครบทั้ง 65535 พอร์ต เจอเปิดอยู่ 8 พอร์ต:
+### 4.2 ตั้งค่า production หลังได้ credential
 
-```
-80     ONVIF/HTTP
-554    RTSP (เสียงขาออก — ที่เราใช้ฟังอยู่ตอนนี้)
-8001   RTSP + HTTP ของ TAS-Tech (วิดีโออย่างเดียว)
-3201, 3576, 6670, 8200, 20202   โปรโตคอลเฉพาะของผู้ผลิต
-```
+ใส่ใน `backend/.env` บนเซิร์ฟเวอร์ (ห้าม commit):
 
-ห้าพอร์ตสุดท้ายเป็นโปรโตคอลไบนารีที่ไม่มีเอกสาร ลองทักด้วย handshake ของตระกูล
-ที่พบบ่อย (PPPP/CS2, TUTK, XM/Sofia) แล้ว **ไม่ตรงสักตัว** — iCam365 น่าจะคุยผ่าน
-หนึ่งในพอร์ตพวกนี้หรือผ่านคลาวด์ของผู้ผลิต
-
-### ทางเลือก
-
-**ก. ถามผู้ผลิตก่อน (ถูกและเร็วที่สุด — แนะนำให้ลองก่อน)**
-
-ถามคนขาย/ผู้ผลิตว่า *"รุ่นนี้มีเฟิร์มแวร์ที่เปิด ONVIF audio backchannel (Profile T) ไหม"*
-ถ้ามีและอัปได้ ระบบเราจะขึ้นปุ่มกดพูดให้เองทันที **ไม่ต้องแก้โค้ดเลยสักบรรทัด**
-(เซิร์ฟเวอร์ถามกล้องเองทุก 5 นาทีอยู่แล้ว)
-
-**ข. ถอดรหัสโปรโตคอลของ iCam365**
-
-ต้องดักจับแพ็กเก็ตตอน iCam365 กดพูดจริง แล้วมาวิเคราะห์ ถ้าจะเอาทางนี้ต้องมี:
-
-1. มือถือที่ลง iCam365 กับกล้อง ต่อ Wi-Fi วงเดียวกัน
-2. ดักจับ traffic ระหว่างมือถือกับ `192.168.1.101` — วิธีที่ง่ายสุดคือ
-   เปิด Mobile Hotspot บนคอม ให้มือถือต่อผ่าน แล้วรัน Wireshark ที่คอม
-3. กดปุ่มพูดในแอปสัก 10 วินาที แล้วเซฟไฟล์ `.pcapng` ไว้
-
-ได้ไฟล์มาแล้วส่งให้ทีมแอปวิเคราะห์ต่อได้
-**แต่บอกไว้ก่อนว่าไม่รับประกันว่าจะสำเร็จ** — โปรโตคอลอาจเข้ารหัส และถึงถอดได้
-ก็จะพังเมื่อผู้ผลิตอัปเฟิร์มแวร์ เพราะไม่ใช่มาตรฐานที่ใครรับประกัน
-
-มีสคริปต์ช่วยจับแพ็กเก็ตแล้ว:
-
-```powershell
-cd F:\GitHub\project_job_part-time\checkin-system\deploy\camera
-.\capture-icam365-talkback.ps1 -CameraIp 192.168.1.101 -Seconds 45
+```ini
+CAMERA_TIRTC_ENABLED=true
+CAMERA_TIRTC_APP_ID=<AppId>
+CAMERA_TIRTC_ACCESS_KEY_ID=<AccessKeyId>
+CAMERA_TIRTC_SECRET_KEY_ID=<SecretKeyId>
+CAMERA_TIRTC_REMOTE_ID=<device_id-or-remote_id>
+CAMERA_TIRTC_TOKEN_TTL_SECONDS=120
+CAMERA_TIRTC_STREAM_ID=14
 ```
 
-รายละเอียดขั้นต่อไปอยู่ที่ [`../camera/ICAM365_TALKBACK.md`](../camera/ICAM365_TALKBACK.md)
+จากนั้น deploy/restart backend แล้วตรวจ `/openapi.json` ว่ามี:
 
-**ค. เปลี่ยนกล้องเป็นรุ่นที่รองรับ ONVIF Profile T**
+```text
+POST /camera/talkback/token
+```
 
-ระบบพร้อมรองรับอยู่แล้ว เสียบปุ๊บปุ่มขึ้นเอง เหมาะถ้าฟีเจอร์นี้จำเป็นจริง ๆ
-เวลาซื้อให้ถามคนขายตรง ๆ ว่า *"รองรับ ONVIF Profile T / audio backchannel ไหม"*
+ล็อกอินบัญชีหัวหน้าแล้วเรียก `GET /camera/status` ต้องได้:
+
+```json
+{
+  "talkback_ready": true,
+  "talkback_transport": "tirtc",
+  "talkback_token_path": "/camera/talkback/token",
+  "talkback_stream_id": 14
+}
+```
+
+ถ้ายังเป็น `false` ให้อ่าน `talkback_note`; ระบบจะบอกชื่อ env ที่ขาดโดยไม่
+เปิดเผยค่า secret
+
+### 4.3 ขอบเขตความปลอดภัย
+
+- `SecretKeyId` อยู่ backend เท่านั้น ไม่ส่งให้ Flutter
+- endpoint จำกัดเฉพาะ `require_manager`
+- client เลือก `remote_id` เองไม่ได้ กล้องถูกตรึงจาก `.env`
+- token มีอายุ 30–300 วินาที, nonce ใหม่ทุกครั้ง และ response ห้าม cache
+- เสียงวิ่ง Flutter → TiRTC encrypted P2P/Cloud → กล้อง ไม่วิ่งผ่าน Python
+
+ผลตรวจ RTSP/ONVIF เดิมและทาง packet-capture fallback เก็บไว้ใน
+[`../camera/ICAM365_TALKBACK.md`](../camera/ICAM365_TALKBACK.md)
 
 ---
 
@@ -443,4 +435,7 @@ where.exe ffmpeg
 |---|---|
 | [`FIX_CAMERA_ROUTING.md`](FIX_CAMERA_ROUTING.md) | IIS ไม่ส่งต่อ `/camera/*` (แก้ไปแล้ว) + Location header หลุดที่อยู่ภายใน |
 | [`../camera/CAMERA_SETUP.md`](../camera/CAMERA_SETUP.md) | ติดตั้งระบบกล้องครั้งแรก |
+| [`../camera/ICAM365_TALKBACK.md`](../camera/ICAM365_TALKBACK.md) | สถาปัตยกรรม TiRTC และผลตรวจกล้องเดิม |
+| [`../camera/TANGE_TIRTC_ACCESS_REQUEST.md`](../camera/TANGE_TIRTC_ACCESS_REQUEST.md) | อีเมลขอ credential/authorize กล้องตัวปัจจุบัน |
+| [`../../flutter_boss_app/TIRTC_TALKBACK_TASKS.md`](../../flutter_boss_app/TIRTC_TALKBACK_TASKS.md) | งาน Flutter กดค้างเพื่อพูด |
 | [`../../flutter_boss_app/ISSUE_CAMERA_AUDIO.md`](../../flutter_boss_app/ISSUE_CAMERA_AUDIO.md) | รายงานปัญหาปุ่มฟังเสียงไม่ขึ้น (ฝั่งแอปแก้แล้ว) |

@@ -15,10 +15,16 @@ from fastapi.responses import StreamingResponse
 
 from camera_audio import AudioHub, AudioStream, backchannel_supported, find_ffmpeg
 from camera_onvif import OnvifError, OnvifPtz
+from camera_tirtc import generate_connect_token
 
 from ..config import settings
 from ..models import Employee
-from ..schemas import CameraPtzIn, CameraPtzOut, CameraStatusOut
+from ..schemas import (
+    CameraPtzIn,
+    CameraPtzOut,
+    CameraStatusOut,
+    CameraTalkbackTokenOut,
+)
 from ..security import require_manager
 
 router = APIRouter(prefix="/camera", tags=["camera"])
@@ -167,6 +173,63 @@ def _require_enabled() -> None:
         )
 
 
+def _talkback_status(*, probe_rtsp: bool = True) -> dict:
+    """สถานะ talkback ที่แยก 'กล้องรองรับ' ออกจาก 'ระบบพร้อมใช้จริง'
+
+    TiRTC ที่ตั้งค่าครบคือเส้นทางที่ใช้งานได้ end-to-end ในแอปของเรา ส่วน
+    RTSP probe เดิมยังเก็บไว้เป็นข้อมูลความสามารถของกล้อง แต่ยังไม่นับว่าพร้อม
+    จนกว่าจะมี transport ฝั่งแอป/เซิร์ฟเวอร์รองรับจริง
+    """
+    if settings.camera_tirtc_ready:
+        return {
+            "talkback_supported": True,
+            "talkback_note": None,
+            "talkback_ready": True,
+            "talkback_transport": "tirtc",
+            "talkback_token_path": "/camera/talkback/token",
+            "talkback_stream_id": settings.camera_tirtc_stream_id,
+        }
+
+    if settings.camera_tirtc_enabled:
+        missing = ", ".join(settings.camera_tirtc_missing_fields)
+        config_note = f"ตั้งค่า TiRTC ยังไม่ครบ: {missing}"
+    else:
+        config_note = "ยังไม่ได้เปิด TiRTC ที่เซิร์ฟเวอร์ (CAMERA_TIRTC_ENABLED)"
+
+    # ถ้า ONVIF ต่อกล้องไม่ได้หรือปิดระบบกล้องอยู่ อย่าซ้ำด้วยการต่อ RTSP อีกสาย
+    # เพียงเพื่อวินิจฉัยความสามารถเสริม เพราะจะทำให้ /camera/status ช้าขึ้นเปล่า ๆ
+    if not probe_rtsp:
+        return {
+            "talkback_supported": False,
+            "talkback_note": config_note,
+            "talkback_ready": False,
+            "talkback_transport": None,
+            "talkback_token_path": None,
+            "talkback_stream_id": None,
+        }
+
+    rtsp_supported, rtsp_note = backchannel_supported(
+        settings.camera_rtsp_url,
+        timeout=settings.camera_backchannel_timeout_seconds,
+    )
+    if rtsp_supported:
+        note = (
+            f"{config_note}; กล้องรองรับ RTSP backchannel แต่ระบบยังไม่มี "
+            "transport สำหรับส่งเสียงแบบ RTSP"
+        )
+    else:
+        note = f"{config_note}; {rtsp_note}"
+
+    return {
+        "talkback_supported": rtsp_supported,
+        "talkback_note": note,
+        "talkback_ready": False,
+        "talkback_transport": None,
+        "talkback_token_path": None,
+        "talkback_stream_id": None,
+    }
+
+
 def get_camera() -> OnvifPtz:
     """คืน client ที่ต่อกล้องไว้แล้ว — สร้างใหม่เฉพาะครั้งแรก"""
     global _client
@@ -206,6 +269,7 @@ def camera_status(_: Employee = Depends(require_manager)):
             reachable=False,
             host=settings.camera_ptz_host,
             message="ระบบกล้องถูกปิดไว้ที่เซิร์ฟเวอร์",
+            **_talkback_status(probe_rtsp=False),
         )
 
     camera = get_camera()
@@ -219,8 +283,10 @@ def camera_status(_: Employee = Depends(require_manager)):
             reachable=False,
             host=settings.camera_ptz_host,
             message=f"เชื่อมต่อกล้องไม่ได้: {exc}",
+            **_talkback_status(probe_rtsp=False),
         )
 
+    talkback = _talkback_status()
     ffmpeg = find_ffmpeg(settings.ffmpeg_path or None)
     if not settings.camera_audio_enabled:
         audio_note = "ระบบเสียงถูกปิดไว้ที่เซิร์ฟเวอร์ (CAMERA_AUDIO_ENABLED)"
@@ -228,16 +294,6 @@ def camera_status(_: Employee = Depends(require_manager)):
         audio_note = "เซิร์ฟเวอร์ยังไม่ได้ติดตั้ง ffmpeg จึงแปลงเสียงจากกล้องไม่ได้"
     else:
         audio_note = None
-
-    # ถามกล้องจริงว่ารับเสียงเข้าได้ไหม แทนการเขียนคำตอบตายตัวไว้
-    #
-    # ของเดิมฝังไว้ว่า False ซึ่งถูกกับกล้องตัวที่ใช้อยู่ แต่จะกลายเป็นคำตอบผิด
-    # เงียบ ๆ ทันทีที่เปลี่ยนกล้องหรืออัปเฟิร์มแวร์ ตัวนี้จำผลไว้ 5 นาที
-    # และจะไม่จำถ้าต่อกล้องไม่ติดตอนนั้น (กล้องสะดุดชั่วคราวจะได้ไม่ปิดปุ่มค้าง)
-    talkback, talkback_note = backchannel_supported(
-        settings.camera_rtsp_url,
-        timeout=settings.camera_backchannel_timeout_seconds,
-    )
 
     return CameraStatusOut(
         enabled=True,
@@ -249,8 +305,50 @@ def camera_status(_: Employee = Depends(require_manager)):
         home_supported=camera.home_supported,
         audio_supported=settings.camera_audio_enabled and ffmpeg is not None,
         audio_note=audio_note,
-        talkback_supported=talkback,
-        talkback_note=None if talkback else talkback_note,
+        **talkback,
+    )
+
+
+@router.post("/talkback/token", response_model=CameraTalkbackTokenOut)
+def issue_talkback_token(
+    response: Response,
+    manager: Employee = Depends(require_manager),
+):
+    """ออก TiRTC token อายุสั้นสำหรับหัวหน้าคนที่ล็อกอินอยู่
+
+    endpoint นี้ไม่รับ remote_id จาก client เพื่อกันหัวหน้าแก้ request แล้วขอ
+    token ไปหาอุปกรณ์อื่น เป้าหมายถูกตรึงจาก .env ของ production เท่านั้น
+    """
+    if not settings.camera_tirtc_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ระบบพูดออกกล้องผ่าน TiRTC ยังไม่ได้เปิดที่เซิร์ฟเวอร์",
+        )
+    if settings.camera_tirtc_missing_fields:
+        missing = ", ".join(settings.camera_tirtc_missing_fields)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"ตั้งค่า TiRTC ยังไม่ครบ: {missing}",
+        )
+
+    issued = generate_connect_token(
+        access_key_id=settings.camera_tirtc_access_key_id,
+        secret_key_id=settings.camera_tirtc_secret_key_id,
+        remote_id=settings.camera_tirtc_remote_id,
+        subject=f"employee:{manager.employee_code}",
+        ttl_seconds=settings.camera_tirtc_token_ttl_seconds,
+    )
+    # token เป็น credential แม้อายุสั้น ห้าม browser/proxy เก็บสำเนาไว้
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+
+    return CameraTalkbackTokenOut(
+        app_id=settings.camera_tirtc_app_id,
+        remote_id=settings.camera_tirtc_remote_id,
+        token=issued.value,
+        issued_at=issued.issued_at,
+        expires_at=issued.expires_at,
+        stream_id=settings.camera_tirtc_stream_id,
     )
 
 
