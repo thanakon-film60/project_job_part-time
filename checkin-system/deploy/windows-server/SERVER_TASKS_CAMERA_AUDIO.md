@@ -16,6 +16,49 @@
 
 ## งานที่ 1: เอาโค้ด backend ตัวใหม่ขึ้น
 
+> ## 🔴 ยืนยันแล้วเมื่อ 2 ก.ย. 2026 — นี่คือต้นเหตุที่หัวหน้ายังฟังเสียงไม่ได้
+>
+> ตรวจจาก `https://thanakronpart-time.com/openapi.json` (ไม่ต้องล็อกอิน) พบว่า
+> **backend บน production ยังไม่เคยมีฟีเจอร์เสียงเลย** ไม่ใช่แค่ยังไม่ได้อัปเดตรอบล่าสุด
+>
+> ```
+> เส้นทาง /camera/* ที่ production มีอยู่จริง:
+>    /camera/status
+>    /camera/ptz
+>    /camera/ptz/stop
+>    /camera/snapshot
+>                       <-- ไม่มี /camera/audio
+>
+> ฟิลด์ใน CameraStatusOut ที่ production ตอบ:
+>    enabled, reachable, host, message, model, firmware, home_supported
+>                       <-- ไม่มี audio_supported เลย
+> ```
+>
+> แอปอ่าน `audio_supported` ไม่เจอ จึงถือว่าเป็น `false` แล้วขึ้นข้อความ
+> **"เซิร์ฟเวอร์นี้ยังส่งเสียงจากกล้องไม่ได้"** — ตรงกับที่หัวหน้าเจออยู่ทุกวันนี้
+>
+> `audio_supported` ถูกเพิ่มเข้า repo ตั้งแต่ commit `af8e7dd` (1 ก.ย. 2026)
+> แปลว่าโค้ดที่รันอยู่บน production **เก่ากว่านั้น**
+>
+> ### แปลว่า
+>
+> * **ไม่ใช่ปัญหาของแอป** — แอปทำถูกแล้ว เซิร์ฟเวอร์ตอบว่าไม่รองรับก็ต้องขึ้นข้อความนั้น
+> * **ยังไม่ต้องไปยุ่งกับ ffmpeg หรือ ARR** ([งานที่ 2](#งานที่-2-เก็บกวาด-ffmpeg-ที่ค้างอยู่)
+>   กับ [งานที่ 3](#งานที่-3-ตรวจว่า-iis-หน่วงสตรีมเสียงหรือเปล่า)) — ทั้งสองอย่างจะมีผล
+>   ก็ต่อเมื่อ `/camera/audio` มีอยู่จริงบนเซิร์ฟเวอร์ก่อน
+> * **ทำงานนี้ให้เสร็จก่อน แล้วค่อยทดสอบใหม่** ถ้ายังไม่ได้เสียงค่อยไปดูงานที่ 2-3
+>
+> ### ตรวจซ้ำหลัง deploy ด้วยคำสั่งนี้ (ไม่ต้องล็อกอิน)
+>
+> ```powershell
+> $spec = Invoke-RestMethod https://thanakronpart-time.com/openapi.json
+> $spec.paths.PSObject.Properties.Name | Where-Object { $_ -like "/camera*" }
+> ```
+>
+> ต้องเห็น `/camera/audio` อยู่ในรายการ ถ้ายังไม่เห็น = deploy ยังไม่สำเร็จจริง
+> (อย่าเพิ่งไปเช็คในแอป เพราะแยกไม่ออกว่าติดตรงไหน)
+
+
 ```powershell
 cd F:\GitHub\project_job_part-time\checkin-system\deploy\windows-server
 git pull

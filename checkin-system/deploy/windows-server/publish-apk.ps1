@@ -9,6 +9,7 @@
 #   .\publish-apk.ps1 -ApkPath D:\thanakon-checkin.apk
 #   .\publish-apk.ps1                       # ไม่ใส่ = ใช้ไฟล์ที่ flutter build ไว้ในเครื่องนี้
 #   .\publish-apk.ps1 -ApkPath ... -Version 1.0.1
+#   .\publish-apk.ps1 -Boss                 # แอปหัวหน้า (flutter_boss_app)
 #
 # หมายเหตุ:
 #   * ไม่ต้อง restart backend — /app/info อ่านไฟล์จากดิสก์ใหม่ทุกครั้งที่มีคนเปิดหน้าเว็บ
@@ -23,7 +24,12 @@ param(
     [string]$Version,
     # API level ต่ำสุดที่ APK ตัวนี้รองรับ — build-flutter-apk.ps1 อ่านค่าจริงจาก
     # build.gradle มาส่งให้ ถ้ารันเองบนเซิร์ฟเวอร์ให้ใส่ตามที่ build มา
-    [int]$MinSdk = 24
+    [int]$MinSdk = 24,
+    # ใส่สวิตช์นี้เมื่อเป็น APK ของ "แอปหัวหน้า" (flutter_boss_app)
+    #
+    # สองแอปคนละไฟล์ คนละ endpoint และห้ามทับกัน — หัวหน้าที่เผลอโหลด APK
+    # ของพนักงานมาติดตั้งจะใช้งานไม่ได้ เพราะเป็นคนละ applicationId
+    [switch]$Boss
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,8 +37,23 @@ $ErrorActionPreference = "Stop"
 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = (Resolve-Path (Join-Path $here "..\..")).Path
-$appDir = Join-Path $root "flutter_app"
-$outDir = Join-Path $root "backend\storage\app"
+if ($Boss) {
+    $appName  = "แอปหัวหน้า"
+    $appDir   = Join-Path $root "flutter_boss_app"
+    $outDir   = Join-Path $root "backend\storage\boss-app"
+    $apkName  = "thanakon-boss.apk"
+    $infoPath = "/boss-app/info"
+    $dlPath   = "/boss-app/download"
+    $audience = "หัวหน้า"
+} else {
+    $appName  = "แอปพนักงาน"
+    $appDir   = Join-Path $root "flutter_app"
+    $outDir   = Join-Path $root "backend\storage\app"
+    $apkName  = "thanakon-checkin.apk"
+    $infoPath = "/app/info"
+    $dlPath   = "/app/download"
+    $audience = "พนักงาน"
+}
 
 function Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Ok($msg)   { Write-Host "    [OK] $msg" -ForegroundColor Green }
@@ -71,9 +92,9 @@ if (-not $Version) {
 }
 
 # --- 3. วางไฟล์ + เขียนข้อมูลเวอร์ชัน ----------------------------------------
-Step "วาง APK ลง storage ของ backend"
+Step "วาง APK ของ$appName ลง storage ของ backend"
 if (-not (Test-Path $outDir)) { New-Item -ItemType Directory $outDir -Force | Out-Null }
-$dest = Join-Path $outDir "thanakon-checkin.apk"
+$dest = Join-Path $outDir $apkName
 Copy-Item $src.FullName $dest -Force
 
 # เวลาที่ build จริง (เวลาแก้ไขไฟล์ต้นทาง) ไม่ใช่เวลาที่ copy ขึ้นเซิร์ฟเวอร์
@@ -110,7 +131,12 @@ $sizeMb = [math]::Round((Get-Item $dest).Length / 1MB, 1)
 Ok "$($src.Name) -> $dest ($sizeMb MB, เวอร์ชัน $Version, ต้องใช้ Android $minAndroid)"
 
 Write-Host ""
-Write-Host "  เสร็จแล้ว — พนักงานกดปุ่มดาวน์โหลดที่หน้าแรกของเว็บได้เลย" -ForegroundColor Green
-Write-Host "  ลิงก์ตรง : https://thanakronpart-time.com/app/download" -ForegroundColor Green
-Write-Host "  เช็กสถานะ: https://thanakronpart-time.com/app/info" -ForegroundColor Green
+Write-Host "  เสร็จแล้ว — ส่งลิงก์นี้ให้$audience ได้เลย" -ForegroundColor Green
+Write-Host "  ลิงก์ตรง : https://thanakronpart-time.com$dlPath" -ForegroundColor Green
+Write-Host "  เช็กสถานะ: https://thanakronpart-time.com$infoPath" -ForegroundColor Green
+if ($Boss) {
+    Write-Host ""
+    Write-Host "  หมายเหตุ: แอปหัวหน้าไม่มีระบบเตือนอัปเดตในตัว" -ForegroundColor Yellow
+    Write-Host "  ต้องส่งลิงก์ให้หัวหน้าเอง ไม่งั้นจะใช้ตัวเก่าต่อไปโดยไม่รู้ตัว" -ForegroundColor Yellow
+}
 Write-Host ""
