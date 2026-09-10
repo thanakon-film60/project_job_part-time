@@ -301,9 +301,23 @@ class OfficeInfo(BaseModel):
     category: str | None = None
 
 
+class WorkScheduleInfo(BaseModel):
+    """เกณฑ์เวลาทำงานที่ใช้ตัดสิน สาย / ออกก่อน (เวลาไทย)"""
+
+    work_start: str = "08:30"
+    work_end: str = "17:30"
+    late_grace_minutes: int = 0
+    early_leave_grace_minutes: int = 0
+    enabled: bool = True
+
+
 class GeofenceInfo(BaseModel):
     # รายการสถานที่ทั้งหมด (รองรับหลายสาขา)
     offices: list[OfficeInfo] = []
+
+    # เกณฑ์เวลาทำงาน — แอปดึงไปคำนวณป้าย "สาย/ตรงเวลา" บนหน้าจอเอง
+    # ฟิลด์ใหม่ ไม่กระทบ client เก่าที่อ่านเฉพาะฟิลด์ที่รู้จัก
+    work_schedule: WorkScheduleInfo = WorkScheduleInfo()
 
     # ---- ฟิลด์เดิม: ชี้ไปที่สถานที่แรกในรายการ ----
     # เก็บไว้เพื่อให้เว็บ/แอปเวอร์ชันเก่ายังใช้งานได้

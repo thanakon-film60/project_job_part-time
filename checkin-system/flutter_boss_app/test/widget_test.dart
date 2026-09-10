@@ -36,6 +36,9 @@ void main() {
   });
 
   test('checkout geofence ignores offices that disallow checkout', () {
+    LocationService.setOfficesForTest(_mixedOffices);
+    addTearDown(() => LocationService.setOfficesForTest(null));
+
     final (trackingOffice, _, trackingWithin) =
         LocationService.nearestOffice(13.8865664, 100.5066278);
     expect(trackingOffice.name, 'ถึงบ้านแล้ว');
@@ -238,6 +241,9 @@ void main() {
   });
 
   test('home locations are excluded from the check-out geofence', () {
+    LocationService.setOfficesForTest(_mixedOffices);
+    addTearDown(() => LocationService.setOfficesForTest(null));
+
     final (office, _, within) = LocationService.nearestOffice(
       13.8865664,
       100.5066278,
@@ -252,3 +258,25 @@ void main() {
     expect(LocationService.isHomeName('MARDODI'), isFalse);
   });
 }
+
+/// ชุดสถานที่สำหรับเทสต์ตรรกะ บ้าน / ที่ทำงาน โดยเฉพาะ
+///
+/// ไม่ใช้ Config.offices เพราะรายการจริงเปลี่ยนทุกครั้งที่บริษัทย้ายที่
+/// (ตอนนี้เหลือสาขาเดียวและไม่มีพิกัดบ้าน) แต่ตรรกะที่เทสต์อยู่ยังต้องถูกอยู่
+const List<Office> _mixedOffices = [
+  Office(
+    name: 'MARDODI',
+    lat: 13.9231953,
+    lng: 100.5195808,
+    radiusKm: 2.0,
+    category: 'work',
+  ),
+  Office(
+    name: 'ถึงบ้านแล้ว',
+    lat: 13.8865664,
+    lng: 100.5066278,
+    radiusKm: 0.2,
+    allowCheckout: false,
+    category: 'home',
+  ),
+];

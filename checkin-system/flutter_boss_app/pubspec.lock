@@ -661,6 +661,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.7"
+  tirtc_flutter:
+    dependency: "direct main"
+    description:
+      name: tirtc_flutter
+      sha256: "0eca831de4097ef8099d0b2d16ba7ecccb24456c41a65c766c3323d5031124f5"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.1"
   typed_data:
     dependency: transitive
     description:

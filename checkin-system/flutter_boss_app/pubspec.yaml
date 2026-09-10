@@ -1,7 +1,7 @@
 name: thanakon_box_boss
 description: แอปหัวหน้า THANAKON-BOX (ดูทีม + ลงเวลาโดยไม่ต้องสแกนใบหน้า)
 publish_to: "none"
-version: 1.1.0+2
+version: 1.2.0+4
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -20,6 +20,7 @@ dependencies:
   # ฟังเสียงจากไมค์กล้อง CCTV — ตรึงไว้ที่สาย 0.9 ดูเหตุผลใต้หัวข้อ
   # "ตรึงเวอร์ชัน just_audio / audio_session" ด้านล่าง
   just_audio: 0.9.46
+  tirtc_flutter: 2.3.1
 
 # ===================================================================
 # ตรึงเวอร์ชัน path_provider_android

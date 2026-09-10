@@ -50,5 +50,10 @@ public final class GeneratedPluginRegistrant {
     } catch (Exception e) {
       Log.e(TAG, "Error registering plugin shared_preferences_android, io.flutter.plugins.sharedpreferences.SharedPreferencesPlugin", e);
     }
+    try {
+      flutterEngine.getPlugins().add(new com.tange.ai.flutter.tirtc.TiRtcPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin tirtc_flutter, com.tange.ai.flutter.tirtc.TiRtcPlugin", e);
+    }
   }
 }

@@ -13,6 +13,7 @@ import '../models/employee.dart';
 import '../models/json.dart';
 import '../models/live_location.dart';
 import '../models/team_calendar.dart';
+import 'work_schedule.dart';
 
 class CheckInResult {
   final bool success;
@@ -381,6 +382,14 @@ class ApiService {
     }
 
     final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+
+    // เกณฑ์เวลาทำงานมาพร้อมกับรายการสถานที่ (backend รุ่นเก่าไม่มีฟิลด์นี้ —
+    // ปล่อยให้แอปใช้ค่าใน Config.workSchedule ต่อไป)
+    final rawSchedule = data['work_schedule'];
+    if (rawSchedule is Map<String, dynamic>) {
+      WorkScheduleService.update(WorkSchedule.fromJson(rawSchedule));
+    }
+
     final rawOffices = data['offices'];
     if (rawOffices is List && rawOffices.isNotEmpty) {
       return rawOffices
@@ -814,6 +823,24 @@ class ApiService {
       },
       errorText: 'สั่งกล้องไม่สำเร็จ',
     );
+  }
+
+  /// ขอตั๋วอายุสั้นสำหรับพูดออกลำโพงกล้องผ่าน TiRTC
+  ///
+  /// ต้องขอใหม่ทุกครั้งที่เริ่มพูด — token อายุราว 2 นาทีและใช้ซ้ำไม่ได้
+  /// ห้ามเก็บค่าที่ได้ลงดิสก์หรือ log (ดู [CameraTalkbackSession])
+  ///
+  /// เซิร์ฟเวอร์เป็นคนล็อกว่าปลายทางคือกล้องตัวไหน แอปจึงไม่ส่ง remote_id ไป
+  /// และพนักงานที่ไม่ใช่หัวหน้าจะได้ 403 กลับมาเป็น [ApiException]
+  static Future<CameraTalkbackSession> createCameraTalkbackSession({
+    String path = '/camera/talkback/token',
+  }) async {
+    final data = await _jsonMap(
+      'POST',
+      path,
+      errorText: 'ขอสิทธิ์พูดออกกล้องไม่สำเร็จ',
+    );
+    return CameraTalkbackSession.fromJson(data);
   }
 
   /// ปุ่มฉุกเฉิน — สั่งกล้องหยุดทันที

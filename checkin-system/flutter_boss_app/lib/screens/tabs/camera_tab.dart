@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../models/camera.dart';
 import '../../services/api_service.dart';
+import '../../services/camera_talkback_service.dart';
 
 /// ดึงภาพนิ่งถี่แค่ไหนตอนทุกอย่างปกติ — ถี่กว่านี้เปลืองเน็ตมือถือโดยไม่ได้
 /// ภาพลื่นขึ้นจริง (ภาพละ ~35KB ทุก 1 วินาที = ~2MB ต่อนาที)
@@ -52,7 +54,19 @@ const Color _consolePanel = Color(0xFF1A1F2B);
 /// ไม่ต้องพึ่ง plugin วิดีโอ และไม่ต้องเปิดพอร์ตกล้องออกอินเทอร์เน็ต
 /// ส่วนเสียงเป็นสตรีมจริงจากไมค์กล้อง ผ่าน ffmpeg ที่เซิร์ฟเวอร์
 class CameraTab extends StatefulWidget {
-  const CameraTab({super.key});
+  const CameraTab({
+    super.key,
+    this.talkbackEngine,
+    this.micPermissionRequester,
+  });
+
+  /// ใส่ตัวปลอมตอนเทสต์ — widget test เรียก native TiRTC จริงไม่ได้
+  /// ปกติปล่อยเป็น null แล้ว service จะใช้ [TiRtcTalkbackEngine] ให้เอง
+  final TalkbackEngine? talkbackEngine;
+
+  /// ใส่ตัวปลอมตอนเทสต์เช่นกัน — permission_handler คุยผ่าน platform channel
+  /// ซึ่งไม่มีให้ใช้ใน widget test
+  final TalkbackPermissionRequester? micPermissionRequester;
 
   @override
   State<CameraTab> createState() => _CameraTabState();
@@ -116,11 +130,34 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   bool _audioConnecting = false;
   String? _audioError;
 
+  // ---- กดค้างเพื่อพูดออกลำโพงกล้อง ----
+  late final CameraTalkbackService _talkback;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _talkback = CameraTalkbackService(
+      fetchSession: () => ApiService.createCameraTalkbackSession(
+        // เซิร์ฟเวอร์บอก path มาเองใน /camera/status เผื่อวันหน้าย้ายที่อยู่
+        path: _status?.talkbackTokenPath ?? '/camera/talkback/token',
+      ),
+      requestPermission: widget.micPermissionRequester ?? _requestMicPermission,
+      engine: widget.talkbackEngine ?? const TiRtcTalkbackEngine(),
+    );
+    _talkback.onChanged = () {
+      if (mounted) setState(() {});
+    };
     _loadStatus();
+  }
+
+  /// ขอสิทธิ์ไมค์เฉพาะตอนกดพูดครั้งแรก ไม่ใช่ตอนเปิดแอป
+  ///
+  /// permission_handler คืน `permanentlyDenied` เมื่อผู้ใช้กดปฏิเสธถาวร
+  /// ซึ่งขอซ้ำอีกกี่ครั้งก็ไม่มีกล่องเด้ง ต้องพาไปหน้าตั้งค่าเท่านั้น
+  Future<bool> _requestMicPermission() async {
+    final PermissionStatus status = await Permission.microphone.request();
+    return status.isGranted || status.isLimited;
   }
 
   @override
@@ -131,6 +168,9 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
     if (visible == _visible) return;
     _visible = visible;
     _syncPolling();
+    // สลับออกจากแท็บกล้องแล้วไมค์ต้องดับทันที — ต่างจากเสียงที่ฟังต่อได้
+    // เพราะไมค์เปิดค้างโดยผู้ใช้ไม่เห็นหน้าจอคือการแอบดักฟัง
+    if (!visible) unawaited(_talkback.stop());
     if (visible) _refreshStatusIfStale();
   }
 
@@ -142,6 +182,7 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
     _statusFreshTimer?.cancel();
     _audioEvents?.cancel();
     _player?.dispose();
+    unawaited(_talkback.dispose());
     // เฟรมสุดท้ายยังค้างอยู่ในแคชรูปของ Flutter ถ้าไม่ไล่ออก
     _frameImage?.evict();
     super.dispose();
@@ -151,6 +192,8 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
     // เสียงปล่อยให้เล่นต่อได้ตอนย่อแอป — หัวหน้าอาจอยากฟังเสียงไปทำอย่างอื่นไป
+    // แต่ไมค์ห้ามทำงานต่อเบื้องหลังเด็ดขาด ต้องดับทุกสถานะที่ไม่ใช่ resumed
+    if (!_foreground) unawaited(_talkback.stop());
     _syncPolling();
     if (_foreground) _refreshStatusIfStale();
   }
@@ -861,8 +904,27 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
     );
   }
 
+  /// โซนเสียง — "ฟังเสียงจากกล้อง" กับ "กดค้างเพื่อพูด" เป็นคนละความสามารถกัน
+  ///
+  /// ฟังเสียง  = เซิร์ฟเวอร์ต้องมี ffmpeg คอยแปลงสตรีมจากกล้องมาให้
+  /// พูดออกกล้อง = มือถือยิงตรงไปกล้องผ่าน TiRTC ไม่ผ่าน ffmpeg เลยสักนิด
+  ///
+  /// ตอนแรกวางปุ่มพูดไว้ใต้เงื่อนไขเดียวกับปุ่มฟัง ผลคือเซิร์ฟเวอร์ที่ยังไม่ได้ลง
+  /// ffmpeg แต่ตั้ง TiRTC ครบแล้ว กลับไม่เห็นปุ่มพูดทั้งที่พูดได้
+  /// (เจอตอนทดสอบบนเครื่องจริง เทสต์เดิมไม่เจอเพราะตั้ง audio_supported=true ทุกข้อ)
   Widget _buildAudioRow() {
     final status = _status;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildListenSection(status),
+        const SizedBox(height: 8),
+        if (status != null) _buildTalkbackSection(status),
+      ],
+    );
+  }
+
+  Widget _buildListenSection(CameraStatus? status) {
     if (status == null || !status.audioSupported) {
       return _buildUnavailableNote(
         // ให้เซิร์ฟเวอร์เป็นคนบอกเหตุผล แอปไม่ต้องเดา — เงื่อนไขอยู่ฝั่งนั้นหมด
@@ -894,18 +956,6 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
               style: TextStyle(fontSize: 11, color: Colors.white38),
             ),
           ),
-        if (!status.talkbackSupported)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              // เซิร์ฟเวอร์ถามกล้องจริงมาแล้วว่าติดตรงไหน จึงบอกได้ตรงจุด
-              // (ข้อความสำรองไว้เผื่อเซิร์ฟเวอร์รุ่นเก่าที่ยังไม่ส่งฟิลด์นี้มา)
-              status.talkbackNote == null
-                  ? 'กล้องตัวนี้ยังไม่เปิดช่องส่งเสียงเข้า จึงกดพูดออกกล้องไม่ได้'
-                  : 'กดพูดออกกล้องไม่ได้ — ${status.talkbackNote}',
-              style: const TextStyle(fontSize: 11, color: Colors.white38),
-            ),
-          ),
         if (_audioError != null)
           Padding(
             padding: const EdgeInsets.only(top: 6),
@@ -916,6 +966,144 @@ class _CameraTabState extends State<CameraTab> with WidgetsBindingObserver {
           ),
       ],
     );
+  }
+
+  /// โซน "กดค้างเพื่อพูด" — โชว์ปุ่มเมื่อเซิร์ฟเวอร์พร้อมจริง ไม่งั้นบอกเหตุผล
+  Widget _buildTalkbackSection(CameraStatus status) {
+    if (!status.canTalkback) {
+      return Text(
+        // เซิร์ฟเวอร์รู้ว่าติดตรงไหน (ยังไม่เปิด TiRTC / ตั้งค่าไม่ครบ /
+        // กล้องไม่เปิดช่องรับเสียง) จึงให้มันเป็นคนบอก แอปไม่เดาเอง
+        status.talkbackNote == null
+            ? 'ยังพูดออกลำโพงกล้องไม่ได้ — เซิร์ฟเวอร์ยังไม่ได้เปิดระบบนี้'
+            : 'กดพูดออกกล้องไม่ได้ — ${status.talkbackNote}',
+        style: const TextStyle(fontSize: 11, color: Colors.white38),
+      );
+    }
+
+    final TalkbackPhase phase = _talkback.phase;
+    final String? error = _talkback.error;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildTalkButton(phase),
+        if (phase == TalkbackPhase.idle && error == null)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+              'เสียงจะออกที่ลำโพงกล้อง คนที่อยู่หน้ากล้องจะได้ยิน',
+              style: TextStyle(fontSize: 11, color: Colors.white38),
+            ),
+          ),
+        if (error != null) ...[
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              error,
+              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+            ),
+          ),
+          // ปฏิเสธสิทธิ์ถาวรแล้วขอซ้ำอีกกี่ครั้งก็ไม่มีกล่องเด้ง
+          // ทางเดียวที่เหลือคือไปเปิดเองในหน้าตั้งค่าของเครื่อง
+          if (_talkback.permissionBlocked)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: openAppSettings,
+                icon: const Icon(Icons.settings, size: 16),
+                label: const Text(
+                  'ไปตั้งค่าสิทธิ์ไมโครโฟน',
+                  style: TextStyle(fontSize: 12),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  /// ปุ่มกดค้าง — เขียนเองแทน [_consoleButton] เพราะต้องรู้จังหวะ "ปล่อยนิ้ว"
+  /// ซึ่ง InkWell ของปุ่มตัวนั้นไม่ได้ส่งออกมา (มีแค่ onLongPress ที่ยิงครั้งเดียว)
+  Widget _buildTalkButton(TalkbackPhase phase) {
+    final bool talking = phase == TalkbackPhase.talking;
+    final bool connecting = phase == TalkbackPhase.connecting;
+
+    final String label = switch (phase) {
+      TalkbackPhase.idle => 'กดค้างเพื่อพูด',
+      TalkbackPhase.connecting => 'กำลังเชื่อมต่อไมค์...',
+      TalkbackPhase.talking => 'กำลังพูด — ปล่อยเพื่อหยุด',
+    };
+    final Color fg = talking
+        ? Colors.redAccent
+        : connecting
+            ? Colors.lightBlueAccent
+            : Colors.white;
+
+    return GestureDetector(
+      // กดค้าง = พูด, ปล่อย/ยกเลิก = หยุด ทั้งสองทางต้องหยุดให้ครบ
+      // ไม่งั้นนิ้วหลุดออกนอกปุ่มแล้วไมค์จะค้างเปิด
+      onLongPressStart: (_) => _startTalking(),
+      onLongPressEnd: (_) => _stopTalking(),
+      onLongPressCancel: _stopTalking,
+      // แตะสั้น ๆ ไม่ควรเงียบหาย ผู้ใช้จะนึกว่าปุ่มเสีย
+      onTap: _hintHoldToTalk,
+      child: Material(
+        color: talking
+            ? Colors.redAccent.withValues(alpha: 0.18)
+            : connecting
+                ? Colors.lightBlueAccent.withValues(alpha: 0.15)
+                : Colors.white10,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(talking ? Icons.mic : Icons.mic_none, size: 20, color: fg),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: fg, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _hintHoldToTalk() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('กดปุ่มค้างไว้ระหว่างพูด แล้วปล่อยเมื่อพูดจบ'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _startTalking() async {
+    // กันเสียงหอน — ลำโพงมือถือที่กำลังเล่นเสียงจากกล้องอยู่จะถูกไมค์ดูดกลับ
+    // เข้าไปแล้ววนเป็นลูป ต้องปิดขาก่อนเสมอ (ไม่เปิดฟังคืนให้เองหลังพูดจบ
+    // เพราะผู้ใช้อาจไม่ได้ตั้งใจฟังต่อ ให้กดเองดีกว่า)
+    if (_listening || _audioConnecting) {
+      await _stopListening();
+      if (mounted) setState(() => _audioConnecting = false);
+    }
+    await _talkback.start();
+  }
+
+  Future<void> _stopTalking() async {
+    await _talkback.stop();
   }
 
   /// ข้อความ "ทำสิ่งนี้ไม่ได้" พร้อมทางออกให้ผู้ใช้กดลองใหม่

@@ -75,6 +75,7 @@ def geofence_info():
     first = offices[0]
     return GeofenceInfo(
         offices=offices,
+        work_schedule=settings.work_schedule_dict,
         # ฟิลด์เดิม = สถานที่แรก (ให้ client เก่ายังทำงานได้)
         office_name=first["name"],
         office_lat=first["lat"],

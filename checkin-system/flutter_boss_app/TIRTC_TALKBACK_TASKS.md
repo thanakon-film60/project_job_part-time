@@ -3,7 +3,27 @@
 **วันที่สรุป:** 2 ก.ย. 2026  
 **ผู้รับงาน:** ทีม Flutter (`flutter_boss_app`)  
 **สถานะ backend:** ทำเสร็จและทดสอบแล้ว  
-**ตัวบล็อกของจริง:** ต้องได้ TiRTC credential และสิทธิ์เชื่อมกล้องตัวปัจจุบันจาก Tange
+**สถานะ Flutter:** ทำเสร็จแล้ว 4 ก.ย. 2026 (แอปเวอร์ชัน 1.2.0+4)  
+**ตัวบล็อกที่เหลืออยู่:** ต้องได้ TiRTC credential และสิทธิ์เชื่อมกล้องตัวปัจจุบันจาก Tange
+แล้วใส่ใน `backend/.env` ของเครื่อง production — จนกว่าจะมี `/camera/status`
+จะตอบ `talkback_ready=false` แอปจึงซ่อนปุ่มและโชว์เหตุผลจากเซิร์ฟเวอร์แทน
+
+> ## สิ่งที่ทำไปแล้วฝั่ง Flutter (4 ก.ย. 2026)
+>
+> | ของ | ที่อยู่ |
+> | --- | --- |
+> | dependency | `tirtc_flutter: 2.3.1` ใน [`pubspec.yaml`](pubspec.yaml) |
+> | Maven ของ Tange | [`android/build.gradle.kts`](android/build.gradle.kts) — ล็อก `includeGroup("com.tange.ai")` ไว้ ไม่ให้ dependency ตัวอื่นวิ่งผ่าน http |
+> | สิทธิ์ไมค์ | `RECORD_AUDIO` ใน [`android/app/src/main/AndroidManifest.xml`](android/app/src/main/AndroidManifest.xml) |
+> | model | `CameraStatus.talkbackReady/Transport/TokenPath/StreamId` + `canTalkback` + `CameraTalkbackSession` ใน [`lib/models/camera.dart`](lib/models/camera.dart) |
+> | API | `ApiService.createCameraTalkbackSession()` ใน [`lib/services/api_service.dart`](lib/services/api_service.dart) |
+> | service | [`lib/services/camera_talkback_service.dart`](lib/services/camera_talkback_service.dart) — `TalkbackEngine` เป็น interface เพื่อ fake ในเทสต์ |
+> | UI | ปุ่มกดค้าง + สถานะ 3 แบบ ใน [`lib/screens/tabs/camera_tab.dart`](lib/screens/tabs/camera_tab.dart) |
+> | เทสต์ | 19 ข้อใน [`test/camera_talkback_test.dart`](test/camera_talkback_test.dart) + 9 ข้อใน [`test/camera_tab_test.dart`](test/camera_tab_test.dart) (รวมทั้งชุด 106 ข้อผ่าน) |
+>
+> **API จริงต่างจากที่ร่างไว้ในเอกสารนี้บางจุด** — ของจริงคือ
+> `TiRtcAudioInput` ต้อง `setOptions() → attach() → start()` แยกขั้น และทุกเมธอด
+> คืน `int` (0 = สำเร็จ) ไม่ได้ throw ดูโค้ดที่ใช้จริงใน `camera_talkback_service.dart`
 
 ## เป้าหมาย
 
@@ -236,14 +256,22 @@ flutter build apk --release
 
 ## เกณฑ์รับงานบนกล้องจริง
 
+พิสูจน์ด้วยเทสต์แล้ว (ยังไม่ได้ยิงกล้องจริง เพราะยังไม่มี credential):
+
+- [x] `talkback_ready=false` ซ่อนปุ่มและโชว์ `talkback_note`
+- [x] ready + transport `tirtc` แสดงปุ่ม
+- [x] ขอ permission ไมค์เฉพาะตอนเริ่มใช้ครั้งแรก (ปฏิเสธแล้วไม่แตะ token/SDK)
+- [x] ปล่อยก่อนต่อสำเร็จแล้วไมค์ไม่เริ่ม และสายที่เปิดไปแล้วถูกปิด
+- [x] ย่อแอป/สลับแท็บระหว่างพูดแล้วไมค์ดับทันที
+- [x] กดซ้ำหลายรอบไม่เหลือ connection ค้าง
+- [x] APK ไม่มี `SecretKeyId`/`AccessKeyId` (ตรวจด้วย `strings` บน APK ที่ build แล้ว)
+
+ต้องยืนยันบนกล้องจริงเมื่อได้ credential จาก Tange แล้ว:
+
 - [ ] บัญชีหัวหน้าเห็นปุ่มเมื่อ backend ตอบ `talkback_ready=true`
-- [ ] ขอ permission ไมค์เฉพาะตอนเริ่มใช้ครั้งแรก
 - [ ] กดค้างและพูดแล้วลำโพงกล้องได้ยินชัด
 - [ ] ปล่อยปุ่มแล้วเสียงหยุดและสัญลักษณ์ไมค์ของ Android ดับ
-- [ ] ปล่อยก่อนต่อสำเร็จแล้วไม่มีเสียงหลุดไปภายหลัง
-- [ ] ย่อแอป/สลับแท็บ/เน็ตหลุดแล้วไมค์หยุดเสมอ
-- [ ] กดซ้ำหลายรอบไม่เกิด connection หรือ audio input ค้าง
-- [ ] APK ไม่มี `SecretKeyId` และ log ไม่มี token
+- [ ] เน็ตหลุดกลางคันแล้วไมค์หยุดและขึ้นข้อความให้กดใหม่
 
 ## สิ่งที่ต้องได้จาก Tange ก่อนทดสอบจริง
 

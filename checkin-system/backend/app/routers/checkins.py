@@ -29,6 +29,7 @@ from ..models import CheckIn, Employee
 from ..notify_line import push_text
 from ..schemas import CheckInOut
 from ..security import get_current_employee
+from ..work_schedule import evaluate_attendance, schedule_text
 
 router = APIRouter(prefix="/checkins", tags=["checkins"])
 log = logging.getLogger("checkins")
@@ -81,12 +82,22 @@ def notify_checkin(
             )
             note = f"ประเภทสถานที่: {category_label}"
 
-        push_text(
-            f"{headline}\n"
-            f"{note}\n"
-            f"สถานที่ใกล้สุด: {display_office_name}\n"
-            f"ระยะห่างจาก{category_label}: {distance_text}"
-        )
+        lines = [
+            headline,
+            note,
+            f"สถานที่ใกล้สุด: {display_office_name}",
+            f"ระยะห่างจาก{category_label}: {distance_text}",
+        ]
+
+        # สาย / ตรงเวลา — ต่อท้ายเฉพาะเมื่อมีเกณฑ์ให้ตัดสิน (ไม่ใช่ที่บ้าน
+        # และไม่ได้ปิดฟีเจอร์ไว้) หัวหน้าจะได้เห็นในบรรทัดเดียวกับการลงเวลา
+        verdict = evaluate_attendance(kind, local_time, office_info)
+        if verdict.applies:
+            flag = "⚠️ " if (verdict.is_late or verdict.is_early_leave) else "✅ "
+            lines.append(f"{flag}สถานะ: {verdict.label}")
+            lines.append(schedule_text())
+
+        push_text("\n".join(lines))
     except Exception as e:
         log.warning("แจ้งเตือน LINE ไม่สำเร็จ: %s", e)
 

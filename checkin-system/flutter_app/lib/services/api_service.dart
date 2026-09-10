@@ -13,6 +13,7 @@ import '../models/employee.dart';
 import '../models/json.dart';
 import '../models/live_location.dart';
 import '../models/team_calendar.dart';
+import 'work_schedule.dart';
 
 class CheckInResult {
   final bool success;
@@ -380,6 +381,14 @@ class ApiService {
     }
 
     final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+
+    // เกณฑ์เวลาทำงานมาพร้อมกับรายการสถานที่ (backend รุ่นเก่าไม่มีฟิลด์นี้ —
+    // ปล่อยให้แอปใช้ค่าใน Config.workSchedule ต่อไป)
+    final rawSchedule = data['work_schedule'];
+    if (rawSchedule is Map<String, dynamic>) {
+      WorkScheduleService.update(WorkSchedule.fromJson(rawSchedule));
+    }
+
     final rawOffices = data['offices'];
     if (rawOffices is List && rawOffices.isNotEmpty) {
       return rawOffices

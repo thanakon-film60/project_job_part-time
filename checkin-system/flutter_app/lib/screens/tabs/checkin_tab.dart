@@ -8,6 +8,7 @@ import '../../services/api_service.dart';
 import '../../services/attendance_service.dart';
 import '../../services/location_service.dart';
 import '../../services/tracking_controller.dart';
+import '../../services/work_schedule.dart';
 import '../../widgets/duty_warning_card.dart';
 import '../../widgets/today_attendance_card.dart';
 import '../../widgets/tracking_status_card.dart';
@@ -215,13 +216,42 @@ class _CheckInTabState extends State<CheckInTab> {
     );
     if (!mounted) return;
     if (result == true) {
-      messenger.showSnackBar(
-        SnackBar(
-            content: Text(kind == 'in' ? 'เข้างานสำเร็จ' : 'ออกงานสำเร็จ')),
-      );
       // ลงเวลาเสร็จแล้ว รายการของวันนี้ต้องขึ้นทันที ไม่ต้องรอรอบรีเฟรช
       await _loadToday();
+      if (!mounted) return;
+
+      // แจ้ง "สาย / ตรงเวลา" ทันทีที่ลงเวลาเสร็จ
+      //
+      // ยึดเวลาที่ backend บันทึกจริง (รายการที่เพิ่งโหลดมา) ไม่ใช่นาฬิกาในเครื่อง
+      // เพื่อให้ข้อความตรงกับที่ส่งเข้ากลุ่ม LINE — เครื่องที่ตั้งเวลาผิดจะได้ไม่
+      // เห็นคนละอย่างกับหัวหน้า ถ้ายังโหลดไม่ทันค่อยถอยไปใช้เวลาไทยตอนนี้
+      final saved = _latestRecordOfKind(kind);
+      final verdict = saved != null
+          ? WorkScheduleService.evaluateRecord(saved)
+          : WorkScheduleService.evaluate(
+              kind: kind,
+              thaiTime: Config.thaiNow(),
+            );
+
+      final base = kind == 'in' ? 'เข้างานสำเร็จ' : 'ออกงานสำเร็จ';
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(verdict.applies ? '$base — ${verdict.label}' : base),
+          backgroundColor: verdict.needsAttention ? Colors.deepOrange : null,
+          // สายแล้วต้องอ่านทัน ให้ค้างนานกว่าปกติ
+          duration: Duration(seconds: verdict.needsAttention ? 6 : 3),
+        ),
+      );
     }
+  }
+
+  /// รายการลงเวลาล่าสุดของวันนี้ที่เป็นชนิดเดียวกับที่เพิ่งกด (ข้ามรายการที่บ้าน)
+  CheckInRecord? _latestRecordOfKind(String kind) {
+    final records = _today?.workRecords ?? const <CheckInRecord>[];
+    for (final record in records.reversed) {
+      if (record.kind == kind) return record;
+    }
+    return null;
   }
 
   @override

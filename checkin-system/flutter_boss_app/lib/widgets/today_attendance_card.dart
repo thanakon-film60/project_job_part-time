@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/attendance_service.dart';
+import '../services/work_schedule.dart';
 
 /// การ์ด "การลงเวลาวันนี้" — รายการเข้างาน/ออกงานของวันนี้แบบ List
 /// พร้อมสรุปว่าเข้างานกี่โมง และรวมเวลาทำงานไปแล้วเท่าไร
@@ -105,6 +106,7 @@ class _Summary extends StatelessWidget {
     final working = attendance.isWorking;
     // อยู่บ้าน = ไม่ได้ไปทำงาน จึงไม่มีเวลาทำงานและไม่ต้องรอออกงาน
     final homeOnly = attendance.isHomeOnly;
+    final verdict = WorkScheduleService.evaluateDay(attendance);
     final accent =
         homeOnly ? Colors.indigo : (working ? Colors.green : Colors.blueGrey);
 
@@ -145,6 +147,11 @@ class _Summary extends StatelessWidget {
               ),
             ],
           ),
+          // สาย / ตรงเวลา ของวันนี้ — ยึดการเข้างานครั้งแรกเป็นตัวตัดสิน
+          if (verdict.applies) ...[
+            const SizedBox(height: 8),
+            _VerdictBadge(verdict: verdict),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -171,6 +178,61 @@ class _Summary extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ป้าย "สาย / ตรงเวลา" พร้อมบอกเวลาทำงานมาตรฐานกำกับไว้
+///
+/// สายหรือออกก่อนใช้สีส้มเข้ม ไม่ใช่สีแดง — เป็นข้อมูลให้พนักงานรู้ตัว
+/// ไม่ใช่ error ที่ต้องแก้ (ตัวเลขจริงที่ HR ใช้อยู่ที่ฝั่ง backend/LINE)
+class _VerdictBadge extends StatelessWidget {
+  final AttendanceVerdict verdict;
+
+  const _VerdictBadge({required this.verdict});
+
+  @override
+  Widget build(BuildContext context) {
+    final attention = verdict.needsAttention;
+    final color = attention ? Colors.deepOrange : Colors.green.shade700;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            attention ? Icons.warning_amber_rounded : Icons.check_circle,
+            size: 18,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  verdict.label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  'เวลาทำงาน ${WorkScheduleService.schedule.rangeText}',
+                  style: const TextStyle(fontSize: 11, color: Colors.black54),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -215,6 +277,7 @@ class _RecordTile extends StatelessWidget {
     final distance = record.distanceKm < 1
         ? '${(record.distanceKm * 1000).toStringAsFixed(0)} ม.'
         : '${record.distanceKm.toStringAsFixed(2)} กม.';
+    final verdict = WorkScheduleService.evaluateRecord(record);
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
@@ -229,15 +292,35 @@ class _RecordTile extends StatelessWidget {
           size: 18,
         ),
       ),
-      title: Text(
-        '${atHome ? 'อยู่บ้านแล้ว' : (isIn ? 'เข้างาน' : 'ออกงาน')} '
-        '${thaiClock(record.timestamp)} น.',
-        style: TextStyle(fontWeight: FontWeight.bold, color: color),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              '${atHome ? 'อยู่บ้านแล้ว' : (isIn ? 'เข้างาน' : 'ออกงาน')} '
+              '${thaiClock(record.timestamp)} น.',
+              style: TextStyle(fontWeight: FontWeight.bold, color: color),
+            ),
+          ),
+          if (verdict.needsAttention) ...[
+            const SizedBox(width: 6),
+            Icon(
+              Icons.warning_amber_rounded,
+              size: 15,
+              color: Colors.deepOrange.shade700,
+            ),
+          ],
+        ],
       ),
       subtitle: Text(
         '${place.isEmpty ? 'ไม่ระบุสถานที่' : place} · ห่าง $distance'
-        '${record.withinGeofence ? '' : ' (นอกเขต)'}',
-        style: const TextStyle(fontSize: 12, color: Colors.black54),
+        '${record.withinGeofence ? '' : ' (นอกเขต)'}'
+        '${verdict.applies ? ' · ${verdict.label}' : ''}',
+        style: TextStyle(
+          fontSize: 12,
+          color: verdict.needsAttention
+              ? Colors.deepOrange.shade700
+              : Colors.black54,
+        ),
       ),
     );
   }

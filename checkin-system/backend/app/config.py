@@ -1,7 +1,27 @@
 import json
+from datetime import time
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# ใช้เมื่อ WORK_START_TIME / WORK_END_TIME ใน .env พิมพ์ผิดรูปแบบ
+DEFAULT_WORK_START = time(8, 30)
+DEFAULT_WORK_END = time(17, 30)
+
+
+def _parse_hhmm(raw: str, fallback: time) -> time:
+    """แปลง "HH:MM" เป็น time — ค่าผิดรูปแบบคืน fallback แทนที่จะทำให้ระบบล่ม
+
+    เกณฑ์เวลาทำงานผิดไม่ควรทำให้เช็คอินทั้งระบบใช้ไม่ได้ (เหมือน offices_list
+    ที่ข้าม JSON พังแล้วถอยไปใช้ค่าเริ่มต้น)
+    """
+    parts = (raw or "").strip().split(":")
+    if len(parts) != 2:
+        return fallback
+    try:
+        return time(int(parts[0]), int(parts[1]))
+    except (TypeError, ValueError):
+        return fallback
 
 
 class Settings(BaseSettings):
@@ -10,18 +30,31 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://checkin:checkin@localhost:5432/checkin"
 
     # --- ออฟฟิศหลัก (ของเดิม ใช้เป็นค่า fallback ถ้าไม่ได้ตั้ง OFFICES) ---
-    office_lat: float = 13.9231953
-    office_lng: float = 100.5195808
-    office_name: str = "THANAKON-BOX"
-    geofence_radius_km: float = 2.0
+    office_lat: float = 13.9040518
+    office_lng: float = 100.5391995
+    office_name: str = "Motta & Montipa (Head office)"
+    geofence_radius_km: float = 0.5
 
     # --- รองรับหลายสถานที่ ---
     # ตั้งใน .env เป็น JSON บรรทัดเดียว เช่น
-    #   OFFICES=[{"name":"THANAKON-BOX","lat":13.9231953,"lng":100.5195808,"radius_km":2.0,"category":"work"},
-    #            {"name":"BJH Bangkok","lat":13.8918358,"lng":100.563443,"radius_km":1.0,"category":"hospital"},
-    #            {"name":"ถึงบ้านแล้ว","lat":13.8865664,"lng":100.5066278,"radius_km":0.2,"category":"home"}]
+    #   OFFICES=[{"name":"Motta & Montipa (Head office)","lat":13.9040518,"lng":100.5391995,"radius_km":0.5,"category":"work"}]
     # ถ้าเว้นว่างไว้ ระบบจะใช้ office_* ด้านบนเป็นสถานที่เดียว (เข้ากันได้กับของเดิม)
     offices: str = ""
+
+    # --- เวลาทำงานมาตรฐาน (ใช้ตัดสิน สาย / ออกก่อน) ---
+    # รูปแบบ "HH:MM" ตามเวลาไทย — พิมพ์ผิดจะถอยไปใช้ค่าเริ่มต้นด้านล่าง
+    # ไม่ได้เก็บลง DB: เป็นเกณฑ์ตอนคำนวณ เปลี่ยนแล้วมีผลกับข้อความแจ้งเตือนทันที
+    work_start_time: str = "08:30"
+    work_end_time: str = "17:30"
+
+    # ผ่อนผันกี่นาทีถึงจะเริ่มนับว่าสาย (0 = เข้าหลัง 08:30 น. ถือว่าสายทันที)
+    late_grace_minutes: int = Field(default=0, ge=0, le=180)
+
+    # ออกก่อนเวลาเกินกี่นาทีถึงจะเตือน (0 = ออกก่อน 17:30 น. เตือนทันที)
+    early_leave_grace_minutes: int = Field(default=0, ge=0, le=180)
+
+    # ปิดการตัดสินสาย/ออกก่อนทั้งระบบ (ข้อความแจ้งเตือนจะกลับไปเป็นแบบเดิม)
+    attendance_rules_enabled: bool = True
 
     secret_key: str = "change-this-to-a-long-random-string"
     access_token_expire_minutes: int = 720
@@ -184,6 +217,32 @@ class Settings(BaseSettings):
                 "category": "work",
             }
         ]
+
+    @property
+    def work_start(self) -> time:
+        """เวลาเข้างานมาตรฐาน (เวลาไทย)"""
+        return _parse_hhmm(self.work_start_time, DEFAULT_WORK_START)
+
+    @property
+    def work_end(self) -> time:
+        """เวลาออกงานมาตรฐาน (เวลาไทย)"""
+        return _parse_hhmm(self.work_end_time, DEFAULT_WORK_END)
+
+    @property
+    def work_schedule_dict(self) -> dict:
+        """เกณฑ์เวลาทำงานในรูปแบบที่ส่งให้แอป/เว็บได้ตรงๆ
+
+        แอปใช้ค่าชุดนี้คำนวณป้าย "สาย/ตรงเวลา" เองบนหน้าจอ ให้ได้ผลตรงกับ
+        ข้อความที่ backend ส่งเข้า LINE โดยไม่ต้องฝังเวลาไว้ใน APK
+        """
+        start, end = self.work_start, self.work_end
+        return {
+            "work_start": start.strftime("%H:%M"),
+            "work_end": end.strftime("%H:%M"),
+            "late_grace_minutes": self.late_grace_minutes,
+            "early_leave_grace_minutes": self.early_leave_grace_minutes,
+            "enabled": self.attendance_rules_enabled,
+        }
 
 
 settings = Settings()

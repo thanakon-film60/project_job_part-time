@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -153,6 +154,18 @@ class LocationService {
     if (latest.isNotEmpty) {
       _offices = latest;
     }
+  }
+
+  /// ตั้งรายการสถานที่เองสำหรับเทสต์
+  ///
+  /// เทสต์ที่ตรวจตรรกะ "บ้าน/ที่ทำงาน" ต้องมีชุดสถานที่ของตัวเอง ไม่งั้นทุกครั้ง
+  /// ที่บริษัทย้ายที่ (แก้ Config.offices) เทสต์จะพังทั้งที่ตรรกะยังถูก
+  /// ส่ง null เพื่อคืนกลับไปใช้ค่าใน Config
+  @visibleForTesting
+  static void setOfficesForTest(List<Office>? offices) {
+    _offices = offices == null || offices.isEmpty
+        ? Config.offices
+        : List.unmodifiable(offices);
   }
 
   /// ระยะทางจากออฟฟิศ (กม.) ด้วยสูตร Haversine

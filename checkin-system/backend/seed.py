@@ -34,7 +34,7 @@ emp = get_or_create("EMP001", "Thanakon", "thanakon.film60@gmail.com", "password
 boss = get_or_create("BOSS001", "หัวหน้า", "boss@thanakon-box.co.th", "boss12345", True)
 
 # เช็คอินตัวอย่างในเขตออฟฟิศ 5 วันย้อนหลัง
-office = (13.9231953, 100.5195808)
+office = (13.9040518, 100.5391995)   # Motta & Montipa (Head office)
 if db.query(CheckIn).filter(CheckIn.employee_id == emp.id).count() == 0:
     for d in range(5):
         day = datetime.utcnow() - timedelta(days=d)

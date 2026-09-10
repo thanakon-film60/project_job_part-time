@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:thanakon_box_boss/models/camera.dart';
 import 'package:thanakon_box_boss/screens/tabs/camera_tab.dart';
 import 'package:thanakon_box_boss/services/api_service.dart';
+import 'package:thanakon_box_boss/services/camera_talkback_service.dart';
+
+import 'support/talkback_fakes.dart';
 
 /// JPEG 1x1 จริง — ต้องเป็น JPEG จริงเพราะ ApiService ตรวจลายเซ็น 0xFFD8
 /// และ Flutter ต้อง decode ได้จริงตอนวาดลงจอ
@@ -36,6 +40,14 @@ class _FakeCameraServer {
   /// เคสที่แอดมินเพิ่งติดตั้ง ffmpeg ที่เซิร์ฟเวอร์ตอนแอปเปิดค้างอยู่
   bool audioSupported = false;
 
+  /// เซิร์ฟเวอร์ตั้งค่า TiRTC ครบแล้วหรือยัง — สลับกลางเทสต์ได้
+  bool talkbackReady = false;
+
+  /// ปฏิเสธคำขอ token (จำลองเคสบัญชีที่ไม่ใช่หัวหน้า = HTTP 403)
+  bool talkbackForbidden = false;
+
+  int talkbackTokenCalls = 0;
+
   Future<_FakeResponse> handle(String method, Uri uri, String? body) async {
     final path = uri.path;
 
@@ -53,8 +65,14 @@ class _FakeCameraServer {
         'audio_note': audioSupported
             ? null
             : 'เซิร์ฟเวอร์ยังไม่ได้ติดตั้ง ffmpeg จึงแปลงเสียงจากกล้องไม่ได้',
-        'talkback_supported': false,
-        'talkback_note': 'กล้องไม่มีช่องเสียงขาเข้าใน SDP (ไม่พบ a=sendonly)',
+        'talkback_supported': talkbackReady,
+        'talkback_note': talkbackReady
+            ? null
+            : 'กล้องไม่มีช่องเสียงขาเข้าใน SDP (ไม่พบ a=sendonly)',
+        'talkback_ready': talkbackReady,
+        'talkback_transport': talkbackReady ? 'tirtc' : null,
+        'talkback_token_path': talkbackReady ? '/camera/talkback/token' : null,
+        'talkback_stream_id': talkbackReady ? 14 : null,
       });
     }
 
@@ -64,6 +82,25 @@ class _FakeCameraServer {
         return _FakeResponse.json(502, {'detail': 'ดึงภาพจากกล้องไม่สำเร็จ'});
       }
       return _FakeResponse.jpeg(jpegPixel, snapshotAgeMs);
+    }
+
+    if (path == '/camera/talkback/token') {
+      talkbackTokenCalls++;
+      if (talkbackForbidden) {
+        return _FakeResponse.json(403, {'detail': 'ต้องเป็นหัวหน้าเท่านั้น'});
+      }
+      return _FakeResponse.json(200, {
+        'provider': 'tirtc',
+        'app_id': 'app-123',
+        'remote_id': 'device-abc',
+        'token': 'v1.payload.signature',
+        'issued_at': 1788355200,
+        'expires_at': 1788355320,
+        'stream_id': 14,
+        'audio_codec': 'g711a',
+        'sample_rate_hz': 16000,
+        'channels': 1,
+      });
     }
 
     if (path == '/camera/ptz') {
@@ -271,14 +308,38 @@ class _FakeResponseStream extends Stream<List<int>>
 
 /// วางแท็บกล้องไว้ใน TickerMode เพื่อจำลอง "แท็บนี้ถูกเปิดดูอยู่หรือถูกซ่อน"
 /// เหมือนที่ app_shell ทำกับ IndexedStack
-Widget host({required bool visible}) => MaterialApp(
+Widget host({
+  required bool visible,
+  TalkbackEngine? engine,
+  bool micGranted = true,
+}) =>
+    MaterialApp(
       home: Scaffold(
         body: TickerMode(
           enabled: visible,
-          child: const CameraTab(),
+          child: CameraTab(
+            talkbackEngine: engine,
+            // ปุ่มพูดใช้ permission_handler ซึ่งคุยผ่าน platform channel
+            // ที่ไม่มีในเครื่องเทสต์ จึงต้องป้อนคำตอบเข้าไปเอง
+            micPermissionRequester: engine == null ? null : () async => micGranted,
+          ),
         ),
       ),
     );
+
+/// กดปุ่มค้างไว้จนกว่าเทสต์จะสั่งปล่อย
+///
+/// tester.longPress() กดแล้วปล่อยให้ในจังหวะเดียว ใช้กับปุ่มกดค้างไม่ได้ —
+/// ต้องคุมนิ้วเองถึงจะทดสอบช่วง "ระหว่างกดค้าง" ได้
+Future<TestGesture> holdTalkButton(WidgetTester tester) async {
+  final button = find.text('กดค้างเพื่อพูด');
+  await tester.ensureVisible(button);
+  await tester.pump();
+  final gesture = await tester.startGesture(tester.getCenter(button));
+  await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+  await settle(tester);
+  return gesture;
+}
 
 /// ปล่อยให้คำขอที่ค้างอยู่เดินจนจบ
 ///
@@ -538,6 +599,190 @@ void main() {
       findsOneWidget,
       reason: 'ต้องบอกสาเหตุจริงจากกล้อง ไม่ใช่ข้อความคาดเดา',
     );
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  // -------------------------------------------------------------------
+  // กดค้างเพื่อพูดออกลำโพงกล้อง
+  // -------------------------------------------------------------------
+
+  testWidgets('เซิร์ฟเวอร์ยังไม่พร้อม ต้องไม่มีปุ่มพูด และบอกเหตุผลแทน',
+      (tester) async {
+    server.audioSupported = true;
+    await tester.pumpWidget(host(visible: true, engine: FakeEngine()));
+    await settle(tester);
+
+    expect(find.text('กดค้างเพื่อพูด'), findsNothing);
+    expect(find.textContaining('ไม่พบ a=sendonly'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('เซิร์ฟเวอร์พร้อมแล้ว ปุ่มกดพูดต้องโผล่', (tester) async {
+    server.audioSupported = true;
+    server.talkbackReady = true;
+    await tester.pumpWidget(host(visible: true, engine: FakeEngine()));
+    await settle(tester);
+
+    expect(find.text('กดค้างเพื่อพูด'), findsOneWidget);
+    expect(server.talkbackTokenCalls, 0,
+        reason: 'ยังไม่ได้กด ห้ามขอ token ล่วงหน้า');
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('เซิร์ฟเวอร์ไม่มี ffmpeg แต่ตั้ง TiRTC ครบ ปุ่มพูดต้องยังโผล่',
+      (tester) async {
+    // ฟังเสียงต้องพึ่ง ffmpeg ที่เซิร์ฟเวอร์ ส่วนพูดยิงตรงจากมือถือผ่าน TiRTC
+    // เป็นคนละเส้นทางกัน ขาดอย่างหนึ่งห้ามทำให้อีกอย่างหายไปด้วย
+    server.audioSupported = false;
+    server.talkbackReady = true;
+    await tester.pumpWidget(host(visible: true, engine: FakeEngine()));
+    await settle(tester);
+
+    expect(find.text('ฟังเสียงจากกล้อง'), findsNothing);
+    expect(find.text('กดค้างเพื่อพูด'), findsOneWidget,
+        reason: 'ไม่มี ffmpeg ก็ยังพูดออกลำโพงกล้องได้');
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('กดค้างแล้วขอ token และเริ่มพูด ปล่อยแล้วหยุด', (tester) async {
+    server.audioSupported = true;
+    server.talkbackReady = true;
+    final engine = FakeEngine();
+    await tester.pumpWidget(host(visible: true, engine: engine));
+    await settle(tester);
+
+    final gesture = await holdTalkButton(tester);
+
+    expect(server.talkbackTokenCalls, 1);
+    expect(engine.lastLink.startCalls, 1);
+    expect(find.text('กำลังพูด — ปล่อยเพื่อหยุด'), findsOneWidget);
+
+    await gesture.up();
+    await settle(tester);
+
+    expect(engine.lastLink.closeCalls, 1);
+    expect(find.text('กดค้างเพื่อพูด'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('ปฏิเสธสิทธิ์ไมค์ ต้องไม่ขอ token และบอกทางแก้', (tester) async {
+    server.audioSupported = true;
+    server.talkbackReady = true;
+    final engine = FakeEngine();
+    await tester.pumpWidget(
+      host(visible: true, engine: engine, micGranted: false),
+    );
+    await settle(tester);
+
+    final gesture = await holdTalkButton(tester);
+    await gesture.up();
+    await settle(tester);
+
+    expect(server.talkbackTokenCalls, 0);
+    expect(engine.openCalls, 0);
+    expect(find.textContaining('ต้องอนุญาตให้ใช้ไมโครโฟน'), findsOneWidget);
+    expect(find.text('ไปตั้งค่าสิทธิ์ไมโครโฟน'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('บัญชีที่ไม่ใช่หัวหน้าโดน 403 ต้องโชว์ข้อความจากเซิร์ฟเวอร์',
+      (tester) async {
+    server.audioSupported = true;
+    server.talkbackReady = true;
+    server.talkbackForbidden = true;
+    final engine = FakeEngine();
+    await tester.pumpWidget(host(visible: true, engine: engine));
+    await settle(tester);
+
+    final gesture = await holdTalkButton(tester);
+    await gesture.up();
+    await settle(tester);
+
+    expect(engine.openCalls, 0, reason: 'ขอ token ไม่ผ่าน ห้ามเปิดสาย SDK');
+    expect(find.textContaining('ต้องเป็นหัวหน้าเท่านั้น'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('ย่อแอประหว่างพูด ไมค์ต้องดับทันที', (tester) async {
+    server.audioSupported = true;
+    server.talkbackReady = true;
+    final engine = FakeEngine();
+    await tester.pumpWidget(host(visible: true, engine: engine));
+    await settle(tester);
+
+    final gesture = await holdTalkButton(tester);
+    expect(engine.lastLink.startCalls, 1);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await settle(tester);
+
+    expect(engine.lastLink.closeCalls, 1,
+        reason: 'ไมค์ห้ามทำงานต่อเบื้องหลัง แม้ผู้ใช้จะยังไม่ปล่อยนิ้ว');
+
+    await gesture.up();
+    await settle(tester);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('สลับออกจากแท็บกล้องระหว่างพูด ไมค์ต้องดับ', (tester) async {
+    server.audioSupported = true;
+    server.talkbackReady = true;
+    final engine = FakeEngine();
+    await tester.pumpWidget(host(visible: true, engine: engine));
+    await settle(tester);
+
+    final gesture = await holdTalkButton(tester);
+    expect(engine.lastLink.startCalls, 1);
+
+    await tester.pumpWidget(host(visible: false, engine: engine));
+    await settle(tester);
+
+    expect(engine.lastLink.closeCalls, 1);
+
+    await gesture.up();
+    await settle(tester);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('ต่อสายไม่ติด ต้องกลับมากดใหม่ได้', (tester) async {
+    server.audioSupported = true;
+    server.talkbackReady = true;
+    final engine = FakeEngine()..failOpen = true;
+    await tester.pumpWidget(host(visible: true, engine: engine));
+    await settle(tester);
+
+    final gesture = await holdTalkButton(tester);
+    await gesture.up();
+    await settle(tester);
+
+    expect(find.textContaining('ต่อไปยังกล้องไม่สำเร็จ'), findsOneWidget);
+    expect(find.text('กดค้างเพื่อพูด'), findsOneWidget,
+        reason: 'ต้องกลับสู่สถานะพร้อมกดใหม่ ไม่ค้างที่ "กำลังเชื่อมต่อ"');
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('แตะสั้น ๆ ต้องบอกให้กดค้าง ไม่ใช่เงียบหาย', (tester) async {
+    server.audioSupported = true;
+    server.talkbackReady = true;
+    final engine = FakeEngine();
+    await tester.pumpWidget(host(visible: true, engine: engine));
+    await settle(tester);
+
+    await tester.ensureVisible(find.text('กดค้างเพื่อพูด'));
+    await tester.pump();
+    await tester.tap(find.text('กดค้างเพื่อพูด'));
+    await settle(tester);
+
+    expect(engine.openCalls, 0, reason: 'แตะเฉย ๆ ห้ามเปิดไมค์');
+    expect(find.textContaining('กดปุ่มค้างไว้ระหว่างพูด'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
   });

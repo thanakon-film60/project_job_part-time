@@ -41,28 +41,25 @@ class Config {
   // ---------------------------------------------------------------
   static const List<Office> offices = [
     Office(
-      name: "MARDODI",
-      lat: 13.9231953,
-      lng: 100.5195808,
-      radiusKm: 2.0,
+      name: "Motta & Montipa (Head office)",
+      lat: 13.9040518,
+      lng: 100.5391995,
+      radiusKm: 0.5,
       category: "work",
     ),
-    Office(
-      name: "BJH Bangkok",
-      lat: 13.8918358,
-      lng: 100.563443,
-      radiusKm: 1.0,
-      category: "hospital",
-    ),
-    Office(
-      name: "ถึงบ้านแล้ว",
-      lat: 13.8865664,
-      lng: 100.5066278,
-      radiusKm: 0.2,
-      allowCheckout: false,
-      category: "home",
-    ),
   ];
+
+  // ---------------------------------------------------------------
+  // เวลาทำงานมาตรฐาน — fallback ถ้าโหลด /reports/geofence ไม่ได้
+  //
+  // ตัวตัดสินจริงคือ backend (WORK_START_TIME / WORK_END_TIME ใน .env)
+  // ค่าตรงนี้ใช้แค่ตอนเปิดแอปครั้งแรกหรือเน็ตหลุด เพื่อให้หน้าจอยังบอก
+  // "สาย/ตรงเวลา" ได้ ไม่ใช่ค้างเป็นขีดกลาง
+  // ---------------------------------------------------------------
+  static const WorkSchedule workSchedule = WorkSchedule(
+    startMinutes: 8 * 60 + 30,    // 08:30 น.
+    endMinutes: 17 * 60 + 30,     // 17:30 น.
+  );
 
   // ของเดิม เก็บไว้ให้โค้ดส่วนที่ยังอ้างถึงอยู่ไม่พัง = สถานที่แรกในรายการ
   static double get officeLat => offices.first.lat;
@@ -165,6 +162,72 @@ class Office {
           ? json['allow_checkout'] as bool
           : true,
       category: json['category']?.toString(),
+    );
+  }
+}
+
+/// เกณฑ์เวลาทำงานที่ใช้ตัดสิน "สาย / ออกก่อนเวลา"
+///
+/// เก็บเป็น "นาทีนับจากเที่ยงคืน" ไม่ใช่ DateTime เพราะเป็นเวลาในวัน ไม่ผูกกับ
+/// วันที่ใดวันหนึ่ง — เทียบตรงๆ กับเวลาไทยของรายการลงเวลาได้เลย
+class WorkSchedule {
+  /// เวลาเข้างาน (นาทีนับจากเที่ยงคืน) เช่น 08:30 = 510
+  final int startMinutes;
+
+  /// เวลาออกงาน (นาทีนับจากเที่ยงคืน) เช่น 17:30 = 1050
+  final int endMinutes;
+
+  /// ผ่อนผันกี่นาทีถึงเริ่มนับว่าสาย
+  final int lateGraceMinutes;
+
+  /// ออกก่อนเวลาเกินกี่นาทีถึงจะเตือน
+  final int earlyLeaveGraceMinutes;
+
+  /// false = บริษัทปิดการตัดสินสาย/ออกก่อนไว้ (หน้าจอจะไม่โชว์ป้าย)
+  final bool enabled;
+
+  const WorkSchedule({
+    required this.startMinutes,
+    required this.endMinutes,
+    this.lateGraceMinutes = 0,
+    this.earlyLeaveGraceMinutes = 0,
+    this.enabled = true,
+  });
+
+  String get startText => _clock(startMinutes);
+  String get endText => _clock(endMinutes);
+
+  /// "08:30 - 17:30 น."
+  String get rangeText => '$startText - $endText น.';
+
+  static String _clock(int minutes) {
+    final h = (minutes ~/ 60).toString().padLeft(2, '0');
+    final m = (minutes % 60).toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
+  /// แปลง "HH:MM" จาก backend เป็นนาที — ค่าผิดรูปแบบคืน [fallback]
+  /// (ตรรกะเดียวกับ _parse_hhmm ใน backend/app/config.py)
+  static int parseHhmm(Object? raw, int fallback) {
+    final parts = (raw?.toString() ?? '').trim().split(':');
+    if (parts.length != 2) return fallback;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return fallback;
+    if (h < 0 || h > 23 || m < 0 || m > 59) return fallback;
+    return h * 60 + m;
+  }
+
+  factory WorkSchedule.fromJson(Map<String, dynamic> json) {
+    const fallback = Config.workSchedule;
+    return WorkSchedule(
+      startMinutes: parseHhmm(json['work_start'], fallback.startMinutes),
+      endMinutes: parseHhmm(json['work_end'], fallback.endMinutes),
+      lateGraceMinutes:
+          (json['late_grace_minutes'] as num?)?.toInt() ?? 0,
+      earlyLeaveGraceMinutes:
+          (json['early_leave_grace_minutes'] as num?)?.toInt() ?? 0,
+      enabled: json['enabled'] is bool ? json['enabled'] as bool : true,
     );
   }
 }
