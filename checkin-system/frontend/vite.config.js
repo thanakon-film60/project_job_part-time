@@ -63,6 +63,7 @@ export default defineConfig({
           /^\/addresses/,
           /^\/auth/,
           /^\/checkins/,
+          /^\/chat/,
           /^\/employment-options/,
           /^\/employee-management/,
           /^\/faces/,

@@ -9,6 +9,7 @@ from .routers import (
     auth,
     camera,
     checkins,
+    chat,
     employee_management,
     employment_options,
     faces,
@@ -40,6 +41,7 @@ app.include_router(employee_management.router)
 app.include_router(auth.router)
 app.include_router(camera.router)
 app.include_router(checkins.router)
+app.include_router(chat.router)
 app.include_router(faces.router)
 app.include_router(line.router)
 app.include_router(locations.router)

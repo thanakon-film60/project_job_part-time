@@ -1,4 +1,5 @@
 import React from "react";
+import ChatWidget from "./components/ChatWidget.jsx";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { getEmployee, getToken } from "./api";
 import LoginPage from "./pages/LoginPage.jsx";
@@ -21,6 +22,7 @@ function RequireBoss({ children }) {
 
 export default function App() {
   return (
+    <>
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route
@@ -84,5 +86,7 @@ export default function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <ChatWidget />
+    </>
   );
 }

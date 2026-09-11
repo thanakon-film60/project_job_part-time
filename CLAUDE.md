@@ -43,3 +43,24 @@ This project is indexed by GitNexus as **project_job_part-time** (4823 symbols, 
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+---
+
+# Project Rules (user-defined — keep outside the gitnexus block)
+
+## Documentation Policy
+
+- **MUST อัปเดตไฟล์ `CLAUDE.md` นี้ทุกครั้งที่มีการทำอะไรกับโปรเจ็ค** — แก้โค้ด เพิ่มฟีเจอร์ แก้บั๊ก เปลี่ยน config ย้าย/ลบไฟล์ ทุกกรณี
+  (MUST update this file every time any work is done on this project.)
+- บันทึกลงหัวข้อ **Work Log** ด้านล่าง: วันที่ (YYYY-MM-DD), สิ่งที่เปลี่ยน, ไฟล์/ส่วนที่กระทบ, และเหตุผลถ้าไม่ชัดเจนจากโค้ด
+- ถือเป็นส่วนหนึ่งของการปิดงาน — ทำเองโดยไม่ต้องรอให้ผู้ใช้สั่ง และไม่ต้องถามก่อนอัปเดต
+- ถ้ามีการเปลี่ยนโครงสร้าง/สถาปัตยกรรม ให้สรุปไว้ที่นี่ด้วย ไม่ใช่แค่บรรทัด log
+- **แก้ได้เฉพาะใต้เครื่องหมาย `<!-- gitnexus:end -->` เท่านั้น** ทุกอย่างเหนือเส้นนั้น GitNexus generate ใหม่ทุกครั้งที่ re-index แล้วสิ่งที่เขียนไว้จะหาย
+
+## Work Log
+
+<!-- ใหม่สุดอยู่บนสุด / Newest first -->
+
+### 2026-09-11 — เพิ่ม Documentation Policy
+- เพิ่มหัวข้อ "Project Rules" + "Work Log" ต่อท้าย `CLAUDE.md` (นอกบล็อก gitnexus)
+- ไม่มีการแก้โค้ดในโปรเจ็ค

@@ -160,3 +160,15 @@ export const appDownloadUrl = () =>
 export const getBossAppInfo = () => req("/boss-app/info");
 export const bossAppDownloadUrl = () =>
   new URL(`${BASE}/boss-app/download`, window.location.origin).href;
+
+
+// Private boss/employee chat. API responses are never cached by the browser or PWA.
+export const getChatContacts = (signal) => req("/chat/contacts", { signal, cache: "no-store" });
+export const getChatMessages = (peerId, params = {}, signal) =>
+  req(`/chat/messages/${encodeURIComponent(peerId)}?${new URLSearchParams(params)}`, { signal, cache: "no-store" });
+export const sendChatMessage = (peerId, payload) => req(`/chat/messages/${encodeURIComponent(peerId)}`, {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+});
+export const readChatMessages = (peerId, throughId) => req(`/chat/read/${encodeURIComponent(peerId)}`, {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ through_id: throughId }),
+});

@@ -30,6 +30,8 @@ import { Skeleton, StatCardSkeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import { describeCheckin, isHomeLocation, thaiDateTime, thaiFrom } from "@/lib/attendance";
 import { cn } from "@/lib/utils";
+import { AttendanceBadge, WorkSchedulePanel, useWorkSchedule } from "@/components/WorkSchedule.jsx";
+import { summarizeAttendance, validSchedule } from "@/lib/work-schedule";
 
 function HistorySkeleton() {
   return (
@@ -43,6 +45,7 @@ function HistorySkeleton() {
 
 export default function EmployeeHistoryPage() {
   const { employeeId } = useParams();
+  const scheduleState = useWorkSchedule();
   const [month, setMonth] = useState(dayjs().startOf("month"));
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -84,6 +87,8 @@ export default function EmployeeHistoryPage() {
     [checkins],
   );
   const employee = result?.employee;
+  const attendance = summarizeAttendance(checkins, scheduleState.geofence);
+  const showAttendance = !loading && !error && validSchedule(scheduleState.geofence?.work_schedule) && scheduleState.geofence.work_schedule.enabled;
 
   return (
     <AppLayout>
@@ -156,6 +161,12 @@ export default function EmployeeHistoryPage() {
           />
         )}
 
+        <WorkSchedulePanel state={scheduleState} />
+        {showAttendance && <div className="grid grid-cols-2 gap-3">
+          <StatCard icon={<Clock />} label="มาสาย (เข้างานครั้งแรกของวัน)" value={attendance.lateDays} suffix="วัน" tone={attendance.lateDays ? "destructive" : "success"} />
+          <StatCard icon={<LogOut />} label="ออกก่อนเวลา (ออกครั้งสุดท้ายของวัน)" value={attendance.earlyLeaveDays} suffix="วัน" tone={attendance.earlyLeaveDays ? "destructive" : "success"} />
+        </div>}
+
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {loading ? (
             <><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /></>
@@ -207,6 +218,7 @@ export default function EmployeeHistoryPage() {
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-medium">{entry.label}</span>
                                 <Badge variant={entry.badge}>{record.office_name || "ไม่ระบุสถานที่"}</Badge>
+                                <AttendanceBadge record={record} geofence={scheduleState.geofence} />
                               </div>
                               <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 text-xs">
                                 <span>{thaiDateTime(record.timestamp)}</span>

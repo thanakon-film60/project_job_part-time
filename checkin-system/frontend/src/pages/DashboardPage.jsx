@@ -48,6 +48,8 @@ import {
   thaiTime,
 } from "@/lib/attendance";
 import { cn } from "@/lib/utils";
+import { AttendanceBadge, WorkSchedulePanel, useWorkSchedule } from "@/components/WorkSchedule.jsx";
+import { summarizeAttendance, thaiTimestamp } from "@/lib/work-schedule";
 
 dayjs.extend(utc);
 
@@ -60,7 +62,7 @@ function locationVariant(location) {
   return "success";
 }
 
-function EmployeeDashboard({ me }) {
+function EmployeeDashboard({ me, scheduleState }) {
   const [checkins, setCheckins] = useState([]);
   const [faces, setFaces] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -83,6 +85,10 @@ function EmployeeDashboard({ me }) {
       active = false;
     };
   }, []);
+
+  const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const todaySummary = summarizeAttendance(checkins, scheduleState.geofence).days.find((day) => day.date === today);
+  const hasToday = checkins.some((record) => thaiTimestamp(record.timestamp)?.toISOString().slice(0, 10) === today);
 
   // เตือนหลังโหลดเสร็จเท่านั้น ไม่งั้นระหว่างรอข้อมูลจะขึ้นแดงทุกครั้งที่เปิดหน้า
   const verification = describeUnverified({
@@ -141,6 +147,21 @@ function EmployeeDashboard({ me }) {
             </Button>
           </CardContent>
         </Card>
+
+        <WorkSchedulePanel state={scheduleState} />
+        <Card><CardContent className="space-y-2 p-4">
+          <h3 className="font-semibold">การลงเวลาวันนี้ (เวลาไทย)</h3>
+          {loading ? <p className="text-muted-foreground text-sm">กำลังโหลดข้อมูล…</p> : todaySummary ? <>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span>เข้าครั้งแรก {thaiTime(todaySummary.firstIn?.timestamp)}</span>
+              <AttendanceBadge record={todaySummary.firstIn} geofence={scheduleState.geofence} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span>ออกครั้งสุดท้าย {thaiTime(todaySummary.lastOut?.timestamp)}</span>
+              <AttendanceBadge record={todaySummary.lastOut} geofence={scheduleState.geofence} />
+            </div>
+          </> : <p className="text-muted-foreground text-sm">{hasToday ? "ลงเวลาที่บ้าน — ไม่นับเป็นการเข้างาน" : "วันนี้ยังไม่มีการลงเวลา"}</p>}
+        </CardContent></Card>
 
         {/* การ์ดดาวน์โหลดแอปสำหรับเช็คอิน */}
         <AppDownloadCard />
@@ -205,11 +226,12 @@ function EmployeeDashboard({ me }) {
                           )}
                         </span>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-medium">{entry.label}</span>
                             <Badge variant={entry.badge} className="text-[10px]">
                               {record.office_name || (record.within_geofence ? "ในเขต" : "นอกเขต")}
                             </Badge>
+                            <AttendanceBadge record={record} geofence={scheduleState.geofence} />
                           </div>
                           <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
                             <span>{thaiDateTime(record.timestamp)}</span>
@@ -238,6 +260,7 @@ function EmployeeDashboard({ me }) {
 
 export default function DashboardPage() {
   const me = getEmployee();
+  const scheduleState = useWorkSchedule();
   const [value, setValue] = useState(dayjs());
   const [days, setDays] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -344,12 +367,13 @@ export default function DashboardPage() {
 
   // หน้าแรกของพนักงานทั่วไป — แสดงข้อมูลส่วนตัว ประวัติเข้างาน และการ์ดดาวน์โหลดแอป
   if (!me?.is_manager) {
-    return <EmployeeDashboard me={me} />;
+    return <EmployeeDashboard me={me} scheduleState={scheduleState} />;
   }
 
   return (
     <AppLayout>
       <div className="space-y-4">
+        <WorkSchedulePanel state={scheduleState} />
         <div className="hidden lg:block">
           <h2 className="text-2xl font-bold">ปฏิทินเข้างาน</h2>
           <p className="text-muted-foreground text-sm">
@@ -520,11 +544,13 @@ export default function DashboardPage() {
                           </span>
                         ) : (
                           <>
-                            <span className="text-success inline-flex items-center gap-1">
+                            <span className="text-success inline-flex flex-wrap items-center gap-1">
                               <LogIn className="size-3.5" /> เข้า {thaiTime(person.first_in)}
+                              <AttendanceBadge record={{ kind: "in", timestamp: person.first_in }} geofence={scheduleState.geofence} />
                             </span>
-                            <span className="inline-flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                            <span className="inline-flex flex-wrap items-center gap-1 text-orange-600 dark:text-orange-400">
                               <LogOut className="size-3.5" /> ออก {thaiTime(person.last_out)}
+                              <AttendanceBadge record={{ kind: "out", timestamp: person.last_out }} geofence={scheduleState.geofence} />
                             </span>
                           </>
                         )}
