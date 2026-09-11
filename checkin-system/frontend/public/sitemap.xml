@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  sitemap.xml — thanakronpart-time.com
+
+  ใส่เฉพาะหน้าที่เปิดสาธารณะจริง หน้าอื่นอยู่หลัง login ทั้งหมด ใส่ไปก็ถูก
+  Google ตีเป็น "ค้นพบแล้วแต่ยังไม่จัดทำดัชนี" เปล่า ๆ
+
+  แก้ lastmod ทุกครั้งที่แก้เนื้อหาหน้าแรก/หน้าเข้าสู่ระบบอย่างมีนัยสำคัญ
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://thanakronpart-time.com/</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://thanakronpart-time.com/login</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>

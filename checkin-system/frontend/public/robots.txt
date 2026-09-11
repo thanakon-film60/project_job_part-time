@@ -1,0 +1,40 @@
+# robots.txt — thanakronpart-time.com (ระบบเช็คอินพนักงาน THANAKON-ROOM)
+#
+# เว็บนี้เป็นแอปภายในของพนักงาน หน้าที่มีเนื้อหาสาธารณะจริง ๆ มีแค่หน้าแรก
+# กับหน้าเข้าสู่ระบบ ที่เหลือเป็นหน้าหลัง login และ path ของ API
+# จึงปิดไม่ให้บอตไต่ เพื่อไม่ให้ลิงก์ภายใน/เอกสาร API หลุดไปโผล่ในผลค้นหา
+#
+# หมายเหตุ: robots.txt กันแค่ "การไต่" ไม่ใช่ "การเข้าถึง" — การป้องกันจริง
+# ยังเป็น auth ที่ backend เหมือนเดิม
+
+User-agent: *
+
+# --- หน้าเว็บหลัง login (React routes) ---
+Disallow: /employees
+Disallow: /face-records
+Disallow: /live-map
+Disallow: /install-boss-app
+
+# --- path ของ API (อยู่โดเมนเดียวกับเว็บ) ---
+Disallow: /api/
+Disallow: /auth
+Disallow: /app
+Disallow: /boss-app
+Disallow: /addresses
+Disallow: /camera
+Disallow: /chat
+Disallow: /checkins
+Disallow: /employee-management
+Disallow: /employment-options
+Disallow: /faces
+Disallow: /line
+Disallow: /locations
+Disallow: /reports
+Disallow: /health
+
+# --- เอกสาร API ของ FastAPI ---
+Disallow: /docs
+Disallow: /redoc
+Disallow: /openapi.json
+
+Sitemap: https://thanakronpart-time.com/sitemap.xml
