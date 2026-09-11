@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
+  Building2,
   CalendarDays,
   Crown,
   Download,
+  LifeBuoy,
   LogOut,
   MapPin,
   Menu,
@@ -19,16 +21,27 @@ import { cn } from "@/lib/utils";
 
 const logoSrc = "/logo-checkin.svg";
 
+// ห้องช่วยเหลือระยะไกล — อยู่ในเมนูของทั้งสองบทบาท เพราะ "คนที่ช่วย" คือใครก็ได้ที่ล็อกอิน
+// ไม่ใช่สิทธิ์ของหัวหน้าโดยเฉพาะ (ฝั่งผู้ใช้ที่ถูกช่วยไม่ต้องล็อกอินเลย)
+const SUPPORT_NAV = { to: "/it-support", label: "ช่วยเหลือระยะไกล", icon: LifeBuoy };
+
+// ข้อมูลบริษัท — อยู่ในเมนูของทั้งสองบทบาท เป็นข้อมูลองค์กร ไม่ใช่ข้อมูลส่วนบุคคล
+const COMPANY_NAV = { to: "/company", label: "ข้อมูลบริษัท", icon: Building2 };
+
 const BOSS_NAV = [
   { to: "/", label: "ปฏิทินเข้างาน", icon: CalendarDays },
   { to: "/employees", label: "ข้อมูลพนักงาน", icon: Users },
   { to: "/live-map", label: "แผนที่ติดตามพนักงาน", icon: MapPin },
+  COMPANY_NAV,
+  SUPPORT_NAV,
   { to: "/install-boss-app", label: "ติดตั้งแอปบอส", icon: Download },
 ];
 
 const STAFF_NAV = [
   { to: "/", label: "ปฏิทินเข้างาน", icon: CalendarDays },
   { to: "/face-records", label: "ประวัติใบหน้า", icon: Smile },
+  COMPANY_NAV,
+  SUPPORT_NAV,
 ];
 
 /** path ปัจจุบันตรงกับเมนูไหน — ใช้ทั้งไฮไลต์เมนูและตั้งชื่อหัวข้อหน้า */

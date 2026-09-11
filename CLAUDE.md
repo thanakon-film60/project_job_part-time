@@ -59,7 +59,120 @@ This project is indexed by GitNexus as **project_job_part-time** (4823 symbols, 
 
 ## Work Log
 
+### 2026-09-12 — เพิ่มระบบช่วยเหลือระยะไกล (วิดีโอคอล + วาดชี้จุดบนภาพ)
+
+**สรุป:** เมนูใหม่ "ช่วยเหลือระยะไกล" ใน Sidebar — คนที่ล็อกอินเปิดห้องแล้วส่งลิงก์ให้ผู้ใช้ที่มีปัญหา
+ผู้ใช้กดลิงก์ + กดอนุญาตกล้อง ก็คุยวิดีโอกันได้ทันทีโดยไม่ต้องมีบัญชี ระหว่างคุยผู้ช่วยวาดวงกลม/ลูกศร
+ลงบนภาพจากกล้องของผู้ใช้เพื่อชี้ว่าต้องกดตรงไหน — เอกสารทั้งหมดที่ `checkin-system/REMOTE_SUPPORT.md`
+
+**ไฟล์ใหม่**
+
+| ไฟล์ | หน้าที่ |
+| --- | --- |
+| `backend/app/support_models.py` | ตาราง `support_sessions` (โทเค็นในลิงก์ + วันหมดอายุ ไม่เก็บภาพ/เสียง) |
+| `backend/app/routers/support.py` | REST 7 เส้น + WebSocket signaling (`/support/ws/{code}`) |
+| `backend/test_support.py` | เทสต์ 13 ข้อ: สิทธิ์เข้าห้อง ลิงก์หมดอายุ การส่งต่อข้อความ |
+| `frontend/src/lib/support-call.js` | WebRTC + WebSocket + ต่อใหม่อัตโนมัติ (ใช้ร่วมกันสองฝั่ง) |
+| `frontend/src/lib/annotations.js` | รูปแบบเส้นที่วาด + การวาดลง canvas (ใช้ร่วมกันสองฝั่ง) |
+| `frontend/src/components/support/AnnotationLayer.jsx` | ชั้น canvas รับการลากนิ้ว/เมาส์ |
+| `frontend/src/components/support/VideoStage.jsx` | เวทีวิดีโอ + เส้น + ป้ายสถานะ + ภาพเล็ก |
+| `frontend/src/components/support/CallToolbar.jsx` | แถบเครื่องมือฝั่งผู้ช่วย |
+| `frontend/src/pages/SupportPage.jsx` | หน้าผู้ช่วย (ต้องล็อกอิน) |
+| `frontend/src/pages/RemoteHelpPage.jsx` | หน้าผู้ใช้ (ไม่ต้องล็อกอิน) |
+| `checkin-system/REMOTE_SUPPORT.md` | เอกสารประกอบทั้งหมด |
+
+**ไฟล์ที่แก้**
+
+- `app/security.py` — แยก `employee_from_token()` ออกมาจาก `get_current_employee()` แล้วให้ตัวเดิมเรียกใช้
+  (WebSocket ในเบราว์เซอร์ตั้ง header `Authorization` ไม่ได้ ต้องรับโทเค็นทาง query string แล้วตรวจเอง)
+- `app/config.py` — เพิ่ม `SUPPORT_*` / `STUN_SERVERS` / `TURN_*` + property `ice_servers_list`
+- `app/main.py` — include `support.router`
+- `requirements-base.txt` — เพิ่ม `qrcode>=8.0` (ไลบรารี Python ตัวเดียวที่ลงเพิ่มทั้งงานนี้)
+- `backend/.env.example` — บล็อกค่า `SUPPORT_*` / STUN / TURN พร้อมคำอธิบาย
+- `frontend/src/App.jsx` — route `/it-support` (ล็อกอิน) + `/remote-help/:code` (สาธารณะ) + ซ่อน ChatWidget บนหน้าผู้ใช้
+- `frontend/src/components/AppLayout.jsx` — `SUPPORT_NAV` เข้าเมนูทั้ง BOSS_NAV และ STAFF_NAV
+- `frontend/src/api.js` — ฟังก์ชันเรียก `/support/*` + `fetchSupportQr()`
+- `frontend/vite.config.js` — `/^\/support/` เข้า navigateFallbackDenylist (ห้าม service worker ตอบแทน)
+- `deploy/windows-server/web.config` — เพิ่ม `support` ในกฎ ProxyToBackend + หมายเหตุเรื่อง WebSocket ของ IIS
+- `README.md` — หัวข้อใหม่ + แถว API + ตาราง `support_sessions`
+
+**เหตุผลของการออกแบบที่ไม่ชัดจากโค้ด**
+
+- **ไม่ใช้ `aiortc`** — ถ้าให้ Python เป็น peer ด้วย วิดีโอจะวิ่งผ่านเซิร์ฟเวอร์โดยไม่ได้อะไรเพิ่ม
+  เปลือง CPU/bandwidth และทำให้วิดีโอของพนักงานผ่านตาเซิร์ฟเวอร์โดยไม่จำเป็น
+  ใช้ WebSocket ของ Starlette ส่งแค่ SDP/ICE พอ (ตามแนวเดิมของโปรเจ็กต์ที่ไม่ลงไลบรารีเกินจำเป็น)
+- **พิกัดเส้นที่วาดเก็บเป็นสัดส่วน 0..1 ของเฟรมวิดีโอ ไม่ใช่พิกเซลบนจอ** — จอผู้ช่วย (คอม) กับผู้ใช้
+  (มือถือแนวตั้ง) คนละขนาด ถ้าส่งเป็นพิกเซล วงกลมจะไปโผล่คนละที่บนจออีกฝั่งทันที
+- **ปุ่ม "หยุดภาพ" ส่ง JPEG ทั้งใบผ่าน WebSocket** — ผู้ใช้ถือมือถือส่องของ พอวงกลมเสร็จมือขยับไปแล้ว
+  การตรึงเฟรมเดียวกันทั้งสองฝั่งคือวิธีเดียวที่ชี้จุดได้ตรงจริง (ย่อไม่เกิน 1280px คุณภาพ 0.72 → ~150KB)
+- **ใช้ `addTransceiver` + `replaceTrack` แทน `addTrack`** — สลับกล้องหน้า/หลังหรือแชร์หน้าจอ
+  จึงไม่ต้องเจรจา SDP ใหม่ ภาพไม่ดำไปสองสามวินาทีทุกครั้งที่สลับ
+- **ส่งต่อเฉพาะ `type` ที่อยู่ใน `RELAYABLE`** — ไม่งั้นห้องนี้กลายเป็นช่องส่งข้อมูลอะไรก็ได้
+  ระหว่างคนนอกสองคนที่ถือลิงก์
+- **ฝั่งผู้ใช้เห็นชื่อผู้ช่วยก่อนกดอนุญาต** — การเปิดกล้องให้คนแปลกหน้าคือความเสี่ยง
+  หน้าจอจึงเขียนกำกับว่า "ถ้าไม่รู้จักชื่อด้านบน อย่ากดอนุญาต"
+- **เมนูอยู่ในทั้ง BOSS_NAV และ STAFF_NAV** — "คนที่ช่วย" คือใครก็ได้ที่ล็อกอิน ไม่ใช่สิทธิ์ของหัวหน้า
+  ถ้าจะจำกัดเฉพาะหัวหน้า เปลี่ยน `RequireAuth` เป็น `RequireBoss` ใน `App.jsx` แล้วเอา `SUPPORT_NAV`
+  ออกจาก `STAFF_NAV` (มีคอมเมนต์กำกับไว้ในโค้ดแล้ว)
+
+**⚠️ impact analysis — `get_current_employee` ขึ้น CRITICAL (33 จุด, direct 14, 22 execution flows)**
+
+การแก้เป็นการ refactor ล้วน: ย้ายโค้ด decode JWT ออกไปเป็น `employee_from_token()` แล้วให้ตัวเดิมเรียกใช้
+signature เดิม, 401 ข้อความเดิม, header `WWW-Authenticate` เดิม, query หาพนักงานด้วย `employee_code` เหมือนเดิม
+ยืนยันด้วยเทสต์เดิมที่ผ่านครบ (`test_chat` มีข้อที่เจาะเรื่องปลอมตัวผู้ส่งโดยเฉพาะ)
+`detect-changes --scope all` ขึ้น critical ด้วยเหตุผลเดียวกัน — `require_manager`, `Settings`, `root` ที่ขึ้นในรายการ
+เป็นแค่เลขบรรทัดเลื่อนจากการแทรกโค้ดด้านบน ไม่ได้แก้ตัวฟังก์ชัน
+
+**ผลทดสอบ:** `python -m unittest test_payroll test_chat test_support` ผ่าน **79/79** ·
+`npm run build` ผ่าน (2003 modules) · ทดสอบกับ uvicorn ตัวจริงบนพอร์ต 8003: ต่อ WebSocket สองฝั่ง
+ส่ง offer/เส้นที่วาด/ภาพนิ่ง 400KB ผ่านครบ ปิดห้องแล้วลิงก์เดิมเข้าไม่ได้จริง · ลบข้อมูลทดสอบออกจาก
+`checkin-dev.db` เรียบร้อย (ไม่แตะ Postgres ของ production)
+
+**ยังไม่ได้ทำ:** ยังไม่ได้ commit · ยังไม่ได้ deploy · ยังไม่ได้ `pip install -r requirements.txt` บนเครื่อง production
+(ขาด `qrcode` = ปุ่ม QR ใช้ไม่ได้ ส่วนที่เหลือทำงานปกติ) · **ยังไม่ได้เปิด `Install-WindowsFeature Web-WebSockets`
+บน IIS** (ไม่เปิด = ค้างที่ "กำลังเชื่อมต่อ..." โดยไม่มี error) · ยังไม่ได้ copy `web.config` ตัวใหม่ขึ้นเซิร์ฟเวอร์ ·
+ยังไม่ได้ตั้ง TURN (STUN อย่างเดียวต่อติดราว 80-90% ของเน็ตทั่วไป)
+
+
 <!-- ใหม่สุดอยู่บนสุด / Newest first -->
+
+### 2026-09-12 — เพิ่มแท็บ "ข้อมูลบริษัท" บนเว็บ + แก้บั๊ก proxy ของ /payroll
+
+**ไฟล์ใหม่:** `checkin-system/frontend/src/pages/CompanyPage.jsx`
+
+หน้าอธิบายธุรกิจของบริษัท (Motta & Montipa — แบรนด์แฟชั่นไทย ขายผ่านเคาน์เตอร์ในห้าง + ออนไลน์)
+เปิดได้ทั้งหัวหน้าและพนักงาน เพราะเป็นข้อมูลองค์กร ไม่ใช่ข้อมูลส่วนบุคคล
+
+**ไฟล์ที่แก้**
+
+- `frontend/src/App.jsx` — route `/company` ใต้ `RequireAuth`
+- `frontend/src/components/AppLayout.jsx` — เพิ่ม `COMPANY_NAV` เข้าทั้ง `BOSS_NAV` และ `STAFF_NAV`
+- `deploy/windows-server/web.config` — **เพิ่ม `payroll` เข้ากฎ `ProxyToBackend`**
+
+**🔴 บั๊กที่เจอและแก้ — `/payroll` ไม่เคยทำงานผ่านโดเมน**
+
+ตอนเพิ่ม router `/payroll` เมื่อวาน ลืมเติมชื่อในกฎ `ProxyToBackend` ของ `web.config`
+ตามที่ `README.md` เตือนไว้ ผลคือ IIS เสิร์ฟ `index.html` ของ React แทนที่จะ proxy ไป backend —
+`https://thanakronpart-time.com/payroll/status` คืน **HTTP 200 + text/html** แทนที่จะเป็น 401 JSON
+
+ตรวจไม่เจอตอนแรกเพราะเทสต์ทั้งหมดยิงที่ `127.0.0.1:8001` ตรงๆ ซึ่งข้าม IIS ไปเลย
+**การแจ้งเตือน LINE ไม่ได้รับผลกระทบ** เพราะ Scheduled Task เรียก DB ตรง ไม่ผ่าน HTTP
+สิ่งที่พังคือฝั่งเว็บ/แอปที่จะเรียก `/payroll/summary`
+
+แก้แล้วและยืนยันผ่านโดเมนจริง: `/payroll/status` → **401 + application/json**
+
+> บทเรียน: เพิ่ม router ใหม่ใน backend ต้องเติมชื่อใน `ProxyToBackend` เสมอ
+> และต้องทดสอบผ่านโดเมนจริง ไม่ใช่แค่ `127.0.0.1:8001`
+
+**Deploy:** รัน `deploy\windows-server\deploy-update.ps1` — build React (2,006 modules),
+copy ขึ้น `C:\inetpub\checkin`, copy web.config, restart backend, ตรวจ router ครบ 16 เส้นผ่าน
+
+**ผลตรวจ:** `/company` → 200 · bundle ใหม่ `index-DBkwAQWb.js` ขึ้นแล้ว · พบคำว่า "ข้อมูลบริษัท" ใน bundle ·
+frontend tests 16/16 ผ่าน
+
+**หมายเหตุ:** ข้อมูลธุรกิจในหน้านี้มาจากแหล่งสาธารณะ **ยังไม่ได้ยืนยันกับฝ่ายบุคคล**
+ทุกบล็อกจึงมีป้ายกำกับ "ยืนยันแล้ว — จากระบบ" หรือ "ยังไม่ยืนยันกับฝ่ายบุคคล" กำกับไว้
+อย่าเอาป้ายออกจนกว่าจะยืนยันจริง
 
 ### 2026-09-11 (บ่าย) — เปิดใช้ระบบเงินเดือนบน production แล้ว
 
