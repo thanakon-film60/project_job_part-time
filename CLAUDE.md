@@ -63,7 +63,7 @@ This project is indexed by GitNexus as **project_job_part-time** (4823 symbols, 
 
 ### 2026-09-12 (ตี 0:30) — deploy ระบบช่วยเหลือระยะไกลขึ้น production + reboot เปิด WebSocket
 
-**สถานะ: deploy ครบแล้ว รอ reboot ให้ IIS WebSocket ติดตั้งเสร็จ**
+**สถานะ: ใช้งานได้แล้วทุกส่วนยกเว้นวิดีโอคอล — เหลือรันสคริปต์เดียวเปิดทาง WebSocket**
 
 | ขั้น | สิ่งที่ทำ | ผลตรวจ |
 | --- | --- | --- |
@@ -72,7 +72,8 @@ This project is indexed by GitNexus as **project_job_part-time** (4823 symbols, 
 | 3 | copy `web.config` ตัวใหม่ | กฎ proxy มีทั้ง `payroll` และ `support` แล้ว (md5 ตรงกับ repo) |
 | 4 | restart backend (`MardodiCheckinAPI`) | endpoint 45 → **51 เส้น** · `/support/*` ขึ้นครบ 6 เส้น |
 | 5 | `dism /online /enable-feature /featurename:IIS-WebSockets` | สำเร็จ แต่สถานะเป็น **Enable Pending** → ต้อง reboot |
-| 6 | reboot เครื่อง | สั่งตอนตี 0:30 คืนวันเสาร์ (ช่วงที่ไม่มีใครใช้งาน) |
+| 6 | **ตัดสินใจไม่ reboot** | เจอ Windows Update ค้าง 6 ตัว รวม Cumulative Update ของ OS (KB5122882) และ .NET (KB5126149) — reboot จะลากอัปเดตพวกนี้ลงด้วย กินเวลา 15-45 นาที restart หลายรอบ โดยไม่มีคนเฝ้า |
+| 7 | เตรียมทางเลี่ยงที่ไม่ต้อง reboot | `deploy\cloudflare\enable-support-websocket.ps1` — ให้ Cloudflare Tunnel ส่ง `/support/ws/` ตรงไป uvicorn ข้าม IIS |
 
 **ตรวจก่อน reboot**
 
@@ -83,18 +84,43 @@ This project is indexed by GitNexus as **project_job_part-time** (4823 symbols, 
   = IIS ตัด header ทิ้งเพราะยังไม่มี WebSocketModule → ยืนยันว่า reboot จำเป็นจริง
 - ห้องทดสอบที่สร้างระหว่างตรวจถูกลบออกจาก DB แล้ว (เหลือ 0 แถวใน `support_sessions`)
 
-**ทำไมตัดสินใจ reboot เลย ไม่รอถาม**
+**เรื่องการ reboot — เปลี่ยนการตัดสินใจกลางคัน**
 
-เจ้าของสั่งให้ทำให้เสร็จและตัดสินใจแทนได้ · เวลาตี 0:30 คืนเสาร์คือช่วงที่กระทบน้อยที่สุด ·
-ตรวจแล้วว่าทุกอย่างกลับมาเองได้: `W3SVC` + `Cloudflared` เป็น **Auto**, `MardodiCheckinAPI` เป็น
-**BootTrigger** (เครื่องบูตครั้งก่อน 1 ก.ย. แล้วทุกอย่างขึ้นเองครบ) · ถ้าไม่ reboot ตอนนี้
-งานติดตั้งที่ค้างอยู่จะไปเสร็จตอน Windows Update สั่ง reboot เองซึ่งคุมเวลาไม่ได้
+ตอนแรกตั้งใจจะ reboot ให้เลย เพราะตี 0:30 คืนเสาร์คือช่วงที่กระทบน้อยที่สุด และตรวจแล้วว่าทุกบริการ
+กลับมาเองได้ (`W3SVC` + `Cloudflared` = **Auto**, `MardodiCheckinAPI` = **BootTrigger**)
 
-**หลัง reboot มีตัวตรวจให้อัตโนมัติ** — Scheduled Task `ThanakonSupportWsCheck` (ทำงานครั้งเดียวแล้วลบตัวเอง)
-จะทดสอบ WebSocket ผ่าน IIS แล้วเขียนผลไว้ที่ `backend/storage/logs/remote-support-check.txt`
+แต่พอตรวจต่อเจอว่ามี **Windows Update ค้างอยู่ 6 ตัว** รวม Cumulative Update ของ OS กับ .NET
+ที่ยังไม่ได้ลง (`CBS RebootPending` = True, `PendingFileRenameOperations` มีค่า) การ reboot จึงไม่ใช่
+"ดับ 2 นาทีแล้วกลับมา" แต่อาจกลายเป็นลงอัปเดต 15-45 นาที restart หลายรอบ และถ้าอัปเดตตัวใดพังแล้ว
+rollback จะนานกว่านั้นอีก — โดยไม่มีใครตื่นอยู่เฝ้า จึงเปลี่ยนไปใช้ทางที่ย้อนกลับได้ง่ายกว่าแทน
 
-**ยังไม่ได้ทำ:** ยังไม่ได้ `git push` (master นำหน้า origin อยู่ 3 commit — ของเจ้าของ 2 + ของงานนี้ 1) ·
-ยังไม่ได้ตั้ง TURN (STUN อย่างเดียวต่อติดราว 80-90% ของเน็ตทั่วไป ถ้าเจอเคสต่อไม่ติดบ่อยค่อยเช่า coturn)
+**ทางเลี่ยง: ให้ Cloudflare Tunnel ส่ง WebSocket ตรงไป backend**
+
+`cloudflared` รองรับ WebSocket ในตัวอยู่แล้ว และแยก ingress ตาม path ได้ จึงเพิ่มกฎให้ `/support/ws/`
+วิ่งตรงไป `uvicorn :8001` ข้าม IIS ส่วนเส้นทางอื่นทุกเส้นยังผ่าน IIS เหมือนเดิม
+ความปลอดภัยไม่ลดลงเพราะ backend ตรวจโทเค็นห้องกับ JWT เองอยู่แล้ว และได้ผลพลอยได้คือเร็วขึ้นด้วย
+
+ตรวจกฎล่วงหน้าด้วย `cloudflared tunnel ingress rule` แล้ว — routing ถูกต้องทุกเส้น:
+
+| URL | ไปที่ |
+|---|---|
+| `/support/ws/abc123` | `localhost:8001` (backend ตรง) |
+| `/support/ice-servers` | `localhost:80` (IIS) |
+| `/it-support`, `/checkins/me` | `localhost:80` (IIS) |
+
+**🔴 สิ่งที่ค้นพบระหว่างทาง — สำคัญมาก**
+
+Windows Service `Cloudflared` **ไม่ได้ใช้ `F:\Game\config.yml`** อย่างที่เอกสารเดิมบอก
+แต่ใช้ `C:\ProgramData\Cloudflare\cloudflared\config.yml` และไฟล์นั้นชี้ `credentials-file`
+ไปคนละพาธด้วย — ถ้าใครก๊อป config จาก repo ทับตรง ๆ tunnel จะหา credentials ไม่เจอแล้วเว็บล่มทั้งระบบ
+ใส่หมายเหตุเตือนไว้ใน `deploy/cloudflare/config.yml` แล้ว และสคริปต์อ่านพาธจริงจาก service เอง
+ไม่ได้เดาเอา
+
+**ยังไม่ได้ทำ:** ยังไม่ได้รัน `enable-support-websocket.ps1` (harness กันไม่ให้แก้ config ระบบ
+นอกโฟลเดอร์โปรเจ็กต์ — เจ้าของรันเองคำสั่งเดียว) · ยังไม่ได้ `git push` (master นำหน้า origin 4 commit) ·
+ยังไม่ได้ตั้ง TURN (STUN อย่างเดียวต่อติดราว 80-90% ของเน็ตทั่วไป ถ้าเจอเคสต่อไม่ติดบ่อยค่อยเช่า coturn) ·
+ฟีเจอร์ `Web-WebSockets` ยังค้าง `InstallPending` อยู่ ถ้าวันหลัง reboot ตามรอบปกติก็จะติดตั้งเสร็จเอง
+แล้ว WebSocket จะวิ่งผ่าน IIS ได้ด้วย (จะลบกฎ cloudflared ทิ้งหรือเก็บไว้ก็ได้)
 
 ### 2026-09-12 — เพิ่มระบบช่วยเหลือระยะไกล (วิดีโอคอล + วาดชี้จุดบนภาพ)
 

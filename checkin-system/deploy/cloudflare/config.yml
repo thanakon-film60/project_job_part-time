@@ -20,6 +20,16 @@
 #     .\cloudflared-windows-amd64.exe tunnel --config F:\Game\config.yml run Film_Part-Time
 #   หรือใช้สคริปต์ setup-tunnel.ps1 ในโฟลเดอร์เดียวกันนี้
 #
+# 🔴 อย่าก๊อปไฟล์นี้ทับ config ของ production ตรง ๆ (ตรวจพบ 12 ก.ย. 2026)
+#    Windows Service ชื่อ "Cloudflared" บนเครื่อง production ไม่ได้ใช้ F:\Game\config.yml
+#    แต่ใช้  C:\ProgramData\Cloudflare\cloudflared\config.yml
+#    และไฟล์นั้นชี้ credentials-file ไปคนละพาธกับไฟล์นี้ด้วย
+#    ก๊อปทับ = tunnel หา credentials ไม่เจอ แล้วเว็บล่มทั้งระบบ
+#
+#    ดูว่าตัวจริงอยู่ไหน:
+#      (Get-CimInstance Win32_Service -Filter "Name='Cloudflared'").PathName
+#    เวลาจะแก้ ให้แก้ไฟล์ที่ service ใช้จริง แล้วค่อยเอาการเปลี่ยนแปลงมาลงไฟล์นี้ตาม
+#
 # ⚠️ ห้าม commit ไฟล์ credentials (.json) ขึ้น Git เด็ดขาด
 # ===================================================================
 
@@ -32,6 +42,43 @@ loglevel: info
 logfile: F:\Game\cloudflared.log
 
 ingress:
+  # ---------------------------------------------------------------
+  # WebSocket ของห้องช่วยเหลือระยะไกล -> ตรงไป uvicorn :8001 ไม่ผ่าน IIS
+  #
+  # IIS ส่งต่อ WebSocket ได้ก็ต่อเมื่อเปิดฟีเจอร์ Web-WebSockets ซึ่งติดตั้งไว้แล้ว
+  # แต่ค้างสถานะ "Enable Pending" รอ restart เครื่อง (12 ก.ย. 2026)
+  # cloudflared รองรับ WebSocket ในตัวอยู่แล้ว จึงส่งเส้นนี้ตรงไป backend เลย
+  # ได้ผลพลอยได้คือเร็วขึ้น เพราะตัดตัวกลางออกไปหนึ่งชั้น
+  #
+  # ⚠️ กฎที่มี path ต้องอยู่ "เหนือ" กฎ hostname เปล่า ๆ ของโดเมนเดียวกันเสมอ
+  #    cloudflared ไล่กฎจากบนลงล่างแล้วหยุดที่กฎแรกที่ตรง ถ้าสลับลำดับกัน
+  #    กฎ hostname จะรับไปก่อนและกฎนี้จะไม่มีวันถูกใช้เลย
+  #
+  # ความปลอดภัยไม่ได้ลดลงจากการข้าม IIS: backend ตรวจโทเค็นในลิงก์ห้องและ JWT
+  # ของผู้ช่วยเองอยู่แล้ว (_authorize_ws ใน backend/app/routers/support.py)
+  # เส้นทางอื่นทุกเส้นยังวิ่งผ่าน IIS เหมือนเดิม
+  #
+  # เอาขึ้น production ด้วย deploy\cloudflare\enable-support-websocket.ps1
+  # (สคริปต์นั้นแก้ไฟล์ที่ service ใช้จริง ไม่ใช่ไฟล์นี้ — อ่านหมายเหตุสีแดงด้านบน)
+  # ---------------------------------------------------------------
+  - hostname: thanakronpart-time.com
+    path: ^/support/ws/
+    service: http://localhost:8001
+    originRequest:
+      connectTimeout: 30s
+
+  - hostname: www.thanakronpart-time.com
+    path: ^/support/ws/
+    service: http://localhost:8001
+    originRequest:
+      connectTimeout: 30s
+
+  - hostname: api.thanakronpart-time.com
+    path: ^/support/ws/
+    service: http://localhost:8001
+    originRequest:
+      connectTimeout: 30s
+
   # ---------------------------------------------------------------
   # ทั้ง 3 โดเมน -> IIS :80 (เว็บ + API)
   #

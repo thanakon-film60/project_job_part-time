@@ -1,6 +1,7 @@
 """ตรวจว่า WebSocket ของห้องช่วยเหลือระยะไกลวิ่งผ่าน IIS ได้จริงไหม แล้วเขียนผลลงไฟล์
 
     python verify_support_ws.py
+    python verify_support_ws.py --public thanakronpart-time.com
 
 ทำไมต้องมี: IIS จะส่งต่อ WebSocket ได้ก็ต่อเมื่อเปิดฟีเจอร์ Web-WebSockets ไว้แล้ว
 ถ้าไม่ได้เปิด หน้าเว็บจะค้างที่ "กำลังเชื่อมต่อ..." เฉย ๆ โดยไม่มี error ให้เห็นใน log ที่ไหนเลย
@@ -23,6 +24,14 @@ sys.path.insert(0, str(HERE))
 REPORT = HERE / "storage" / "logs" / "remote-support-check.txt"
 IIS_HOST = "localhost"
 BACKEND = "127.0.0.1:8001"
+# ใส่ --public <โดเมน> เพื่อตรวจเส้นทางที่ผู้ใช้จริงเดินด้วย (ผ่าน Cloudflare Tunnel)
+# จำเป็นเมื่อ WebSocket ถูกส่งตรงไป backend ที่ tunnel ไม่ได้ผ่าน IIS
+# เพราะกรณีนั้น ws://localhost จะยังไม่ผ่าน แต่ของจริงใช้งานได้แล้ว
+PUBLIC_HOST = ""
+if "--public" in sys.argv:
+    index = sys.argv.index("--public")
+    if index + 1 < len(sys.argv):
+        PUBLIC_HOST = sys.argv[index + 1].strip()
 # เผื่อเวลาให้ backend ตื่นหลังเครื่องบูต (Scheduled Task เริ่มพร้อมกับบริการอื่นอีกหลายตัว)
 WAIT_BACKEND_SECONDS = 180
 
@@ -114,17 +123,30 @@ def main() -> int:
         )
         log(f"[{'ผ่าน' if iis_ok else 'ไม่ผ่าน'}] WebSocket ผ่าน IIS — {iis_note}")
 
+        public_ok = None
+        if PUBLIC_HOST:
+            public_ok, public_note = asyncio.run(
+                can_connect(f"wss://{PUBLIC_HOST}/support/ws/{code}?role=guest")
+            )
+            log(f"[{'ผ่าน' if public_ok else 'ไม่ผ่าน'}] WebSocket ผ่าน {PUBLIC_HOST} — {public_note}")
+
         log("=" * 60)
-        if iis_ok:
+        # เส้นทางที่ผู้ใช้จริงเดินคือผ่านโดเมน ถ้าตรวจโดเมนแล้วผ่าน ก็ถือว่าใช้งานได้
+        # ไม่ว่าเบื้องหลังจะวิ่งผ่าน IIS หรือ tunnel ส่งตรงไป backend ก็ตาม
+        if public_ok or (public_ok is None and iis_ok):
             log("สรุป: ระบบช่วยเหลือระยะไกลพร้อมใช้งานเต็มรูปแบบ")
             log("  เปิดเมนู 'ช่วยเหลือระยะไกล' แล้วสร้างห้องได้เลย")
+            if public_ok and not iis_ok:
+                log("  (WebSocket วิ่งผ่าน Cloudflare Tunnel ตรงไป backend ไม่ผ่าน IIS)")
             return 0
         if direct_ok:
-            log("สรุป: backend ปกติ แต่ IIS ยังส่งต่อ WebSocket ไม่ได้")
-            log("  แก้: Install-WindowsFeature Web-WebSockets แล้ว restart เครื่อง")
-            log("  ตรวจสถานะ: Get-WindowsFeature Web-WebSockets  (ต้องเป็น Installed)")
+            log("สรุป: backend ปกติ แต่ยังส่งต่อ WebSocket ถึงผู้ใช้ไม่ได้")
+            log("  ทางเลือกที่ 1 (ไม่ต้อง restart เครื่อง):")
+            log(r"    deploy\cloudflare\enable-support-websocket.ps1")
+            log("  ทางเลือกที่ 2: restart เครื่องให้ Web-WebSockets ติดตั้งเสร็จ")
+            log("    ตรวจสถานะ: Get-WindowsFeature Web-WebSockets  (ต้องเป็น Installed)")
             return 1
-        log("สรุป: ต่อ WebSocket ไม่ได้ทั้งสองทาง — ดูรายละเอียดด้านบน")
+        log("สรุป: ต่อ WebSocket ไม่ได้เลย — ดูรายละเอียดด้านบน")
         return 1
     finally:
         # เก็บกวาดห้องทดสอบเสมอ แม้ระหว่างตรวจจะพังกลางทาง

@@ -66,17 +66,53 @@ cd backend
 pip install -r requirements.txt     # ได้ qrcode มาด้วย
 ```
 
-บน production (Windows Server + IIS) ต้องทำเพิ่ม **2 อย่าง**:
+แล้ว restart backend — ตาราง `support_sessions` ถูกสร้างอัตโนมัติตอนสตาร์ต
+และ copy `deploy\windows-server\web.config` ขึ้น IIS (มี `support` ในกฎ ProxyToBackend แล้ว)
+
+### เปิดทางให้ WebSocket
+
+ตัววิดีโอคอลใช้ WebSocket ซึ่งต้องมีตัวกลางที่ส่งต่อให้ได้ เลือกทางใดทางหนึ่ง:
+
+**ทางที่ 1 — ให้ Cloudflare Tunnel ส่งตรงไป backend (ไม่ต้อง restart เครื่อง)**
 
 ```powershell
-# 1) เปิด WebSocket ของ IIS — ไม่เปิด หน้าเว็บจะค้างที่ "กำลังเชื่อมต่อ..." โดยไม่มี error
-Install-WindowsFeature Web-WebSockets
-
-# 2) copy web.config ตัวใหม่ (มี support ในกฎ ProxyToBackend แล้ว)
-copy deploy\windows-server\web.config C:\inetpub\<site>\web.config
+cd deploy\cloudflare
+.\enable-support-websocket.ps1          # Run as Administrator
 ```
 
-แล้ว restart backend — ตาราง `support_sessions` ถูกสร้างอัตโนมัติตอนสตาร์ต
+เพิ่มกฎ ingress ให้ `/support/ws/` วิ่งตรงไป `uvicorn :8001` ข้าม IIS
+ใช้เวลาราว 20 วินาที เว็บสะดุดตอน restart tunnel ไม่กี่วินาที
+มีตัวตรวจทุกขั้น ถ้าไม่ผ่านจะคืน config เดิมและ restart กลับให้เองอัตโนมัติ
+
+ดูก่อนว่าจะแก้อะไร: `.\enable-support-websocket.ps1 -WhatIfOnly`
+ย้อนกลับ: `.\enable-support-websocket.ps1 -Rollback`
+
+> ได้ผลพลอยได้คือเร็วขึ้น เพราะตัดตัวกลางออกไปหนึ่งชั้น
+> และความปลอดภัยไม่ได้ลดลง — backend ยังตรวจโทเค็นในลิงก์ห้องกับ JWT ของผู้ช่วยเองอยู่
+
+**ทางที่ 2 — เปิด WebSocket ของ IIS (ต้อง restart เครื่อง)**
+
+```powershell
+Install-WindowsFeature Web-WebSockets   # หรือ dism /online /enable-feature /featurename:IIS-WebSockets /all
+Get-WindowsFeature Web-WebSockets       # ต้องขึ้น Installed ไม่ใช่ InstallPending
+```
+
+ถ้าขึ้น `InstallPending` แปลว่าต้อง restart เครื่องก่อนถึงจะใช้ได้จริง
+
+> ⚠️ เช็ค `Get-WindowsUpdateLog` / รายการอัปเดตค้างก่อน restart
+> ถ้ามี Cumulative Update ค้างอยู่ เครื่องจะลงอัปเดตตอนปิด/เปิดด้วย
+> ซึ่งกินเวลา 15-45 นาทีและ restart หลายรอบ — อย่าทำตอนไม่มีคนเฝ้า
+
+### ตรวจว่าใช้งานได้จริงหรือยัง
+
+```bash
+cd backend
+python verify_support_ws.py --public thanakronpart-time.com
+```
+
+สร้างห้องทดสอบ ต่อ WebSocket ทั้ง 3 เส้นทาง (backend ตรง / ผ่าน IIS / ผ่านโดเมนจริง)
+แล้วลบห้องทิ้ง เขียนผลไว้ที่ `backend/storage/logs/remote-support-check.txt`
+ไม่แตะข้อมูลพนักงานหรือการลงเวลาใด ๆ
 
 ---
 
@@ -126,7 +162,8 @@ copy deploy\windows-server\web.config C:\inetpub\<site>\web.config
 
 | อาการ | สาเหตุที่พบบ่อย |
 |---|---|
-| ค้างที่ "กำลังเชื่อมต่อ..." ไม่ขยับ | IIS ยังไม่ได้เปิด `Web-WebSockets` หรือ `web.config` ยังไม่มี `support` ในกฎ proxy |
+| ค้างที่ "กำลังเชื่อมต่อ..." ไม่ขยับ | ยังไม่ได้เปิดทางให้ WebSocket — รัน `verify_support_ws.py` ดูว่าติดตรงไหน |
+| REST ใช้ได้แต่วิดีโอไม่ขึ้น | `web.config` มี `support` แล้ว แต่ WebSocket ยังไม่ผ่าน (ดูหัวข้อ "เปิดทางให้ WebSocket") |
 | ผู้ใช้กดปุ่มอนุญาตแล้วไม่มีอะไรเกิดขึ้น | เปิดลิงก์ผ่าน http — ต้องเป็น https |
 | ขึ้น "ต่อสายไม่สำเร็จ" ทั้งที่สองฝั่งออนไลน์ | เน็ตฝั่งใดฝั่งหนึ่งบล็อก UDP (เจอบ่อยกับ Wi-Fi บริษัท) → ต้องตั้ง TURN |
 | เสียงสะท้อน/หอน | ทั้งสองฝั่งอยู่ห้องเดียวกันจริง ๆ ให้ฝั่งหนึ่งปิดไมค์ |
