@@ -61,6 +61,95 @@ This project is indexed by GitNexus as **project_job_part-time** (4823 symbols, 
 
 <!-- ใหม่สุดอยู่บนสุด / Newest first -->
 
+### 2026-09-11 (บ่าย) — เปิดใช้ระบบเงินเดือนบน production แล้ว
+
+**สถานะ: ใช้งานจริงแล้ว** — ทำครบทั้ง 4 ขั้นบนเครื่อง production
+
+| ขั้น | สิ่งที่ทำ | ผลตรวจ |
+| --- | --- | --- |
+| 1 | แก้ `backend/.env` | สำรองไว้ที่ `backend/.env.backup-20260911-163624` (git ignore ครอบแล้ว) |
+| 2 | restart `MardodiCheckinAPI` | endpoint 40 → **45 เส้น**, `/payroll` ขึ้นครบ 5 เส้น |
+| 3 | migration รันเองตอนสตาร์ต | สร้างตาราง `payroll_notices` + คอลัมน์ `employees.base_salary` สำเร็จ |
+| 4 | ตั้ง Scheduled Task `ThanakonPayrollNotice` | 2 trigger/วัน (09:00, 18:00) · สั่งรันจริงแล้ว `LastTaskResult=0` |
+
+**ข้อมูลที่ตั้งใน DB จริง**
+
+- `EMP001` (Thanakon Hongthong): `base_salary=18000`, `start_date` **2026-08-26 → 2026-09-14**
+  (ของเดิมเป็นวันเริ่มงานที่เก่า ถ้าไม่แก้ รอบแรกจะคิดเต็มเดือน ฿17,250 แทนที่จะเป็น ฿7,410)
+- `BOSS001`: ไม่ตั้ง `base_salary` = ไม่เข้าระบบเงินเดือน (ตั้งใจ)
+
+**🔴 อุบัติเหตุที่เจอและแก้ทัน — บันทึกไว้กันซ้ำ**
+
+ผู้ใช้ **ทับค่า `LINE_TARGET_ID` เดิม** ด้วย userId ส่วนตัว แทนที่จะเพิ่มบรรทัด `PAYROLL_LINE_TARGET_ID` ใหม่
+ถ้าปล่อยไว้แล้ว restart: แจ้งเตือนเข้า-ออกงานทุกครั้ง + สรุปรายวัน 20:00 จะย้ายจากกลุ่มมาเข้าแชทส่วนตัวคนเดียว
+**หัวหน้าจะไม่ได้รับแจ้งเตือนอีกเลย** — จับได้ก่อน restart จึงไม่มีผลกระทบจริง
+
+ค่าที่ถูกต้องตอนนี้: `LINE_TARGET_ID` = Group ID (`C278cec…`) · `PAYROLL_LINE_TARGET_ID` = userId (`U9e5c3d…`)
+
+**แก้โค้ดเพิ่มระหว่างนี้**
+
+- `app/payroll_service.py` → `salary_of()` — `PAYROLL_DEFAULT_SALARY` **ไม่ใช้กับบัญชีหัวหน้า** แล้ว
+  (เกณฑ์เดียวกับ `send_daily_summary.py` ที่ไม่นับบัญชี Boss เป็นพนักงาน) ตั้ง `base_salary` รายคนยังใช้ได้กับหัวหน้าตามปกติ
+- `app/payroll.py` → เพิ่ม `period_in_focus()` แก้บั๊กตอนสั่งส่งเอง: วันที่ 27-28 เคยเลือกรอบใหม่ที่ยังไม่มีข้อมูล
+  แทนรอบที่เงินกำลังจะออก (เส้นทาง Scheduled Task ไม่ได้รับผลกระทบ)
+- เทสต์เพิ่มคุมทั้งสองเรื่อง — รวม **66 ข้อ ผ่านหมด**
+
+**ทดสอบจริง:** ส่งการ์ด Flex เข้าแชทส่วนตัวสำเร็จ 2 ครั้ง (`push_flex` คืน True)
+อ่านการลงเวลาจากตาราง `checkins` จริง — รอบ 27 ส.ค.–26 ก.ย. 2026 ประมาณการ **฿7,410** (ก่อนหัก ฿7,800 − ประกันสังคม ฿390)
+
+**ยังไม่ได้ทำ:** ยังไม่ได้ commit · ยังไม่ได้ยืนยันวิธีเฉลี่ยเงิน (`PAYROLL_PRORATE_BASIS=calendar_30`) กับ HR ·
+ยังไม่ได้ใส่วันหยุดนักขัตฤกษ์ใน `PAYROLL_HOLIDAYS` (ไม่ใส่ = วันหยุดถูกนับเป็นขาดงานและโดนหักเงิน)
+
+### 2026-09-11 — เพิ่มระบบรอบเงินเดือน + แจ้งเตือนรายได้เข้า LINE
+
+**สรุป:** ส่งสรุปรายได้เข้า LINE อัตโนมัติ 3 จังหวะต่อรอบ (ตัดรอบ 26 / เริ่มรอบใหม่ 27 / เงินเดือนออก 28)
+คำนวณจากการลงเวลาจริงใน `checkins` — ดูวิธีคิดเงินและข้อจำกัดทั้งหมดที่ `checkin-system/PAYROLL_LINE_NOTIFY.md`
+
+**ไฟล์ใหม่**
+
+| ไฟล์ | หน้าที่ |
+| --- | --- |
+| `checkin-system/backend/app/payroll.py` | คณิตศาสตร์ล้วน: ขอบรอบ วันทำงาน การเฉลี่ยเงิน ประกันสังคม (ไม่แตะ DB) |
+| `checkin-system/backend/app/payroll_service.py` | ดึงการลงเวลาจริง ตัดสินว่าถึงกำหนดส่งหรือยัง แล้วส่ง |
+| `checkin-system/backend/app/payroll_models.py` | ตาราง `payroll_notices` (กันส่งซ้ำ) |
+| `checkin-system/backend/app/line_flex.py` | ประกอบ JSON ของการ์ด LINE Flex Message |
+| `checkin-system/backend/app/routers/payroll.py` | API 5 เส้นใต้ `/payroll` |
+| `checkin-system/backend/send_payroll_notice.py` | CLI ที่ Scheduled Task เรียก |
+| `checkin-system/backend/test_payroll.py` | เทสต์ 55 ข้อ |
+| `checkin-system/deploy/line/install-payroll-task.ps1` | ติดตั้ง Scheduled Task (2 trigger/วัน) |
+| `checkin-system/PAYROLL_LINE_NOTIFY.md` | เอกสารประกอบทั้งหมด |
+
+**ไฟล์ที่แก้**
+
+- `app/config.py` — เพิ่มกลุ่มค่า `PAYROLL_*` (18 ตัว) + property `payroll_weekdays_set` / `payroll_holidays_set` / `payroll_target_id` / เวลาแจ้งเตือน
+- `app/models.py` — เพิ่มคอลัมน์ `employees.base_salary` (NULL = ไม่เข้าระบบเงินเดือน)
+- `app/database.py` — เพิ่ม `("employees", "base_salary", "DOUBLE PRECISION")` ใน `_ADDED_COLUMNS`
+- `app/notify_line.py` — **เพิ่ม** `push_flex()` ข้างๆ `push_text()` โดยไม่แตะ `push_text` เลย
+- `app/main.py` — include `payroll.router`
+- `backend/.env.example` — ตัวอย่างค่า `PAYROLL_*` ครบชุด
+- `README.md` — หัวข้อรอบเงินเดือน + แถว API + ตาราง `payroll_notices`
+
+**เหตุผลของการออกแบบที่ไม่ชัดจากโค้ด**
+
+- **ไม่ใส่ scheduler ใน backend** — ใช้ pattern เดิมของโปรเจ็คคือ script + Windows Scheduled Task
+  (เหมือน `send_daily_summary.py`) ตั้ง task เดียวมี 2 trigger/วัน แล้วให้สคริปต์ตัดสินเองว่าวันนั้นส่งอะไร
+- **ไม่แตะ `push_text()`** — GitNexus impact upstream ขึ้น **HIGH** (4 จุด: `notify_checkin`,
+  `send_test`, `send_daily_summary.main`) จึงเพิ่มฟังก์ชันใหม่ข้างๆ แทนการแก้ของเดิม
+- **ไม่ลงไลบรารีเพิ่ม** — Flex Message เป็นของ Messaging API อยู่แล้ว `line-bot-sdk` จะลาก
+  aiohttp/requests เข้ามาโดยไม่ได้อะไรเพิ่ม เพราะ `notify_line.py` ใช้ `urllib` จาก stdlib
+- **`payroll_notices` ไม่มี UNIQUE constraint** — การส่งซ้ำมีเหตุผลที่ถูกต้อง (ครั้งก่อนล้มเหลว / สั่ง force)
+  หนึ่งแถว = หนึ่งครั้งที่พยายามส่ง ตัวกันซ้ำจริงคือ `already_sent()` ที่นับเฉพาะแถว `ok=True`
+- **ค่าเริ่มต้นปลอดภัยไว้ก่อน** — `PAYROLL_DEFAULT_SALARY=0` ทำให้ไม่มีใครถูกส่งตัวเลขเงินเดือน
+  เข้า LINE โดยไม่ได้ตั้งใจ และมี `PAYROLL_LINE_TARGET_ID` แยกห้องออกจากกลุ่มแจ้งเข้างาน
+- **`PAYROLL_PRORATE_BASIS` ค่าเริ่มต้น `calendar_30`** — เป็นวิธีที่ HR ไทยใช้บ่อยสุดกับพนักงานเข้าใหม่
+  ยังไม่ได้ยืนยันกับ HR ของบริษัทจริง เปลี่ยนเป็น `work_days` ได้ด้วยการแก้ `.env` บรรทัดเดียว
+
+**ผลทดสอบ:** `python -m unittest test_payroll` ผ่าน 64/64 (payroll 55 + chat 9) · ตรวจ OpenAPI ว่า endpoint ขึ้นครบ 5 เส้น ·
+dry-run ครบทั้ง 3 ชนิดข้อความบน SQLite ชั่วคราว (ไม่แตะ Postgres ของ production) · PowerShell parse ผ่าน
+
+**ยังไม่ได้ทำ:** ยังไม่ได้ commit · ยังไม่ได้ deploy ขึ้น production · ยังไม่ได้ตั้ง `PAYROLL_LINE_TARGET_ID`
+และเงินเดือนรายคนในฐานข้อมูลจริง · ยังไม่ได้ส่งข้อความจริงเข้ากลุ่ม LINE
+
 ### 2026-09-11 — เพิ่ม Documentation Policy
 - เพิ่มหัวข้อ "Project Rules" + "Work Log" ต่อท้าย `CLAUDE.md` (นอกบล็อก gitnexus)
 - ไม่มีการแก้โค้ดในโปรเจ็ค

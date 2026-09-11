@@ -38,6 +38,11 @@ class Employee(Base):
     department: Mapped[str | None] = mapped_column(String(120), nullable=True)
     position: Mapped[str | None] = mapped_column(String(120), nullable=True)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # เงินเดือน (บาท/เดือน) สำหรับคำนวณรอบจ่ายเงิน
+    # NULL = ยังไม่ตั้ง -> ไม่เข้าระบบเงินเดือนและไม่ถูกแจ้งเตือน เว้นแต่ตั้ง
+    # PAYROLL_DEFAULT_SALARY ไว้ใน .env (ค่าเริ่มต้นคือไม่ตั้ง = ปลอดภัยไว้ก่อน
+    # เพราะเงินเดือนเป็นข้อมูลส่วนตัวที่ไม่ควรหลุดเข้ากลุ่มโดยไม่ตั้งใจ)
+    base_salary: Mapped[float | None] = mapped_column(Float, nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     checkins: Mapped[list["CheckIn"]] = relationship(back_populates="employee")

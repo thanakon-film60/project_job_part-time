@@ -28,6 +28,7 @@ _ADDED_COLUMNS = [
     ("employees", "position", "VARCHAR(120)"),
     ("employees", "start_date", "DATE"),
     ("employees", "updated_at", "TIMESTAMP"),
+    ("employees", "base_salary", "DOUBLE PRECISION"),
 ]
 
 

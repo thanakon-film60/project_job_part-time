@@ -15,6 +15,7 @@ from .routers import (
     faces,
     line,
     locations,
+    payroll,
     reports,
 )
 
@@ -45,6 +46,7 @@ app.include_router(chat.router)
 app.include_router(faces.router)
 app.include_router(line.router)
 app.include_router(locations.router)
+app.include_router(payroll.router)
 app.include_router(reports.router)
 
 

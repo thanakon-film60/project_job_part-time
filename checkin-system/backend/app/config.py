@@ -1,5 +1,5 @@
 import json
-from datetime import time
+from datetime import date, time
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -71,6 +71,54 @@ class Settings(BaseSettings):
     line_target_id: str = ""              # Group ID ของกลุ่มที่จะให้แจ้งเตือน (ขึ้นต้นด้วย C)
     # เขตเวลาที่ใช้แสดงเวลาในข้อความ (ฐานข้อมูลเก็บเป็น UTC)
     timezone_offset_hours: int = 7        # ไทย = UTC+7
+
+    # --- รอบเงินเดือน + แจ้งเตือนรายได้เข้า LINE ---
+    #
+    # รอบของบริษัทนี้ไม่ตรงกับเดือนปฏิทิน: ตัดรอบวันที่ 26, รอบใหม่เริ่ม 27,
+    # จ่ายเงินวันที่ 28 (เงินที่จ่ายวันที่ 28 เป็นของรอบที่ตัดไปเมื่อวันที่ 26)
+    payroll_enabled: bool = True
+    payroll_cutoff_day: int = Field(default=26, ge=1, le=31)
+    payroll_payday: int = Field(default=28, ge=1, le=31)
+
+    # เงินเดือนสำหรับพนักงานที่ยังไม่ได้ตั้งค่ารายคนใน employees.base_salary
+    # 0 = ไม่ตั้ง = พนักงานที่ไม่มีค่ารายคนจะไม่เข้าระบบเงินเดือน (ไม่ถูกแจ้งเตือน)
+    payroll_default_salary: float = Field(default=0.0, ge=0)
+
+    # วิธีเฉลี่ยเงินเมื่อเข้างานกลางรอบ
+    #   calendar_30 = เงินเดือน ÷ 30 × จำนวนวันตามปฏิทินที่อยู่ในรอบ (แบบที่ HR ไทยใช้บ่อยสุด)
+    #   work_days   = เงินเดือน ÷ วันทำงานทั้งรอบ × วันทำงานที่มีสิทธิ์
+    payroll_prorate_basis: str = "calendar_30"
+    payroll_calendar_divisor: int = Field(default=30, ge=1, le=31)
+
+    # วันทำงานประจำสัปดาห์ตาม ISO (1=จันทร์ ... 7=อาทิตย์)
+    payroll_work_weekdays: str = "1,2,3,4,5"
+    # วันหยุดนักขัตฤกษ์/วันหยุดบริษัท คั่นด้วยจุลภาค เช่น "2026-10-13,2026-10-23"
+    # วันหยุดเป็นวันที่ได้เงินอยู่แล้ว จึงถูกตัดออกจาก "วันที่ต้องมาทำงาน"
+    # ไม่ใช่ถูกนับเป็นขาดงาน
+    payroll_holidays: str = ""
+
+    # หักเงินวันที่มาสาย (บาท/วัน) — 0 = ไม่หัก แค่รายงานให้เห็น
+    payroll_late_deduction_per_day: float = Field(default=0.0, ge=0)
+
+    # ประกันสังคม ม.33 — 5% ของค่าจ้าง ฐานคำนวณ 1,650-15,000 บาท (สูงสุด 750/เดือน)
+    payroll_social_security_enabled: bool = True
+    payroll_social_security_rate: float = Field(default=0.05, ge=0, le=1)
+    payroll_social_security_floor: float = Field(default=1650.0, ge=0)
+    payroll_social_security_ceiling: float = Field(default=15000.0, ge=0)
+
+    # ⚠️ เงินเดือนเป็นข้อมูลส่วนตัว — ถ้า LINE_TARGET_ID เป็นกลุ่มที่มีคนอื่นอยู่
+    # ให้ตั้งค่านี้เป็นห้องแชทส่วนตัว (userId ขึ้นต้นด้วย U) แยกจากกลุ่มแจ้งเข้างาน
+    # เว้นว่าง = ใช้ LINE_TARGET_ID เดียวกับการแจ้งเตือนเช็คอิน
+    payroll_line_target_id: str = ""
+
+    # เวลาที่ควรส่งแจ้งเตือนแต่ละแบบ (เวลาไทย)
+    # ตัดรอบส่งตอนเย็นเพราะต้องรอให้คนลงเวลาออกงานของวันที่ 26 ให้ครบก่อน
+    payroll_cutoff_notice_time: str = "18:00"
+    payroll_cycle_notice_time: str = "09:00"
+
+    # เซิร์ฟเวอร์ดับข้ามวันแล้วเพิ่งกลับมา ยังส่งย้อนหลังได้ภายในกี่ชั่วโมง
+    # เกินจากนี้ถือว่าตกรอบ ไม่ส่ง (กันสแปมย้อนหลังหลายรอบรวดเดียว)
+    payroll_notice_catchup_hours: int = Field(default=36, ge=0, le=720)
 
     # --- กล้องวงจรปิด ONVIF (หมุนกล้อง + ภาพนิ่ง) ---
     # เซิร์ฟเวอร์ต้องอยู่วงเดียวกับกล้องถึงจะสั่งได้ (กล้องเป็น IP ในวง LAN)
@@ -217,6 +265,52 @@ class Settings(BaseSettings):
                 "category": "work",
             }
         ]
+
+    @property
+    def payroll_weekdays_set(self) -> set[int]:
+        """วันทำงานประจำสัปดาห์ — ค่าผิดรูปแบบถอยไปใช้จันทร์-ศุกร์
+
+        ตั้งใจไม่ให้ระบบล่มเพราะพิมพ์ผิด เหมือน offices_list และ work_start
+        """
+        result = set()
+        for part in (self.payroll_work_weekdays or "").split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                value = int(part)
+            except ValueError:
+                continue
+            if 1 <= value <= 7:
+                result.add(value)
+        return result or {1, 2, 3, 4, 5}
+
+    @property
+    def payroll_holidays_set(self) -> set[date]:
+        """วันหยุดที่ตั้งไว้ใน .env — บรรทัดที่พิมพ์ผิดถูกข้าม ไม่ทำให้ระบบล่ม"""
+        result: set[date] = set()
+        for part in (self.payroll_holidays or "").split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                result.add(date.fromisoformat(part))
+            except ValueError:
+                continue
+        return result
+
+    @property
+    def payroll_target_id(self) -> str:
+        """ห้องที่จะส่งสรุปเงินเดือนไป — ไม่ได้ตั้งแยกก็ใช้ห้องเดียวกับเช็คอิน"""
+        return (self.payroll_line_target_id or self.line_target_id).strip()
+
+    @property
+    def payroll_cutoff_notice_at(self) -> time:
+        return _parse_hhmm(self.payroll_cutoff_notice_time, time(18, 0))
+
+    @property
+    def payroll_cycle_notice_at(self) -> time:
+        return _parse_hhmm(self.payroll_cycle_notice_time, time(9, 0))
 
     @property
     def work_start(self) -> time:
