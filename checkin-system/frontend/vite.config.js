@@ -70,6 +70,7 @@ export default defineConfig({
           /^\/line/,
           /^\/locations/,
           /^\/reports/,
+          /^\/support/,
           /^\/health/,
           /^\/docs/,
           /^\/openapi\.json/,

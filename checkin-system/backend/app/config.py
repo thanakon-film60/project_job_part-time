@@ -194,6 +194,23 @@ class Settings(BaseSettings):
     camera_tirtc_token_ttl_seconds: int = Field(default=120, ge=30, le=300)
     camera_tirtc_stream_id: int = Field(default=14, ge=0, le=15)
 
+    # --- ห้องช่วยเหลือระยะไกล (IT support: วิดีโอคอล + วาดชี้จุดบนภาพ) ---
+    # ลิงก์เชิญมีอายุกี่นาที — หมดอายุแล้วผู้ใช้กดลิงก์เดิมเข้าไม่ได้อีก
+    support_session_ttl_minutes: int = Field(default=120, ge=5, le=1440)
+    # จำนวนห้องที่ยังเปิดค้างได้พร้อมกันต่อผู้ช่วย 1 คน (กันลืมปิดจนลิงก์เกลื่อน)
+    support_max_open_sessions: int = Field(default=5, ge=1, le=50)
+    # โดเมนหน้าเว็บสำหรับประกอบลิงก์เชิญ เช่น "https://checkin.example.com"
+    # เว้นว่างได้ — หน้าเว็บจะประกอบลิงก์จากโดเมนที่เปิดอยู่เอง
+    support_public_base_url: str = ""
+
+    # เซิร์ฟเวอร์ STUN ใช้ให้เบราว์เซอร์สองฝั่งหาเส้นทางต่อตรงกันเจอ (คั่นด้วยจุลภาค)
+    stun_servers: str = "stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302"
+    # TURN ใช้เมื่อเน็ตฝั่งใดฝั่งหนึ่งต่อตรงไม่ได้ (เช่น 4G บางค่าย / เน็ตบริษัทที่ปิดพอร์ต)
+    # เว้นว่าง = ใช้ STUN อย่างเดียว ซึ่งพอสำหรับเน็ตบ้าน/ออฟฟิศทั่วไป
+    turn_url: str = ""
+    turn_username: str = ""
+    turn_password: str = ""
+
     # โดเมนที่อนุญาตให้เรียก API จากเบราว์เซอร์ (คั่นด้วยจุลภาค)
     # production: ตั้งเป็นโดเมนจริง เช่น "https://checkin.example.com"
     allowed_origins: str = "*"
@@ -203,6 +220,22 @@ class Settings(BaseSettings):
         if self.allowed_origins.strip() == "*":
             return ["*"]
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    @property
+    def ice_servers_list(self) -> list[dict]:
+        """รายการ ICE server ที่ส่งให้เบราว์เซอร์ใช้ตอนต่อสายวิดีโอ"""
+        servers: list[dict] = []
+        urls = [u.strip() for u in self.stun_servers.split(",") if u.strip()]
+        if urls:
+            servers.append({"urls": urls})
+        turn = self.turn_url.strip()
+        if turn:
+            entry: dict = {"urls": [u.strip() for u in turn.split(",") if u.strip()]}
+            if self.turn_username:
+                entry["username"] = self.turn_username
+                entry["credential"] = self.turn_password
+            servers.append(entry)
+        return servers
 
     @property
     def camera_tirtc_missing_fields(self) -> list[str]:

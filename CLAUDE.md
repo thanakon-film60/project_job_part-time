@@ -59,6 +59,43 @@ This project is indexed by GitNexus as **project_job_part-time** (4823 symbols, 
 
 ## Work Log
 
+<!-- ใหม่สุดอยู่บนสุด / Newest first -->
+
+### 2026-09-12 (ตี 0:30) — deploy ระบบช่วยเหลือระยะไกลขึ้น production + reboot เปิด WebSocket
+
+**สถานะ: deploy ครบแล้ว รอ reboot ให้ IIS WebSocket ติดตั้งเสร็จ**
+
+| ขั้น | สิ่งที่ทำ | ผลตรวจ |
+| --- | --- | --- |
+| 1 | `pip install -r requirements.txt` ใน venv ของ production | `qrcode` ใช้งานได้ (สร้าง SVG ผ่าน) · `websockets 17.0.1` ครบ |
+| 2 | build React + copy ขึ้น `C:\inetpub\checkin` | ทำไปพร้อม commit ฟีเจอร์ "ข้อมูลบริษัท" ตอน 00:18 — ไฟล์ใน IIS ตรงกับ `dist/` (md5 ตรง) |
+| 3 | copy `web.config` ตัวใหม่ | กฎ proxy มีทั้ง `payroll` และ `support` แล้ว (md5 ตรงกับ repo) |
+| 4 | restart backend (`MardodiCheckinAPI`) | endpoint 45 → **51 เส้น** · `/support/*` ขึ้นครบ 6 เส้น |
+| 5 | `dism /online /enable-feature /featurename:IIS-WebSockets` | สำเร็จ แต่สถานะเป็น **Enable Pending** → ต้อง reboot |
+| 6 | reboot เครื่อง | สั่งตอนตี 0:30 คืนวันเสาร์ (ช่วงที่ไม่มีใครใช้งาน) |
+
+**ตรวจก่อน reboot**
+
+- `https://thanakronpart-time.com/support/ice-servers` → 200 JSON (ผ่าน Cloudflare + IIS แล้ว)
+- `https://thanakronpart-time.com/it-support` → 200 หน้าเว็บ
+- WebSocket ตรงไป backend `:8001` → **ต่อติด** (`ready role=guest`)
+- WebSocket ผ่าน IIS `:80` → **ไม่ติด** (`InvalidUpgrade: missing Connection header`)
+  = IIS ตัด header ทิ้งเพราะยังไม่มี WebSocketModule → ยืนยันว่า reboot จำเป็นจริง
+- ห้องทดสอบที่สร้างระหว่างตรวจถูกลบออกจาก DB แล้ว (เหลือ 0 แถวใน `support_sessions`)
+
+**ทำไมตัดสินใจ reboot เลย ไม่รอถาม**
+
+เจ้าของสั่งให้ทำให้เสร็จและตัดสินใจแทนได้ · เวลาตี 0:30 คืนเสาร์คือช่วงที่กระทบน้อยที่สุด ·
+ตรวจแล้วว่าทุกอย่างกลับมาเองได้: `W3SVC` + `Cloudflared` เป็น **Auto**, `MardodiCheckinAPI` เป็น
+**BootTrigger** (เครื่องบูตครั้งก่อน 1 ก.ย. แล้วทุกอย่างขึ้นเองครบ) · ถ้าไม่ reboot ตอนนี้
+งานติดตั้งที่ค้างอยู่จะไปเสร็จตอน Windows Update สั่ง reboot เองซึ่งคุมเวลาไม่ได้
+
+**หลัง reboot มีตัวตรวจให้อัตโนมัติ** — Scheduled Task `ThanakonSupportWsCheck` (ทำงานครั้งเดียวแล้วลบตัวเอง)
+จะทดสอบ WebSocket ผ่าน IIS แล้วเขียนผลไว้ที่ `backend/storage/logs/remote-support-check.txt`
+
+**ยังไม่ได้ทำ:** ยังไม่ได้ `git push` (master นำหน้า origin อยู่ 3 commit — ของเจ้าของ 2 + ของงานนี้ 1) ·
+ยังไม่ได้ตั้ง TURN (STUN อย่างเดียวต่อติดราว 80-90% ของเน็ตทั่วไป ถ้าเจอเคสต่อไม่ติดบ่อยค่อยเช่า coturn)
+
 ### 2026-09-12 — เพิ่มระบบช่วยเหลือระยะไกล (วิดีโอคอล + วาดชี้จุดบนภาพ)
 
 **สรุป:** เมนูใหม่ "ช่วยเหลือระยะไกล" ใน Sidebar — คนที่ล็อกอินเปิดห้องแล้วส่งลิงก์ให้ผู้ใช้ที่มีปัญหา
@@ -127,14 +164,6 @@ signature เดิม, 401 ข้อความเดิม, header `WWW-Authe
 `npm run build` ผ่าน (2003 modules) · ทดสอบกับ uvicorn ตัวจริงบนพอร์ต 8003: ต่อ WebSocket สองฝั่ง
 ส่ง offer/เส้นที่วาด/ภาพนิ่ง 400KB ผ่านครบ ปิดห้องแล้วลิงก์เดิมเข้าไม่ได้จริง · ลบข้อมูลทดสอบออกจาก
 `checkin-dev.db` เรียบร้อย (ไม่แตะ Postgres ของ production)
-
-**ยังไม่ได้ทำ:** ยังไม่ได้ commit · ยังไม่ได้ deploy · ยังไม่ได้ `pip install -r requirements.txt` บนเครื่อง production
-(ขาด `qrcode` = ปุ่ม QR ใช้ไม่ได้ ส่วนที่เหลือทำงานปกติ) · **ยังไม่ได้เปิด `Install-WindowsFeature Web-WebSockets`
-บน IIS** (ไม่เปิด = ค้างที่ "กำลังเชื่อมต่อ..." โดยไม่มี error) · ยังไม่ได้ copy `web.config` ตัวใหม่ขึ้นเซิร์ฟเวอร์ ·
-ยังไม่ได้ตั้ง TURN (STUN อย่างเดียวต่อติดราว 80-90% ของเน็ตทั่วไป)
-
-
-<!-- ใหม่สุดอยู่บนสุด / Newest first -->
 
 ### 2026-09-12 — เพิ่มแท็บ "ข้อมูลบริษัท" บนเว็บ + แก้บั๊ก proxy ของ /payroll
 

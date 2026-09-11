@@ -172,3 +172,36 @@ export const sendChatMessage = (peerId, payload) => req(`/chat/messages/${encode
 export const readChatMessages = (peerId, throughId) => req(`/chat/read/${encodeURIComponent(peerId)}`, {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ through_id: throughId }),
 });
+
+
+// ===== ห้องช่วยเหลือระยะไกล (IT support: วิดีโอคอล + วาดชี้จุด) =====
+// ฝั่งผู้ช่วยต้องล็อกอิน ส่วนฝั่งผู้ใช้เข้าด้วยลิงก์ลับ ไม่ต้องมีบัญชี
+export const createSupportSession = (payload) =>
+  req("/support/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+export const getSupportSessions = () => req("/support/sessions", { cache: "no-store" });
+export const endSupportSession = (code) =>
+  req(`/support/sessions/${encodeURIComponent(code)}/end`, { method: "POST" });
+
+// ข้อมูลที่ฝั่งผู้ใช้เห็นก่อนกดอนุญาตกล้อง — ไม่ต้องแนบ token
+export const getSupportGuestInfo = (code) =>
+  req(`/support/guest/${encodeURIComponent(code)}`, { cache: "no-store" });
+
+// ลิงก์เชิญ: ใช้ค่าจาก .env ถ้าตั้งไว้ ไม่งั้นประกอบจากโดเมนที่เปิดหน้านี้อยู่
+export const supportJoinLink = (session) =>
+  session?.join_url || new URL(session.join_path, window.location.origin).href;
+
+// QR ต้องแนบ token จึงดึงเป็น blob แล้วค่อยทำเป็น object URL (<img src> แนบ header ไม่ได้)
+export async function fetchSupportQr(code) {
+  const query = new URLSearchParams({ origin: window.location.origin });
+  const res = await fetch(
+    `${BASE}/support/sessions/${encodeURIComponent(code)}/qr.svg?${query}`,
+    { headers: authHeaders() },
+  );
+  if (res.status === 401) sessionExpired();
+  if (!res.ok) throw new Error("สร้าง QR ไม่สำเร็จ");
+  return URL.createObjectURL(await res.blob());
+}
