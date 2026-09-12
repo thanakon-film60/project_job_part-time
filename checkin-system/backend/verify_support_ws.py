@@ -11,6 +11,7 @@
 """
 import asyncio
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -20,6 +21,13 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+
+# ⚠️ ต้องย้ายโฟลเดอร์ปัจจุบันมาที่ backend ก่อนแตะ app.config
+#
+# pydantic-settings อ่าน .env เทียบกับ "โฟลเดอร์ปัจจุบัน" ไม่ใช่ที่อยู่ของไฟล์
+# เรียกสคริปต์นี้จากที่อื่น (เช่นจาก deploy\cloudflare) จะหา .env ไม่เจอแล้วถอยไป
+# ใช้ค่า default ทั้งชุด — อาการคือต่อฐานข้อมูลไม่ได้เพราะรหัสผ่านเป็นค่าตัวอย่าง
+os.chdir(HERE)
 
 REPORT = HERE / "storage" / "logs" / "remote-support-check.txt"
 IIS_HOST = "localhost"
