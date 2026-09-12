@@ -59,6 +59,17 @@ This project is indexed by GitNexus as **project_job_part-time** (4823 symbols, 
 
 ## Work Log
 
+### 2026-09-12 — deploy home verification บน production
+
+- นำไฟล์ server จาก `origin/Film_dev_Part-Time` commit `bd5989c` มาที่ master: verifier, models, router, main registration, tests และ IIS web.config
+- พบ `Settings` ขาดค่า home verification 3 ตัว ทำให้เทสเดิม error 20/29; เพิ่ม default TTL 120 วินาที, หลักฐานสูงสุด 8,000,000 ไบต์ และด้านสั้นขั้นต่ำ 160 พิกเซล พร้อม validation มากกว่า 0
+- ทดสอบ home verification/payroll/chat/support บน SQLite แยกผ่าน 108/108 และทดสอบ startup ผ่าน จากนั้น `deploy-update.ps1 -SkipFrontend` สำเร็จ
+- โดเมนจริง `/home-verifications/me`: unauthenticated 401 JSON; authenticated พนักงาน/หัวหน้า 200 JSON + no-store; OpenAPI 56 paths รวม 5 paths ใหม่; PostgreSQL มีสองตารางใหม่ครบ
+- สำรอง source และ IIS config เดิมที่ `F:\GitHub\deploy-backups\home-verification-20260912` ก่อน deploy; ไม่มี DB backup ในรอบนี้ การตรวจ production ใช้ GET เท่านั้น ไม่สร้างรายการหรือส่ง LINE
+- GitNexus impact ของ Settings เป็น HIGH (37 รายการ, direct 17) บน index ที่อัปเดตฐาน 71ae02f; เปลี่ยนเฉพาะ field ใหม่
+- ยังไม่ได้ publish APK: artifact employee 1.6.1+9 / boss 1.3.1+6 ไม่อยู่บนเครื่องนี้; metadata แจกแอพยัง 1.2.0+3 / 1.0.0+1 ยังต้องรับ APK และทดสอบมือถือจริง
+- รายละเอียด: `checkin-system/SERVER_DEPLOY_HOME_VERIFICATION_2026-09-12.md`; อัปเดต `LOGIN_STATUS_HANDOFF_2026-09-12.md` แล้ว
+
 <!-- ใหม่สุดอยู่บนสุด / Newest first -->
 
 ### 2026-09-12 (13:51) — เปิดใช้งานจริงสำเร็จ: WebSocket วิ่งผ่าน Cloudflare Tunnel แล้ว

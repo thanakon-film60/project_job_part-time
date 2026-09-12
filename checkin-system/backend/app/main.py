@@ -13,6 +13,7 @@ from .routers import (
     employee_management,
     employment_options,
     faces,
+    home_verifications,
     line,
     locations,
     payroll,
@@ -45,6 +46,7 @@ app.include_router(camera.router)
 app.include_router(checkins.router)
 app.include_router(chat.router)
 app.include_router(faces.router)
+app.include_router(home_verifications.router)
 app.include_router(line.router)
 app.include_router(locations.router)
 app.include_router(payroll.router)

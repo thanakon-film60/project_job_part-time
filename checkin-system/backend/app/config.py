@@ -62,6 +62,11 @@ class Settings(BaseSettings):
 
     storage_dir: str = "storage"
 
+    # อายุ challenge และขนาดหลักฐานสำหรับยืนยันบ้าน ไม่ใช่เกณฑ์เวลาเข้างาน
+    home_verification_challenge_ttl_seconds: int = Field(default=120, gt=0)
+    home_verification_max_photo_bytes: int = Field(default=8_000_000, gt=0)
+    home_verification_min_photo_pixels: int = Field(default=160, gt=0)
+
     # --- แจ้งเตือนเข้ากลุ่ม LINE (Messaging API) ---
     # LINE Notify ปิดบริการแล้ว ต้องใช้ LINE Official Account + Messaging API
     # วิธีตั้งค่า: deploy/line/LINE_SETUP.md
