@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- กดค้างเพื่อพูดออกลำโพงกล้อง CCTV ผ่าน TiRTC (ขอสิทธิ์ตอนกดครั้งแรกเท่านั้น) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- สแกนใบหน้าเพื่อยืนยันตัวตนตอนอยู่บ้าน — บัญชีหัวหน้าก็ต้องสแกน -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>

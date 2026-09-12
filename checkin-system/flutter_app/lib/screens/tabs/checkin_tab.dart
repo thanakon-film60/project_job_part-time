@@ -4,16 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../config.dart';
+import '../../models/home_verification.dart';
 import '../../services/api_service.dart';
 import '../../services/attendance_service.dart';
+import '../../services/home_verification_service.dart';
 import '../../services/location_service.dart';
 import '../../services/tracking_controller.dart';
 import '../../services/work_schedule.dart';
 import '../../widgets/duty_warning_card.dart';
+import '../../widgets/home_verification_card.dart';
 import '../../widgets/today_attendance_card.dart';
 import '../../widgets/tracking_status_card.dart';
 import '../checkin_screen.dart';
 import '../face_enroll_screen.dart';
+import '../home_verification_screen.dart';
 
 /// แท็บหลัก — ตำแหน่งปัจจุบัน สถานะการติดตาม รายการลงเวลาวันนี้ และปุ่มลงเวลา
 class CheckInTab extends StatefulWidget {
@@ -28,7 +32,6 @@ class CheckInTab extends StatefulWidget {
 class _CheckInTabState extends State<CheckInTab> {
   // ---- ตำแหน่งปัจจุบัน / geofence ----
   Position? _pos;
-  double? _distanceKm;
   double? _allowedRadiusKm;
   double? _workDistanceKm;
   String? _nearestOfficeName;
@@ -49,6 +52,14 @@ class _CheckInTabState extends State<CheckInTab> {
   // null = ยังไม่รู้ (โหลดไม่เสร็จ/โหลดไม่ผ่าน) ยังไม่ต้องเตือน
   bool? _faceEnrolled;
 
+  // ---- ยืนยันตัวตนรายวันตอนอยู่บ้าน ----
+  // แยกจาก _today โดยสิ้นเชิง: รายการบ้านอยู่คนละตารางกับการลงเวลา
+  // และต้องไม่ถูกนำไปคิดเวลาทำงาน
+  HomeVerificationDay? _homeDay;
+  // โหลดไม่สำเร็จ ≠ ยังไม่ได้ยืนยัน — ต้องแสดงว่า "ยังตรวจสอบผลไม่ได้"
+  bool _homeDayFailed = false;
+  bool _verifying = false;
+
   Timer? _attendanceTimer;
   Timer? _clockTimer;
 
@@ -59,6 +70,7 @@ class _CheckInTabState extends State<CheckInTab> {
     _onTrackingChanged();
     _loadToday();
     _loadFaceEnrollment();
+    _loadHomeDay();
 
     _attendanceTimer = Timer.periodic(
       Config.attendanceRefreshInterval,
@@ -107,7 +119,6 @@ class _CheckInTabState extends State<CheckInTab> {
             LocationService.insideHome(pos.latitude, pos.longitude);
         setState(() {
           _pos = pos;
-          _distanceKm = dist;
           _allowedRadiusKm = workOffice.radiusKm;
           _workDistanceKm = workDistance;
           _nearestOfficeName = workOffice.name;
@@ -125,7 +136,6 @@ class _CheckInTabState extends State<CheckInTab> {
         debugPrint('Cannot evaluate geofence: $err');
         setState(() {
           _pos = pos;
-          _distanceKm = null;
           _allowedRadiusKm = null;
           _workDistanceKm = null;
           _nearestOfficeName = null;
@@ -188,10 +198,53 @@ class _CheckInTabState extends State<CheckInTab> {
     await _loadFaceEnrollment();
   }
 
+  /// สถานะการยืนยันตัวตนของวันนี้ (ตัดวันด้วยเวลาไทยฝั่ง server)
+  ///
+  /// ล้มเหลวต้องขึ้น "ยังตรวจสอบผลไม่ได้" ไม่ใช่ "ยังไม่ได้ยืนยัน" เพราะ
+  /// เน็ตหลุดไม่ใช่หลักฐานว่าผู้ใช้ไม่ได้รายงานตัว
+  Future<void> _loadHomeDay() async {
+    if (!ApiService.isLoggedIn || !mounted) return;
+    try {
+      final day = await HomeVerificationService.myDay();
+      if (!mounted) return;
+      setState(() {
+        _homeDay = day;
+        _homeDayFailed = false;
+      });
+    } catch (err) {
+      debugPrint('Load home verification failed: $err');
+      if (!mounted) return;
+      setState(() => _homeDayFailed = true);
+    }
+  }
+
+  Future<void> _goVerifyHome() async {
+    if (_verifying) return;
+    setState(() => _verifying = true);
+    try {
+      final result = await Navigator.of(context).push<HomeVerification>(
+        MaterialPageRoute(builder: (_) => const HomeVerificationScreen()),
+      );
+      if (!mounted) return;
+      if (result != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ยืนยันตัวตนและรายงานสถานะแล้ว: อยู่บ้าน — ไม่ได้ไปทำงาน'),
+          ),
+        );
+      }
+      // โหลดใหม่เสมอ แม้ผู้ใช้กดยกเลิก เพราะอาจมีรายการที่กู้ผลได้ระหว่างทาง
+      await _loadHomeDay();
+    } finally {
+      if (mounted) setState(() => _verifying = false);
+    }
+  }
+
   Future<void> _refreshAll() async {
     await widget.tracking.ensure();
     await _loadToday();
     await _loadFaceEnrollment();
+    await _loadHomeDay();
   }
 
   @override
@@ -259,9 +312,6 @@ class _CheckInTabState extends State<CheckInTab> {
     final tracking = widget.tracking;
     final color =
         _atHome ? Colors.indigo : (_within ? Colors.green : Colors.orange);
-    // บันทึก "ถึงบ้านแล้ว" ของวันนี้ (ถ้ามี) — กันกดซ้ำหลายรอบ
-    final homeRecords = _today?.homeRecords ?? const <CheckInRecord>[];
-    final homeRecordedAt = homeRecords.isEmpty ? null : homeRecords.last;
     // เข้างานไว้ที่ที่ทำงานแต่ยังไม่ได้กดออกงาน
     final openWork =
         _today?.sessions.where((session) => session.isOpen).firstOrNull;
@@ -309,9 +359,13 @@ class _CheckInTabState extends State<CheckInTab> {
                       '${_pos!.longitude.toStringAsFixed(5)}',
                       style: const TextStyle(color: Colors.black54),
                     ),
+                    // ต้องเป็นระยะถึง "ที่ทำงาน" เสมอ ไม่ใช่สถานที่ใกล้สุดทุกประเภท
+                    // (_distanceKm) — ตอนอยู่บ้าน ค่านั้นคือระยะถึงบ้าน แล้วป้าย
+                    // "ห่างออฟฟิศ" จะอ่านผิดเป็นว่ายืนอยู่ข้างออฟฟิศ
                     Text(
-                        'ห่างออฟฟิศ '
-                        '${_distanceKm?.toStringAsFixed(2) ?? '-'} กม.',
+                        'ห่าง ${_nearestOfficeName ?? 'ออฟฟิศ'} '
+                        '${_workDistanceKm?.toStringAsFixed(2) ?? '-'} กม.',
+                        textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.black54)),
                   ],
                 ],
@@ -397,19 +451,14 @@ class _CheckInTabState extends State<CheckInTab> {
               ),
             ),
             const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: homeRecordedAt == null ? () => _goCheckIn('in') : null,
-              icon: const Icon(Icons.home_filled),
-              label: Text(
-                homeRecordedAt == null
-                    ? 'บันทึกว่าอยู่บ้าน (สแกนหน้า)'
-                    : 'บันทึกว่าอยู่บ้านแล้วเมื่อ '
-                        '${thaiClock(homeRecordedAt.timestamp)} น.',
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.indigo,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
+            // ยืนยันตัวตนประจำวัน — สแกนใหม่ทุกรอบ ยืนยันซ้ำได้ตลอด
+            // (ปุ่มเดิมปิดถาวรหลังมีรายการของวันนี้ ซึ่งขัดกับข้อกำหนดข้อ 7)
+            HomeVerificationCard(
+              day: _homeDay,
+              loadFailed: _homeDayFailed,
+              busy: _verifying,
+              onVerify: _goVerifyHome,
+              onRetryLoad: _loadHomeDay,
             ),
           ] else ...[
             FilledButton.icon(

@@ -1,7 +1,7 @@
 name: thanakon_box_boss
-description: แอปหัวหน้า THANAKON-BOX (ดูทีม + ลงเวลาโดยไม่ต้องสแกนใบหน้า)
+description: แอปหัวหน้า THANAKON-BOX (ดูทีม + ลงเวลา · การยืนยันตัวตนตอนอยู่บ้านต้องสแกนใบหน้าเหมือนพนักงาน)
 publish_to: "none"
-version: 1.2.0+4
+version: 1.3.0+5
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -12,6 +12,12 @@ dependencies:
     sdk: flutter
   http: ^1.2.1
   geolocator: ^11.0.0
+  # สแกนใบหน้าสำหรับยืนยันตัวตนตอนอยู่บ้าน — หัวหน้าก็ต้องสแกน ไม่มีข้อยกเว้น
+  # (ดู DAILY_HOME_FACE_VERIFICATION_2026-09-11.md หัวข้อ 2 ข้อ 9)
+  # ตรึงเวอร์ชันให้ตรงกับ flutter_app เพื่อให้ face_scanner/face_service
+  # ที่ใช้ร่วมกันทำงานเหมือนกันทั้งสองแอป
+  camera: ^0.10.6
+  google_mlkit_face_detection: ^0.11.0
   shared_preferences: ^2.2.3
   flutter_background_service: ^5.0.5
   permission_handler: ^11.3.1

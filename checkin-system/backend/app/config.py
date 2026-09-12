@@ -146,6 +146,15 @@ class Settings(BaseSettings):
     camera_tirtc_token_ttl_seconds: int = Field(default=120, ge=30, le=300)
     camera_tirtc_stream_id: int = Field(default=14, ge=0, le=15)
 
+    # --- ยืนยันตัวตนรายวันตอนอยู่บ้าน (ดู DAILY_HOME_FACE_VERIFICATION_2026-09-11.md) ---
+    # อายุของโจทย์: มีไว้กันการส่งหลักฐานเก่าเท่านั้น
+    # **ไม่ใช่เส้นตายว่าต้องยืนยันก่อนกี่โมง** อยู่บ้านไม่มีสถานะสาย
+    home_verification_challenge_ttl_seconds: int = Field(default=120, ge=30, le=900)
+    # เพดานไฟล์หลักฐาน กันอัปโหลดไฟล์ใหญ่ผิดปกติ
+    home_verification_max_photo_bytes: int = Field(default=8_000_000, ge=100_000)
+    # ด้านสั้นที่สุดของภาพ กันภาพจิ๋วที่ตรวจสอบย้อนหลังไม่ได้
+    home_verification_min_photo_pixels: int = Field(default=160, ge=64, le=4096)
+
     # โดเมนที่อนุญาตให้เรียก API จากเบราว์เซอร์ (คั่นด้วยจุลภาค)
     # production: ตั้งเป็นโดเมนจริง เช่น "https://checkin.example.com"
     allowed_origins: str = "*"

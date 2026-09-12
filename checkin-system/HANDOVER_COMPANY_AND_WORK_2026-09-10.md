@@ -14,11 +14,11 @@
 | 1 | **บริษัทปลายทาง** | `Motta & Montipa` — **แบรนด์แฟชั่นไทย** (กางเกง/เสื้อผ้า/เครื่องประดับ/กระเป๋า) ขายผ่านเคาน์เตอร์ในห้าง 23–30+ สาขา + ออนไลน์ สำนักงานใหญ่ปากเกร็ด นนทบุรี — ⚠️ **ยังไม่ยืนยัน** ดูหัวข้อ 1 |
 | 2 | **ระบบหลัก** | `checkin-system` — ลงเวลาเข้างานด้วย GPS geofence + สแกนหน้า, เว็บ React (PWA) + Flutter 2 แอป + FastAPI/PostgreSQL |
 | 3 | **ฝั่งเว็บ** | ✅ เสร็จและ deploy แล้วบน `https://thanakronpart-time.com` (8 หน้า, ป้ายสาย/ตรงเวลา, ปฏิทิน, แผนที่สด, แชท) |
-| 4 | **ฝั่งแอป** | ⚠️ **โค้ดเสร็จแต่ APK ที่แจกยังเป็นตัวเก่า** — พนักงาน `1.2.0+3` (ควรเป็น `1.5.0+7`), หัวหน้า `1.0.0+1` (ควรเป็น `1.2.0+4`) |
-| 5 | **ตัวบล็อกใหญ่สุด** | เซิร์ฟเวอร์ไม่มี Flutter/Android SDK → ต้อง build APK บนเครื่อง dev + ฟีเจอร์ไมค์รอ credential จาก Tange (`business@tange.ai`) |
-| 6 | **ของที่ยังไม่ commit** | มีไฟล์ค้างใน working tree เยอะ (แชททั้งก้อน, `work-schedule.js`, tests) — **ห้ามลืม commit** ดูหัวข้อ 9 |
+| 4 | **ฝั่งแอป** | ✅ **build เสร็จและติดตั้งบนเครื่องจริงแล้ว** (11 ก.ย.) — พนักงาน `1.5.0+7`, หัวหน้า `1.2.0+4` ทดสอบบน MTN NX1 (Android 16) ผ่าน · ⚠️ แต่ **ที่แจกบนเว็บยังเป็นตัวเก่า** `1.2.0+3` / `1.0.0+1` |
+| 5 | **ตัวบล็อกใหญ่สุด** | เหลือ 2 ตัว: **publish APK ขึ้น production** (ต้องทำบนเครื่อง production ซึ่งเป็นคนละเครื่องกับ dev) + ฟีเจอร์ไมค์รอ credential จาก Tange (`business@tange.ai`) |
+| 6 | **ของที่ยังไม่ commit** | ✅ ของเก่า commit หมดแล้ว (`c627aab`, `1161a2d`) · รอบ 11 ก.ย. มีแก้ `checkin_tab.dart` ทั้ง 2 แอป ดูหัวข้อ 9.3 |
 
-**สิ่งที่ควรทำก่อนอย่างอื่น:** ยืนยันข้อมูลบริษัทกับ HR (หัวข้อ 1.4) → commit ของค้าง (หัวข้อ 9.3) → build+publish APK 2 ตัว (หัวข้อ 10.1)
+**สิ่งที่ควรทำก่อนอย่างอื่น:** publish APK 2 ตัวขึ้น production (หัวข้อ 10.1) → ขอ credential Tange (หัวข้อ 10.2) → ยืนยันข้อมูลบริษัทกับ HR (หัวข้อ 1.4)
 
 ---
 
@@ -256,6 +256,7 @@
 | โฟลเดอร์ | `flutter_app/` | `flutter_boss_app/` |
 | เวอร์ชันใน source | `1.5.0+7` | `1.2.0+4` |
 | **เวอร์ชันที่แจกจริงบน production** | ⚠️ `1.2.0+3` (build 25 ส.ค.) | ⚠️ `1.0.0+1` (build 30 ส.ค.) |
+| **เวอร์ชันที่ติดตั้งบนเครื่องทดสอบ (MTN NX1)** | ✅ `1.5.0+7` (11 ก.ย.) | ✅ `1.2.0+4` (11 ก.ย.) |
 | จุดเด่นเฉพาะตัว | `face_enroll_screen.dart`, `widgets/face_scanner.dart` — **สแกน/บันทึกใบหน้า** | `services/camera_talkback_service.dart` — **กดค้างพูดออกลำโพงกล้อง (TiRTC)** |
 | ลายเซ็น APK | คนละใบกับแอปหัวหน้า | debug key (อัปทับตัวเก่าได้ ไม่ต้องถอนติดตั้ง) |
 | ขนาด | ~53 MB | 73.8 MB (โตขึ้นเพราะ native lib ของ TiRTC) |
@@ -307,13 +308,38 @@
 
 **เทสต์:** 107 tests ผ่านหมด (เพิ่มใหม่ 29 ข้อ) · `flutter analyze` ไม่มี issue
 
-### 5.5 ⚠️ สถานะฝั่งแอป — ตรงนี้คือของค้างที่ใหญ่ที่สุด
+### 5.5 สถานะฝั่งแอป — build เสร็จแล้ว เหลือแค่ publish
 
-APK ที่พนักงาน/หัวหน้าโหลดไปใช้จริง **ยังเป็น binary เก่า** ไม่มีชื่อสำนักงานใหม่และไม่มีป้ายสาย/ตรงเวลา
+**อัปเดต 11 ก.ย. 2026:** build ทั้ง 2 แอปสำเร็จบนเครื่อง dev (`C:\project_job_part-time`, user `Pac-Man45`, Flutter 3.38.2 / Dart 3.10.0) และ **ติดตั้ง + ทดสอบบน MTN NX1 (Android 16, API 36) ผ่านแล้ว** — ดูผลทดสอบหัวข้อ 5.6
 
-> **แอปเก่ายังเช็คอินที่ออฟฟิศใหม่ได้ปกติ** (เพราะดึงพิกัดจาก API) แต่ **ป้ายสถานะบนแอปต้องใช้ APK ใหม่**
+| | แอปพนักงาน | แอปหัวหน้า |
+|---|---|---|
+| ไฟล์ที่ build ได้ | `flutter_app\build\app\outputs\flutter-apk\app-release.apk` (80.2 MB) | `flutter_boss_app\build\app\outputs\flutter-apk\app-release.apk` (74.0 MB) |
+| เวอร์ชันใน APK | `1.5.0+7` (verify ด้วย `aapt2 dump badging`) | `1.2.0+4` |
+| ลายเซ็น | debug keystore SHA-256 `41C0464D…9625E269` | ใบเดียวกัน |
 
-**ตัวบล็อก:** เซิร์ฟเวอร์นี้ไม่มี Flutter/Android SDK และ path ใน `flutter_boss_app/android/local.properties` ชี้เครื่องพัฒนาเดิม (`C:\src\flutter`, user `Pac-Man45`) ซึ่งไม่มีบนเครื่องนี้ → **ต้อง build บนเครื่อง dev เท่านั้น** ขั้นตอนอยู่หัวข้อ 10.1
+> ✅ **ลายเซ็นตรงกับ APK ชุดเดิม** → ติดตั้งทับได้เลย ไม่ต้องถอนติดตั้ง
+> ⚠️ แต่ **ผู้ใช้จะถูก logout** ทุกครั้งที่ติดตั้งทับ (ยืนยันแล้วรอบนี้ — แอปหัวหน้าเด้งกลับหน้า login) ต้องบอกผู้ใช้ให้ล็อกอินใหม่
+
+**ตัวบล็อกที่เหลือ: publish ขึ้น production เท่านั้น** — เครื่อง dev เครื่องนี้ **ไม่ใช่เครื่อง production** (ตรวจแล้ว: ไม่มี `C:\inetpub\checkin`, ไม่มี scheduled task `MardodiCheckinAPI`, ไม่มี service cloudflared, ไม่มีอะไร listen พอร์ต 8001) จึงรัน `publish-apk.ps1` จากที่นี่ไม่ได้ — ตรงกับกับดักข้อ 5 → **ต้องก๊อป APK 2 ไฟล์ไปรันบนเครื่อง production**
+
+### 5.6 ✅ ผลทดสอบบนเครื่องจริง — MTN NX1, Android 16 (11 ก.ย. 2026)
+
+| รายการ | ผล |
+|---|---|
+| `flutter analyze` ทั้ง 2 แอป | ✅ No issues found |
+| `flutter test` แอปพนักงาน | ✅ 81 tests ผ่าน |
+| `flutter test` แอปหัวหน้า | ✅ 120 tests ผ่าน |
+| `flutter build apk --release` ทั้ง 2 แอป | ✅ exit 0 |
+| `adb install -r` ทับของเดิม | ✅ Success ทั้งคู่ (ไม่ต้องถอนติดตั้ง) |
+| เปิดแอปพนักงาน | ✅ ไม่มี crash / ไม่มี FATAL ใน logcat |
+| เปิดแอปหัวหน้า | ✅ ไม่มี crash — ขึ้นหน้า login (session ถูกล้างจากการติดตั้งทับ) |
+| GPS + background tracking | ✅ จับพิกัด `13.88713, 100.50648` ส่ง ping ต่อเนื่อง |
+| ดึง `/reports/geofence` จาก production | ✅ ขึ้น `Motta & Montipa (Head office)` รัศมี 0.50 กม. + `ถึงบ้านแล้ว` รัศมี 0.20 กม. |
+| ตรรกะ `category=home` ไม่ตัดสินสาย | ✅ ขึ้น "อยู่บ้าน — ไม่ได้ไปทำงาน" และป้าย "ออกงานไม่ได้" ตามที่ตั้งไว้ |
+| ป้ายสาย/ตรงเวลาที่ออฟฟิศจริง | ⏳ **ยังทดสอบไม่ได้ — ต้องไปยืนในรัศมี 0.5 กม. ของออฟฟิศ** (ตอนทดสอบอยู่ห่าง 4.00 กม.) |
+
+**บั๊กที่เจอและแก้ในรอบนี้:** หน้าเช็คอินขึ้น `ห่างออฟฟิศ 0.07 กม.` ทั้งที่ออฟฟิศจริงห่าง 4.00 กม. — ตัวเลขนั้นคือระยะถึง**บ้าน** เพราะ `_distanceKm` เก็บค่าจาก `nearestOffice()` แบบไม่ใส่ `workOnly` (= สถานที่ใกล้สุดทุกประเภท) แต่ป้ายเขียนตายตัวว่า "ออฟฟิศ" → พนักงานที่อยู่บ้านจะอ่านผิดเป็นว่ายืนอยู่ข้างออฟฟิศ **แก้แล้วทั้ง 2 แอป** ให้ใช้ `_workDistanceKm` + `_nearestOfficeName` (มีอยู่ในโค้ดแล้ว) จึงขึ้นว่า `ห่าง Motta & Montipa (Head office) 4.00 กม.` และลบฟิลด์ `_distanceKm` ที่ไม่ได้ใช้แล้วออก
 
 </details>
 
@@ -542,18 +568,27 @@ docker compose run --rm backend python seed.py
 
 | # | เรื่อง | ตัวบล็อก |
 |---|---|---|
-| 1 | **build + publish APK ใหม่ทั้ง 2 แอป** | เซิร์ฟเวอร์ไม่มี Flutter/Android SDK → ต้องทำบนเครื่อง dev |
+| 1 | ~~build APK ใหม่ทั้ง 2 แอป~~ ✅ **เสร็จ 11 ก.ย.** เหลือแค่ **publish ขึ้น production** | เครื่อง dev ไม่ใช่เครื่อง production → ต้องก๊อป APK ไปรัน `publish-apk.ps1` บนเครื่อง production |
 | 2 | **ฟีเจอร์ไมค์ใช้จริงไม่ได้** | รอ credential จาก Tange (`business@tange.ai`) — ตัวบล็อกที่นานสุด **เริ่มขอได้เลยไม่ต้องรอข้ออื่น** |
 | 3 | **โค้ด backend ตัว TiRTC ยังไม่ขึ้น production** | ยิง `/camera/status` แล้วไม่มี prefix ของ TiRTC = ยังรัน `camera.py` ตัวเก่า |
 | 4 | ตารางวันหยุด/วันลา | ยังไม่มีในระบบเลย |
 | 5 | ที่อยู่แบบตัวอักษรของออฟฟิศใหม่ | ดึงจาก Google Maps ไม่ได้ (หน้า render ด้วย JS) — ต้องก๊อปมาเติมเอง |
 | 6 | รายงาน export | ยังไม่ได้เพิ่ม / ยังไม่ได้เปลี่ยน API รายงาน |
 | 7 | ยืนยัน LINE ส่งถึงกลุ่มจริงแบบ end-to-end | ทดสอบด้วย mock `push_text` 6 กรณีผ่าน แต่ยังไม่ได้ส่งเข้ากลุ่มจริง |
-| 8 | ทดสอบ APK เก่ากับเครื่อง Android จริงหลังย้ายออฟฟิศ | ยังไม่ได้ทำในรอบนี้ |
+| 8 | ~~ทดสอบ APK กับเครื่อง Android จริงหลังย้ายออฟฟิศ~~ | ✅ **เสร็จ 11 ก.ย.** — MTN NX1 ผ่าน ดูหัวข้อ 5.6 · เหลือทดสอบป้ายสาย/ตรงเวลาตอนไปยืนที่ออฟฟิศจริง |
 
-### 9.3 🔴 ของค้างใน git — ห้ามลืม
+### 9.3 ของค้างใน git
 
-branch ปัจจุบัน: **`master`** · commit ล่าสุด: `73e6a2e update code location Company`
+> ✅ **อัปเดต 11 ก.ย. 2026:** ของค้างทั้งหมดที่ลิสต์ไว้ด้านล่าง (ระบบแชท, `work-schedule.js`, tests) **ถูก commit เรียบร้อยแล้ว** ใน `c627aab Major update code balance` และ `1161a2d update SEO Web thanakronpart-time`
+>
+> branch ปัจจุบัน: **`Film_dev_Part-Time`** (ไม่ใช่ `master` แล้ว) · commit ล่าสุด: `1161a2d`
+>
+> **ของค้างรอบ 11 ก.ย. (ยังไม่ commit):** `flutter_app/lib/screens/tabs/checkin_tab.dart` และ `flutter_boss_app/lib/screens/tabs/checkin_tab.dart` — แก้ป้ายระยะทางให้บอกชื่อที่ทำงานจริง (ดูหัวข้อ 5.6) · analyze สะอาด + 201 tests ผ่าน
+
+<details>
+<summary>บันทึกเดิม ณ 10 ก.ย. (เก็บไว้อ้างอิง — จัดการหมดแล้ว)</summary>
+
+branch ตอนนั้น: **`master`** · commit ล่าสุด: `73e6a2e update code location Company`
 
 **แก้แล้วยังไม่ commit (`M`):**
 ```
@@ -585,28 +620,64 @@ checkin-system/frontend/tests/
 
 </details>
 
+</details>
+
 ---
 
 <details>
 <summary><b>10. งานถัดไป — เรียงตามลำดับที่ควรทำ</b></summary>
 
-### 10.1 build + publish APK ใหม่ (งานค้างชิ้นใหญ่สุด)
+### 10.1 publish APK ขึ้น production (เหลือขั้นตอนนี้ขั้นเดียว)
+
+> ✅ **ขั้น 1–3 ทำเสร็จแล้ว 11 ก.ย. 2026** — analyze สะอาด, 201 tests ผ่าน, build ได้ APK ทั้ง 2 ตัว, ลายเซ็นตรงกับของเดิม, ติดตั้งและทดสอบบน MTN NX1 ผ่าน (หัวข้อ 5.6)
+> **เหลือแค่ขั้น 4–5** คือเอา APK ไป publish บนเครื่อง production
+
+<details>
+<summary>ขั้น 1–3 ที่ทำไปแล้ว (เก็บไว้อ้างอิงตอน build รอบหน้า)</summary>
 
 ทำบน**เครื่องที่มี Flutter + Android SDK**:
 
 1. ใช้ source ปัจจุบันของทั้ง `flutter_app` และ `flutter_boss_app`
 2. รัน `flutter analyze` และ `flutter test` ในแต่ละแอปก่อน build
 3. Build APK release โดย **รักษา `applicationId` และ signing key เดิมของแต่ละแอป** เพื่อให้อัปเดตทับของเดิมได้
-   (ลายเซ็นของ APK พนักงานกับหัวหน้าที่แจกอยู่เป็นคนละใบ)
-4. ส่งไฟล์ไปเซิร์ฟเวอร์ ตรวจเวอร์ชันภายใน APK + ลายเซ็นก่อน แล้วรัน:
 
 ```powershell
-# รันจาก checkin-system; เปลี่ยน path ให้เป็นไฟล์ที่ build จริง
+cd checkin-system\flutter_app      ; flutter pub get; flutter analyze; flutter test; flutter build apk --release
+cd ..\flutter_boss_app             ; flutter pub get; flutter analyze; flutter test; flutter build apk --release
+```
+
+ตรวจเวอร์ชัน + ลายเซ็นก่อนส่ง (build-tools 36.1.0):
+
+```powershell
+$bt = "$env:LOCALAPPDATA\Android\sdk\build-tools\36.1.0"
+& "$bt\aapt2.exe"     dump badging      <apk>   # ต้องได้ versionCode/versionName ตามที่ตั้งใจ
+& "$bt\apksigner.bat" verify --print-certs <apk> # ต้องได้ SHA-256 41c0464d…9625e269
+```
+
+</details>
+
+**ขั้นที่เหลือ — ทำบนเครื่อง production:**
+
+4. ก๊อป APK 2 ไฟล์นี้จากเครื่อง dev ไปเครื่อง production แล้วรัน:
+
+```powershell
+# ไฟล์ต้นทางบนเครื่อง dev (build 11 ก.ย. 2026):
+#   checkin-system\flutter_app\build\app\outputs\flutter-apk\app-release.apk       80.2 MB  1.5.0+7
+#   checkin-system\flutter_boss_app\build\app\outputs\flutter-apk\app-release.apk  74.0 MB  1.2.0+4
+
+# รันจาก checkin-system บนเครื่อง production; เปลี่ยน path ให้เป็นที่ก๊อปไฟล์ไปวาง
 .\deploy\windows-server\publish-apk.ps1 -ApkPath '<employee-release.apk>' -Version '1.5.0+7' -MinSdk 24
 .\deploy\windows-server\publish-apk.ps1 -Boss -ApkPath '<boss-release.apk>' -Version '1.2.0+4' -MinSdk 24
 ```
 
-5. ตรวจ `/app/info` + `/boss-app/info` → ติดตั้งทับเครื่องจริง → ตรวจป้ายสาย/ตรงเวลาในแอปทั้งสอง
+5. ตรวจว่าขึ้นจริงบน**โดเมนจริง** (ไม่ใช่ localhost) — ต้องเห็นเวอร์ชันเปลี่ยน:
+
+```powershell
+curl https://thanakronpart-time.com/app/info        # ต้องได้ "version":"1.5.0+7"  (ก่อน publish = 1.2.0+3)
+curl https://thanakronpart-time.com/boss-app/info   # ต้องได้ "version":"1.2.0+4"  (ก่อน publish = 1.0.0+1)
+```
+
+6. แจ้งพนักงาน/หัวหน้าให้โหลดตัวใหม่ **และบอกว่าต้องล็อกอินใหม่** (ติดตั้งทับ = session หาย — ยืนยันแล้ว 11 ก.ย.) เพราะแอปไม่มีระบบเตือนอัปเดตในตัว
 
 > APK ที่มีอยู่ใน `flutter_app/thanakon-checkin.apk`, `flutter_boss_app/app-release.apk`, และ `flutter_boss_app/build/app/outputs/flutter-apk/app-release.apk` **เป็น binary เก่าทั้งหมด** — อย่าเอาไป publish แล้วเปลี่ยน metadata ให้ดูเหมือนของใหม่
 > APK ไม่ได้อยู่ใน git (ไฟล์ 70+ MB) ต้อง copy เอง — เก็บไว้นอกโฟลเดอร์ IIS จึงไม่ถูกล้างตอน deploy เว็บ และไม่ต้อง restart backend
@@ -628,8 +699,9 @@ checkin-system/frontend/tests/
 
 | ลำดับ | งาน | เหตุผล |
 |---|---|---|
-| 1 | **commit ของค้างทั้งหมด** | โค้ดแชท + work-schedule ยังไม่ถูก track เสี่ยงหายจริง |
-| 2 | build + publish APK (10.1) | ผู้ใช้จริงยังใช้ของเก่าอยู่ |
+| ~~1~~ | ~~commit ของค้างทั้งหมด~~ | ✅ เสร็จแล้ว (`c627aab`, `1161a2d`) |
+| 1 | **publish APK ขึ้น production (10.1)** | build เสร็จแล้ว แต่ผู้ใช้จริงยังโหลดของเก่าอยู่ — เหลือแค่ก๊อปไฟล์ไปรันบนเครื่อง production |
+| 2 | **ทดสอบป้ายสาย/ตรงเวลาที่ออฟฟิศจริง** | ทดสอบบนมือถือผ่านหมดแล้วยกเว้นข้อนี้ ต้องไปยืนในรัศมี 0.5 กม. ของออฟฟิศ (หัวข้อ 5.6) |
 | 3 | ขอ credential Tange (10.2) | lead time ยาว เริ่มยิ่งเร็วยิ่งดี |
 | 4 | ยืนยันข้อมูลบริษัทกับ HR (หัวข้อ 1.4) | ตัดสินว่าจะขยายเป็นหลายสาขา/หลายกะหรือไม่ |
 | 5 | เติมที่อยู่ตัวอักษรของออฟฟิศ | ค้างอยู่ ทำไม่กี่นาที |
@@ -743,6 +815,16 @@ CAMERA_SPEAKER_TIMEOUT_S=8
 ---
 
 ## บันทึกท้ายเอกสาร
+
+### อัปเดต 11 ก.ย. 2026 — build + ทดสอบบนเครื่องจริง
+
+- ทำบนเครื่อง dev `C:\project_job_part-time` (ไม่ใช่ `F:\GitHub` ตามที่เอกสารเดิมเขียนไว้) branch `Film_dev_Part-Time` commit `1161a2d`
+- ✅ build APK ทั้ง 2 แอปสำเร็จ ติดตั้งและทดสอบบน **MTN NX1 (Android 16)** ผ่าน — รายละเอียดหัวข้อ 5.6
+- ✅ แก้บั๊กป้ายระยะทางในหน้าเช็คอินทั้ง 2 แอป (`ห่างออฟฟิศ` โชว์ระยะถึงบ้าน)
+- ⚠️ **ยัง publish ขึ้น production ไม่ได้จากเครื่องนี้** — เครื่อง dev กับ production เป็นคนละเครื่องจริงตามที่เอกสารเดิมเตือนไว้ (กับดักข้อ 5) ตรวจยืนยันแล้วว่าเครื่องนี้ไม่มี IIS/cloudflared/scheduled task ของ backend เลย
+- ⏳ ป้ายสาย/ตรงเวลายังไม่ได้ทดสอบที่ออฟฟิศจริง เพราะตอนทดสอบอยู่ห่าง 4.00 กม. (นอกรัศมี 0.5 กม.)
+
+### เดิม
 
 - เอกสารนี้เขียนจากการอ่านโค้ดและเอกสารในเครื่อง ณ 10 ก.ย. 2026 ที่ commit `73e6a2e` **พร้อมของแก้ที่ยังค้างใน working tree**
 - **หัวข้อ 1 (บริษัท) เป็นส่วนเดียวที่อ้างอิงแหล่งภายนอกและยังไม่ยืนยัน** — ส่วนที่เหลือทั้งหมดตรวจสอบได้จากไฟล์ในเครื่อง

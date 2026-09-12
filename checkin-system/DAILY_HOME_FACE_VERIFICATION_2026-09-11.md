@@ -4,6 +4,26 @@
 ระบบ: `checkin-system` — เว็บไซต์และแอปลงเวลาพนักงาน  
 สถานะเอกสาร: ข้อกำหนดการใช้งานและการพัฒนาต่อ ไม่ใช่หลักฐานว่าระบบบังคับครบทุกข้อแล้ว
 
+---
+
+## 0. สถานะการพัฒนา (อัปเดต 11 กันยายน 2026)
+
+| ส่วน | สถานะ |
+| --- | --- |
+| **Backend — สัญญา API ใหม่** | ✅ **ทำแล้ว** ทั้ง 4 endpoint ในหัวข้อ 11.2 + endpoint สำหรับหัวหน้า ดูหัวข้อ 16 |
+| **Backend — verifier** | ✅ ทำแล้วในระดับ **กันปลอม/กันใช้ซ้ำ** · ⚠️ **ไม่มี face matching 1:1** ดูข้อจำกัดในหัวข้อ 16.3 |
+| **Backend — กันคำขอซ้ำ (idempotency)** | ✅ ทำแล้ว |
+| **Backend — unit test** | ✅ 29 tests ผ่าน (`backend/test_home_verifications.py`) |
+| **Flutter — แอปพนักงาน** | ✅ **ทำแล้ว** `1.6.0+8` — model/service/screen/card ครบ |
+| **Flutter — แอปหัวหน้า** | ✅ **ทำแล้ว** `1.3.0+5` — พอร์ตชุดกล้อง/สแกนหน้าเข้าไปครบ |
+| **Flutter — test** | ✅ พนักงาน 103 tests · หัวหน้า 142 tests (เพิ่มใหม่ฝั่งละ 22) |
+| **ทดสอบบนเครื่องจริง** | ✅ **MTN NX1 (Android 16) ผ่านครบวงจร** ดูหัวข้อ 17 |
+| **เว็บ** | ❌ ยังไม่เริ่ม |
+| **Deploy ขึ้น production** | ❌ **ยังไม่ได้ deploy** — โค้ดอยู่บนเครื่อง dev เท่านั้น |
+
+> ทำตามลำดับในหัวข้อ 13 ข้อ 2 ที่กำหนดว่า backend contract/verifier/กันคำขอซ้ำ/ชุดทดสอบ ต้องเสร็จก่อนเปิดใช้ UI ใหม่
+> **การอัปเดตเอกสารนี้ไม่ใช่หลักฐานว่า deploy แล้ว** — ยังต้องทำตามหัวข้อ 16.4
+
 ## 1. จุดประสงค์
 
 ทุกวันที่ไม่ได้ไปทำงาน ผู้ใช้ต้องยืนยันตัวตนด้วยการสแกนใบหน้าและรายงานสถานะให้หัวหน้าทราบ เพื่อแสดงความรับผิดชอบต่อการรายงานตนเองในวันนั้น
@@ -182,9 +202,11 @@ resultUnknown → ตรวจผลด้วย request ID เดิม → ver
 
 สถานที่บ้านที่คืนไว้: “ถึงบ้านแล้ว”, latitude `13.8865664`, longitude `100.5066278`, radius `0.2` กิโลเมตร, `category=home`, `allow_checkout=false` ค่านี้เป็นข้อมูลอ้างอิงของการตั้งค่ารอบนี้ แอปต้องโหลดค่าล่าสุดจาก server ไม่ฝังเป็นแหล่งข้อมูลหลัก
 
-### 11.2 สัญญาใหม่ที่เสนอ — ยังต้องทำ backend ก่อนใช้งาน
+### 11.2 สัญญาใหม่ที่เสนอ — ✅ backend ทำแล้ว (ยังไม่ deploy)
 
-ชื่อ endpoint และ field ต่อไปนี้เป็นข้อเสนอสำหรับตกลงร่วมกับ backend ไม่ใช่ API ที่เรียกได้ใน production ขณะจัดทำเอกสาร
+> **อัปเดต 11 ก.ย. 2026:** ข้อเสนอด้านล่างถูกสร้างจริงแล้วใน `backend/app/routers/home_verifications.py`
+> ชื่อ endpoint และ field ตรงตามที่เสนอไว้ทุกข้อ **แต่ยังอยู่บนเครื่อง dev ยังไม่ขึ้น production**
+> รายละเอียดของจริง (error code, ข้อจำกัด verifier, ฟิลด์ที่เพิ่ม) อยู่ที่หัวข้อ 16
 
 | Endpoint ที่เสนอ | ข้อมูลสำคัญ |
 | --- | --- |
@@ -282,3 +304,119 @@ flutter build apk --release
 ## 15. ข้อความสำหรับส่งต่องานพัฒนา
 
 > พัฒนาการยืนยันว่าอยู่บ้าน/ไม่ได้ไปทำงานตามเอกสารนี้ใน Flutter ทั้ง `flutter_app` และ `flutter_boss_app` พร้อม backend ที่ตรวจหลักฐานสดจริง ทุกการยืนยันใหม่ต้องสแกนใหม่รวมบัญชีหัวหน้า บ้านไม่มีเวลาเข้า–ออก ไม่มีสาย/ตรงเวลา และไม่คิดชั่วโมงทำงาน ต้องกู้ผลคำขอเมื่อเน็ตหลุดโดยไม่สร้างรายการซ้ำ ปรับหน้าแรก หน้าสแกน หน้าสำเร็จ ประวัติ และรายงานให้ตรงกัน อ่านข้อจำกัด API เดิมก่อนเริ่ม ห้ามถือว่า `face_detected=true` คือหลักฐานสด ทดสอบทั้งสองแอปแล้วบันทึกรุ่นและผลทดสอบก่อนส่ง APK
+
+> **อัปเดต 11 ก.ย. 2026:** ฝั่ง backend ทำแล้ว (หัวข้อ 16) — งานที่เหลือส่งต่อคือ **ฝั่ง Flutter ทั้ง 2 แอป** ตามหัวข้อ 9 และ 10 โดยเรียกสัญญา API ที่มีจริงแล้วในหัวข้อ 16
+
+## 16. สิ่งที่ทำจริงฝั่ง backend (11 กันยายน 2026)
+
+### 16.1 ไฟล์ที่เพิ่ม/แก้
+
+| ไฟล์ | เนื้อหา |
+| --- | --- |
+| `backend/app/home_verification.py` 🆕 | ตัวตรวจหลักฐาน: อ่านหัวไฟล์ JPEG/PNG เอง, sha256 ของรูป, ลายนิ้วมือคำขอ, สุ่มคำสั่ง challenge |
+| `backend/app/home_verification_models.py` 🆕 | ตาราง `home_verification_challenges` และ `home_verifications` |
+| `backend/app/routers/home_verifications.py` 🆕 | 5 endpoint (4 ตามข้อเสนอ + `GET /employee/{id}` สำหรับหัวหน้า) |
+| `backend/test_home_verifications.py` 🆕 | 29 tests ครอบเกณฑ์หัวข้อ 7 และ 14 |
+| `backend/app/config.py` | เพิ่ม `HOME_VERIFICATION_CHALLENGE_TTL_SECONDS` (120), `_MAX_PHOTO_BYTES` (8 MB), `_MIN_PHOTO_PIXELS` (160) |
+| `backend/app/main.py` | ลงทะเบียน router |
+| `deploy/windows-server/web.config` | เติม `home-verifications` ในกฎ `ProxyToBackend` (กับดักข้อ 1 — ไม่เติม = 404 บน production) |
+
+**ตารางใหม่ถูกสร้างโดย `create_all()` อัตโนมัติ ไม่ต้องเติมใน `_ADDED_COLUMNS`** (ซึ่งใช้กับการเพิ่มคอลัมน์ให้ตารางเดิมเท่านั้น) — ถ้าภายหลังเพิ่มคอลัมน์ให้ 2 ตารางนี้ ต้องไปเติมชื่อใน `_ADDED_COLUMNS` ด้วย
+
+### 16.2 สิ่งที่บังคับได้จริงแล้ว
+
+- **ไม่มีฟิลด์ `face_detected` ใน endpoint นี้เลย** — client ประกาศผลเองไม่ได้
+- **ไม่ยกเว้นบัญชีหัวหน้า** ต่างจาก `POST /checkins` ที่ยังยกเว้น `is_manager` อยู่ (ของเดิมไม่ถูกแตะ)
+- challenge ผูกกับบัญชี อายุ 120 วินาที **ใช้ได้ครั้งเดียว** — ใช้ซ้ำได้ `challenge_used`
+- ไบต์ของรูปต้องไม่เคยถูกใช้ยืนยันมาก่อน (unique ทั้งระบบ) — ส่งรูปเดิมได้ `evidence_reused`
+- ต้องมีใบหน้าอ้างอิงก่อน — ไม่มีได้ `face_not_enrolled`
+- server ตัดสิน geofence เอง และต้องเป็น `category=home` — นอกเขตได้ `outside_home`
+- `request_id` เดิม + payload เดิม → **คืนรายการเดิม ไม่สร้างซ้ำ**; payload ต่าง → `409 request_conflict`
+- ตรวจคำขอเดิม **ก่อน** ตรวจ challenge หมดอายุ (กรณีส่งสำเร็จแต่ response หาย challenge ถูกใช้ไปแล้วเสมอ)
+- ชนกันพร้อมกัน 2 คำขอ → ตัวที่แพ้ `IntegrityError` แล้วคืนผลของตัวที่ชนะ พร้อมลบไฟล์ที่เพิ่งเขียน
+- `local_date` ตัดด้วยเวลาไทยฝั่ง server และทุก response ส่ง `server_date`/`server_time` กลับไปด้วย
+- ผลลัพธ์ **ไม่มี** `late_minutes` / `expected_check_in` / `expected_check_out` / ชั่วโมงทำงาน / `kind` (มีเทสต์คุมไว้)
+- ข้อความ LINE ระบุ "อยู่บ้าน / ไม่ได้ไปทำงาน" และ "ไม่นับเป็นการเข้างาน"
+
+**error code ทั้งหมด** (ส่งใน `detail.code` ให้แอปเลือกวิธีแก้): `request_invalid`, `evidence_invalid`, `evidence_reused`, `challenge_invalid`, `challenge_used`, `challenge_expired`, `face_not_enrolled`, `outside_home`, `request_conflict`, `request_not_found`, `date_invalid`, `employee_not_found`
+
+### 16.3 ⚠️ ข้อจำกัดที่ต้องรู้ — verifier ยังไม่ใช่การยืนยันตัวบุคคล
+
+ตกลงขอบเขตไว้ว่า **กันปลอม/กันใช้ซ้ำ ไม่ทำ face matching**
+
+| ทำได้ | ทำไม่ได้ |
+| --- | --- |
+| พิสูจน์ว่าหลักฐานถูกถ่าย/ส่งในรอบนี้ ไม่ใช่ของเก่า | ❌ พิสูจน์ว่าใบหน้าในรูปเป็นเจ้าของบัญชี |
+| พิสูจน์ว่าไฟล์เป็นรูป JPEG/PNG จริงและใหญ่พอ | ❌ ตรวจว่ามีใบหน้าอยู่ในรูปหรือไม่ |
+| พิสูจน์ว่าอยู่ในเขตบ้านตามที่ server คำนวณ | ❌ ตรวจว่าทำตามคำสั่ง challenge (หันซ้าย/กะพริบตา) จริงไหม |
+
+> เหตุผลที่ยังไม่ทำ 1:1 matching: ต้องเพิ่ม dependency หนัก (embeddings) + ไฟล์โมเดล + ทดสอบความแม่นยำ + กระบวนการ deploy บน production เป็นงานแยกก้อน
+> **จงใจไม่ใช้ Pillow/OpenCV** ทั้งที่มีใน venv เพราะ **ไม่ได้ประกาศใน `requirements-base.txt`** — ถ้า import แล้ว production ไม่มี backend จะไม่สตาร์ตเลย จึงเขียนตัวอ่านหัวไฟล์ JPEG/PNG เองแทน
+> จุดต่อขยายอยู่ที่ `verify_evidence()` ใน `app/home_verification.py` — เพิ่มการเทียบใบหน้าที่นั่นได้โดยไม่ต้องแก้ router หรือสัญญา API
+
+### 16.4 ยังไม่ได้ทำ — ห้ามข้าม
+
+- [x] ~~Flutter ทั้ง 2 แอป~~ ✅ เสร็จแล้ว ดูหัวข้อ 17
+- [x] ~~ทดสอบ end-to-end บนอุปกรณ์จริง~~ ✅ ผ่านแล้วบน MTN NX1 ดูหัวข้อ 17.3
+- [ ] เว็บ (หัวข้อ 6 แถว "หน้าเว็บ")
+- [ ] **deploy backend ขึ้น production** — เครื่อง dev ไม่ใช่เครื่อง production ต้อง `git pull` + restart `MardodiCheckinAPI` บนเครื่องนั้น
+- [ ] **คัดลอก `web.config` ใหม่ขึ้น IIS ด้วย** ไม่งั้น `/home-verifications/*` จะ 404 ทั้งที่ backend มี endpoint แล้ว
+- [ ] **publish APK ใหม่ทั้ง 2 ตัว** (`1.6.0+8` / `1.3.0+5`) — ต้องทำบนเครื่อง production
+- [ ] ตัดสินใจว่าจะทำ face matching 1:1 หรือไม่ (หัวข้อ 16.3)
+
+### 16.5 คำสั่งทดสอบ
+
+```powershell
+cd checkin-system\backend
+.\venv\Scripts\python.exe -m unittest test_home_verifications -v   # 29 tests
+.\venv\Scripts\python.exe -m unittest test_chat                    # 9 tests (ของเดิม ไม่พัง)
+```
+
+## 17. สิ่งที่ทำจริงฝั่ง Flutter (11 กันยายน 2026)
+
+### 17.1 ไฟล์ที่เพิ่ม/แก้ (ทำเหมือนกันทั้ง 2 แอป)
+
+| ไฟล์ | เนื้อหา |
+| --- | --- |
+| `lib/models/home_verification.dart` 🆕 | `HomeVerification`, `HomeVerificationDay`, `HomeVerificationChallenge` · แปลง UTC → เวลาไทยด้วย `+7` ตรง ๆ **ไม่ใช้ `toLocal()`** เพราะเครื่องผู้ใช้อาจตั้ง timezone ผิด |
+| `lib/services/home_verification_service.dart` 🆕 | เรียกทั้ง 5 endpoint · สร้าง UUID v4 เอง (ไม่ดึง package `uuid`) · **จำ `request_id` ลง SharedPreferences ก่อนยิง** เพื่อกู้ผลได้แม้แอปถูกฆ่ากลางคัน |
+| `lib/screens/home_verification_screen.dart` 🆕 | state machine ตามหัวข้อ 10 · ใช้ `FaceScanner` เดิม · ตรวจพิกัดสด ณ ตอนส่ง ไม่ใช้ค่าที่อ่านไว้ตอนเปิดหน้า |
+| `lib/widgets/home_verification_card.dart` 🆕 | การ์ดสถานะรายวัน 4 สถานะ: กำลังโหลด / ยังไม่ยืนยัน / ยืนยันแล้ว / **ยังตรวจสอบผลไม่ได้** |
+| `lib/services/api_service.dart` | เพิ่ม `ApiException.code`, อ่าน `detail` แบบ object, เพิ่ม `getJson`/`postJson`/`postMultipart`/`readErrorMessage`/`readErrorCode` |
+| `lib/screens/tabs/checkin_tab.dart` | แทนปุ่มบ้านเดิมด้วยการ์ดใหม่ + โหลดสถานะรายวัน |
+| `test/home_verification_test.dart` 🆕 | 22 tests ต่อแอป |
+
+**เฉพาะแอปหัวหน้า** — พอร์ตชุดสแกนใบหน้าเข้าไปทั้งชุด (เดิมไม่มีเลย):
+`camera: ^0.10.6` + `google_mlkit_face_detection: ^0.11.0` ใน `pubspec.yaml` · `android.permission.CAMERA` ใน manifest · คัดลอก `face_scanner.dart`, `face_service.dart`, `face_enroll_screen.dart` มาจากแอปพนักงาน
+
+### 17.2 การตัดสินใจที่ควรรู้
+
+- **ปุ่มบ้านเดิมปิดถาวรหลังมีรายการของวันนี้** (`onPressed: homeRecordedAt == null ? ... : null`) ซึ่งขัดกับกฎข้อ 7 ที่ต้องยืนยันซ้ำได้ → เปลี่ยนเป็นปุ่ม **"ยืนยันสถานะอีกครั้ง"** ที่เปิดเสมอ ปิดเฉพาะระหว่างส่ง
+- **โหลดสถานะไม่สำเร็จ ≠ ยังไม่ได้ยืนยัน** → การ์ดขึ้น "ยังตรวจสอบผลการยืนยันไม่ได้" พร้อมปุ่มลองใหม่ มีเทสต์คุมไม่ให้ข้อความ "ยังไม่ได้ยืนยันตัวตน" โผล่ในสถานะนี้
+- **เน็ตหลุดหลังส่ง** → สถานะ `resultUnknown` ไม่บอกว่าล้มเหลว มีปุ่ม "ตรวจผลคำขอเดิม" และไม่ล้าง `request_id` ทิ้งเมื่อหาไม่เจอ (ไม่พบ ≠ ล้มเหลวแน่นอน)
+- **แอปถูกพักระหว่างสแกน** → ทิ้งโจทย์แล้วเริ่มใหม่ แต่ถ้า**ส่งไปแล้ว**จะไม่แตะ `request_id` เพราะยังต้องใช้กู้ผล
+- ⚠️ **`ApiException` และ `_errorMessage` เป็นของกลางที่ทุก API call ใช้** — impact analysis ขึ้น CRITICAL (83 จุด, direct 31) จึงแก้แบบ **additive ล้วน**: `code` เป็น named parameter ที่มีค่า default และการอ่าน `detail` แบบ object เป็นสาขาใหม่ที่ไม่แตะเส้นทาง String/List เดิม → endpoint เก่าทุกตัวได้พฤติกรรมเดิมเป๊ะ
+
+### 17.3 ✅ ผลทดสอบบนเครื่องจริง — MTN NX1, Android 16 (11 ก.ย. 2026)
+
+ทดสอบด้วย backend บนเครื่อง dev (`uvicorn :8002` + SQLite) ผ่าน `adb reverse tcp:8002 tcp:8002` และ APK ที่ build ด้วย `--dart-define=API_BASE=http://localhost:8002`
+
+| รายการ | ผล |
+| --- | --- |
+| `flutter analyze` ทั้ง 2 แอป | ✅ No issues found |
+| `flutter test` | ✅ พนักงาน 103 · หัวหน้า 142 |
+| `flutter build apk --release` | ✅ พนักงาน 80.3 MB · หัวหน้า **101.0 MB** (โตจาก 74 MB เพราะ ML Kit) |
+| ML Kit + camera ในแอปหัวหน้า ไม่ชนกับ TiRTC/AGP | ✅ build ผ่าน ไม่ต้องเพิ่ม dependency override |
+| แสดงโจทย์จาก server บนหน้าสแกน | ✅ ขึ้น "หันหน้าไปทางขวาช้า ๆ" |
+| liveness ฝั่งอุปกรณ์ | ✅ ขึ้น "พร้อมแล้ว ✓" แล้วปุ่มจึงกดได้ |
+| **บัญชีหัวหน้าต้องสแกนจริง** | ✅ BOSS001 ยืนยันสำเร็จผ่านการสแกน ไม่มีการยกเว้น |
+| ผลบันทึกฝั่ง server | ✅ `office=ถึงบ้านแล้ว` ระยะจริง 0.0649 กม. ความแม่น GPS 6.3 ม. รูปถูกเก็บ sha256 ไม่ซ้ำ |
+| การ์ดหลังสำเร็จ | ✅ "ยืนยันตัวตนแล้ว — อยู่บ้าน / ไม่ได้ไปทำงาน" · **"เวลายืนยันตัวตน 17:06 น."** ไม่ใช่เวลาเข้างาน |
+| **ไม่สร้างรายการลงเวลางาน** | ✅ `checkins` ของ BOSS001 = **0 รายการ** และการ์ดงานยังขึ้น "ยังไม่ได้เริ่มงาน" ช่องเวลาเป็นขีด |
+| ส่งซ้ำ `request_id` เดิม (ผ่าน HTTP) | ✅ ได้รายการเดิม `id=1` และวันนั้นมีรายการเดียว |
+| ใช้รูปเดิมซ้ำ | ✅ `evidence_reused` |
+| ยืนยันจากพิกัดออฟฟิศ | ✅ `outside_home` |
+| ส่งไฟล์ที่ไม่ใช่รูป | ✅ `evidence_invalid` |
+
+**สถานะมือถือตอนนี้:** ติดตั้ง APK ตัวจริงที่ชี้ production ไว้แล้ว (`1.6.0+8` / `1.3.0+5`)
+⚠️ การ์ดยืนยันจะขึ้น **"ยังตรวจสอบผลการยืนยันไม่ได้"** จนกว่าจะ deploy backend ขึ้น production — เป็นพฤติกรรมที่ถูกต้องตามข้อกำหนด (ไม่ fallback ไปทางเดิมและไม่กล่าวหาผู้ใช้)

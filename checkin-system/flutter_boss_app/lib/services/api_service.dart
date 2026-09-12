@@ -41,7 +41,14 @@ class ApiException implements Exception {
   final String message;
   final int? statusCode;
 
-  const ApiException(this.message, {this.statusCode});
+  /// รหัสสาเหตุจาก backend เมื่อ endpoint ตอบ `{"detail": {"code": ..., "message": ...}}`
+  ///
+  /// ใช้กับ /home-verifications ที่ต้องแยกวิธีแก้ตามสาเหตุ (ขอโจทย์ใหม่ /
+  /// ไปลงทะเบียนใบหน้า / ถ่ายใหม่) — endpoint เดิมตอบ detail เป็นข้อความ
+  /// จึงได้ค่า null เหมือนเดิมทุกที่ **อย่า match ข้อความแทนการเช็ค code**
+  final String? code;
+
+  const ApiException(this.message, {this.statusCode, this.code});
 
   @override
   String toString() => message;
@@ -240,11 +247,15 @@ class ApiService {
 
   /// ดึงข้อความ detail จาก body ของ error — backend ตอบเป็น {"detail": "..."}
   /// บางกรณี detail เป็น list ของ validation error ก็รวบเป็นบรรทัดเดียว
+  /// และ /home-verifications ตอบเป็น {"detail": {"code": ..., "message": ...}}
   static String _errorMessage(http.Response res, String fallback) {
     try {
-      final data = jsonDecode(utf8.decode(res.bodyBytes));
-      final detail = data is Map ? data['detail'] : null;
+      final detail = _errorDetail(res);
       if (detail is String && detail.trim().isNotEmpty) return detail;
+      if (detail is Map) {
+        final message = detail['message'];
+        if (message is String && message.trim().isNotEmpty) return message;
+      }
       if (detail is List && detail.isNotEmpty) {
         return detail
             .map((item) => item is Map ? item['msg'] ?? item : item)
@@ -254,6 +265,91 @@ class ApiService {
       // body ไม่ใช่ JSON (เช่นหน้า error ของ IIS) — ใช้ข้อความสำรอง
     }
     return '$fallback (${res.statusCode})';
+  }
+
+  static Object? _errorDetail(http.Response res) {
+    try {
+      final data = jsonDecode(utf8.decode(res.bodyBytes));
+      return data is Map ? data['detail'] : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// รหัสสาเหตุจาก backend — มีเฉพาะ endpoint ที่ตอบ detail เป็น object
+  static String? _errorCode(http.Response res) {
+    final detail = _errorDetail(res);
+    if (detail is Map) {
+      final code = detail['code'];
+      if (code is String && code.trim().isNotEmpty) return code;
+    }
+    return null;
+  }
+
+  // -------------------------------------------------------------------
+  // ทางเข้าสาธารณะให้ service อื่นใช้ตัวกลางชุดเดียวกัน
+  //
+  // มีไว้เพื่อไม่ให้ service ใหม่ไปประกอบ header/timeout/แปลง error เองซ้ำ
+  // ซึ่งเป็นที่มาของบั๊กที่ข้อความไทยกลายเป็นตัวยึกยือหรือ 401 ไม่เด้งออก
+  // -------------------------------------------------------------------
+
+  static Future<dynamic> getJson(
+    String path, {
+    Map<String, String>? query,
+    required String errorText,
+  }) =>
+      _json('GET', path, query: query, errorText: errorText);
+
+  static Future<dynamic> postJson(
+    String path, {
+    Object? body,
+    required String errorText,
+  }) =>
+      _json('POST', path, body: body, errorText: errorText);
+
+  static String readErrorMessage(http.Response res, String fallback) =>
+      _errorMessage(res, fallback);
+
+  static String? readErrorCode(http.Response res) => _errorCode(res);
+
+  /// ส่ง multipart แล้วคืน response ดิบ ให้ผู้เรียกตัดสินใจตาม status/code เอง
+  ///
+  /// ไม่แปลงเป็น exception เพราะ /home-verifications ต้องแยก "ถูกปฏิเสธ"
+  /// (รู้ผลแน่นอน) ออกจาก "ไม่ได้คำตอบ" (อาจบันทึกไปแล้ว) ซึ่ง exception
+  /// เดียวแยกไม่ออก
+  static Future<http.Response> postMultipart(
+    String path, {
+    required Map<String, String> fields,
+    required String filePath,
+    String fileField = 'photo',
+  }) async {
+    if (!await ensureSession()) {
+      throw const ApiException(Config.sessionExpiredMessage, statusCode: 401);
+    }
+    try {
+      final req = http.MultipartRequest('POST', _uri(path))
+        ..headers.addAll(_authHeaders)
+        ..fields.addAll(fields);
+      req.files.add(await http.MultipartFile.fromPath(fileField, filePath));
+
+      final streamed = await req.send().timeout(_requestTimeout);
+      final res =
+          await http.Response.fromStream(streamed).timeout(_requestTimeout);
+      if (res.statusCode == 401) {
+        await logout();
+        throw const ApiException(
+          'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',
+          statusCode: 401,
+        );
+      }
+      return res;
+    } on TimeoutException {
+      throw const ApiException('เชื่อมต่อเซิร์ฟเวอร์นานเกินไป กรุณาลองใหม่');
+    } on SocketException {
+      throw const ApiException(
+        'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจอินเทอร์เน็ต',
+      );
+    }
   }
 
   static Future<dynamic> _json(
@@ -277,6 +373,7 @@ class ApiService {
       throw ApiException(
         _errorMessage(res, errorText),
         statusCode: res.statusCode,
+        code: _errorCode(res),
       );
     }
 
