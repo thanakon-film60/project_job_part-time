@@ -75,6 +75,38 @@ def push_text(text: str, to: str | None = None) -> bool:
     return _post(PUSH_URL, {"to": target, "messages": [{"type": "text", "text": text}]})
 
 
+def push_flex(alt_text: str, contents: dict, to: str | None = None) -> bool:
+    """ส่งการ์ด Flex Message (ข้อความแบบมีเลย์เอาต์) คืน True ถ้าสำเร็จ
+
+    [alt_text] คือข้อความที่โผล่ในรายการแชทและบนนาฬิกา — เครื่องที่แสดง Flex
+    ไม่ได้จะเห็นแค่บรรทัดนี้ จึงต้องอ่านรู้เรื่องด้วยตัวเอง ไม่ใช่ "มีข้อความใหม่"
+
+    ใช้ Messaging API เดิม ไม่ต้องลงไลบรารีเพิ่ม และไม่เคย raise เหมือน push_text
+    """
+    if not is_configured():
+        log.debug("ยังไม่ได้ตั้งค่า LINE — ข้ามการแจ้งเตือน")
+        return False
+
+    target = (to or settings.line_target_id).strip()
+    if not target:
+        log.warning("ส่ง Flex ไม่ได้: ไม่มีปลายทาง")
+        return False
+
+    return _post(
+        PUSH_URL,
+        {
+            "to": target,
+            "messages": [
+                {
+                    "type": "flex",
+                    "altText": (alt_text or "แจ้งเตือนจากระบบเช็คอิน")[:400],
+                    "contents": contents,
+                }
+            ],
+        },
+    )
+
+
 def reply_text(reply_token: str, text: str) -> bool:
     """ตอบกลับข้อความใน chat (ใช้ตอนบอทบอก Group ID ของตัวเอง)"""
     if not settings.line_channel_access_token.strip():

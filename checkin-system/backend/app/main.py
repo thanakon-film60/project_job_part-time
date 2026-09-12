@@ -16,7 +16,9 @@ from .routers import (
     home_verifications,
     line,
     locations,
+    payroll,
     reports,
+    support,
 )
 
 # สร้างตารางอัตโนมัติเมื่อสตาร์ต (สำหรับ dev; production ควรใช้ Alembic)
@@ -47,7 +49,9 @@ app.include_router(faces.router)
 app.include_router(home_verifications.router)
 app.include_router(line.router)
 app.include_router(locations.router)
+app.include_router(payroll.router)
 app.include_router(reports.router)
+app.include_router(support.router)
 
 
 @app.get("/")

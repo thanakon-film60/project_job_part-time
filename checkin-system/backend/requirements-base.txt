@@ -12,4 +12,6 @@ passlib[bcrypt]>=1.7.4
 # ถ้าไม่ตรึงเวอร์ชันจะพัง: "password cannot be longer than 72 bytes"
 bcrypt<4.1
 email-validator>=2.1
+# QR ของลิงก์เชิญห้องช่วยเหลือระยะไกล — ออกเป็น SVG จึงไม่ต้องพึ่ง Pillow
+qrcode>=8.0
 psycopg2-binary>=2.9.9

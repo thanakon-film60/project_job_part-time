@@ -51,27 +51,34 @@ def create_access_token(subject: str) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
-def get_current_employee(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
-) -> Employee:
-    credentials_exc = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="ไม่สามารถยืนยันตัวตนได้",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+def employee_from_token(token: str, db: Session) -> Employee | None:
+    """แปลง access token เป็นพนักงาน — คืน None ถ้าโทเค็นใช้ไม่ได้
+
+    แยกออกมาเพราะ WebSocket ส่ง header Authorization ไม่ได้จากเบราว์เซอร์
+    จึงต้องรับโทเค็นทาง query string แล้วมาตรวจเองด้วยฟังก์ชันนี้
+    """
     try:
         payload = jwt.decode(
             token, settings.secret_key, algorithms=[settings.algorithm]
         )
-        code = payload.get("sub")
-        if code is None:
-            raise credentials_exc
     except JWTError:
-        raise credentials_exc
+        return None
+    code = payload.get("sub")
+    if code is None:
+        return None
+    return db.query(Employee).filter(Employee.employee_code == code).first()
 
-    emp = db.query(Employee).filter(Employee.employee_code == code).first()
+
+def get_current_employee(
+    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+) -> Employee:
+    emp = employee_from_token(token, db)
     if emp is None:
-        raise credentials_exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="ไม่สามารถยืนยันตัวตนได้",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return emp
 
 

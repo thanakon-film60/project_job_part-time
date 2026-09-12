@@ -61,68 +61,343 @@ This project is indexed by GitNexus as **project_job_part-time** (4823 symbols, 
 
 <!-- ใหม่สุดอยู่บนสุด / Newest first -->
 
-### 2026-09-11 — Flutter: ยืนยันตัวตนรายวันตอนอยู่บ้าน ทั้ง 2 แอป + ทดสอบเครื่องจริง
+### 2026-09-12 (เช้า) — เทสด้วยเบราว์เซอร์จริง แล้วเจอบั๊ก 2 ตัวที่ทำให้ฟีเจอร์ใช้ไม่ได้เลย
 
-ต่อจากงาน backend ด้านล่าง — ทำฝั่งแอปตาม `DAILY_HOME_FACE_VERIFICATION_2026-09-11.md` หัวข้อ 9–10 จนครบ
-
-**ไฟล์ใหม่ (เหมือนกันทั้ง 2 แอป)**
-- `lib/models/home_verification.dart` — แปลง UTC → เวลาไทยด้วย `+7` ตรง ๆ **ไม่ใช้ `toLocal()`** เพราะเครื่องผู้ใช้อาจตั้ง timezone ผิดแล้วอ่านคนละเวลากับที่หัวหน้าเห็นบนเว็บ
-- `lib/services/home_verification_service.dart` — สร้าง UUID v4 เอง (ไม่ดึง package `uuid` มาเพื่อใช้ที่เดียว) · **จำ `request_id` ลง SharedPreferences ก่อนยิง** เพื่อกู้ผลได้แม้แอปถูกฆ่ากลางคัน
-- `lib/screens/home_verification_screen.dart` — state machine ตามหัวข้อ 10 ใช้ `FaceScanner` เดิม
-- `lib/widgets/home_verification_card.dart` — 4 สถานะ รวม **"ยังตรวจสอบผลไม่ได้"** ที่ต้องไม่ปนกับ "ยังไม่ได้ยืนยัน"
-- `test/home_verification_test.dart` — 22 tests ต่อแอป
-
-**แอปหัวหน้า — พอร์ตชุดสแกนใบหน้าเข้าไปทั้งชุด (เดิมไม่มีเลย):** เพิ่ม `camera` + `google_mlkit_face_detection` ใน pubspec, เพิ่ม `android.permission.CAMERA`, คัดลอก `face_scanner.dart`/`face_service.dart`/`face_enroll_screen.dart`
-
-**⚠️ จุดเสี่ยงที่ต้องรู้:** แก้ [api_service.dart](checkin-system/flutter_app/lib/services/api_service.dart) ซึ่ง `ApiException` impact ขึ้น **CRITICAL** (83 จุด, direct 31) และ detect-changes ขึ้น critical/129 flows เพราะอยู่บนเส้นทางทุก API call — จึงแก้แบบ **additive ล้วน**: `code` เป็น named parameter ที่มี default และการอ่าน `detail` แบบ object เป็นสาขาใหม่ที่ไม่แตะเส้นทาง String/List เดิม endpoint เก่าทุกตัวได้พฤติกรรมเดิมเป๊ะ ยืนยันด้วย 245 tests + ทดสอบเครื่องจริง
-
-**ผลทดสอบ:** analyze สะอาด · พนักงาน 103 tests · หัวหน้า 142 tests · build ผ่าน (หัวหน้าโต 74→101 MB เพราะ ML Kit) · **ทดสอบครบวงจรบน MTN NX1 ด้วย backend บนเครื่อง dev ผ่าน `adb reverse`** — บัญชีหัวหน้าต้องสแกนจริง, บันทึกลง `home_verifications` พร้อม GPS จริง, และ **ไม่สร้างรายการใน `checkins`** (ยืนยันจาก DB)
-
-**bump version:** พนักงาน `1.5.0+7` → `1.6.0+8` · หัวหน้า `1.2.0+4` → `1.3.0+5` (แก้ทั้ง `pubspec.yaml` และ `Config.appVersion`)
-
-**ยังค้าง:** เว็บ · **deploy backend + web.config ขึ้น production** · publish APK ใหม่ — จนกว่าจะ deploy การ์ดจะขึ้น "ยังตรวจสอบผลการยืนยันไม่ได้" ซึ่งเป็นพฤติกรรมที่ถูกต้อง
-
-### 2026-09-11 — backend: ยืนยันตัวตนรายวันตอนอยู่บ้าน (home verification)
-
-**ที่มา:** ทำตาม `checkin-system/DAILY_HOME_FACE_VERIFICATION_2026-09-11.md` ซึ่งกำหนดว่าทุกวันที่ไม่ได้ไปทำงานต้องสแกนใบหน้าสด + ตรวจ GPS บ้าน และหัวข้อ 13 กำหนดให้ **backend เสร็จก่อนเปิด UI ใหม่**
-
-**ขอบเขตที่ตกลงกับเจ้าของงาน:** รอบนี้ทำ backend อย่างเดียว · verifier เอาระดับ **กันปลอม/กันใช้ซ้ำ ไม่ทำ face matching**
+**สรุป: เขียนเทสที่เปิด Edge สองหน้าต่างต่อ WebRTC หากันจริง แล้วมันจับบั๊กที่เทสฝั่ง
+เซิร์ฟเวอร์ 79 ข้อมองไม่เห็นได้ทันที 2 ตัว — ทั้งคู่ร้ายแรงระดับ "ฟีเจอร์ใช้งานไม่ได้"**
 
 **ไฟล์ใหม่**
-- `backend/app/home_verification.py` — ตรวจหลักฐาน: อ่านหัวไฟล์ JPEG/PNG เอง (จงใจไม่ใช้ Pillow/OpenCV เพราะ**ไม่ได้ประกาศใน requirements** ถ้า import แล้ว production ไม่มี backend จะไม่สตาร์ต), sha256 กันรูปซ้ำ, ลายนิ้วมือคำขอที่ทนต่อ GPS สั่น
-- `backend/app/home_verification_models.py` — `home_verification_challenges` + `home_verifications` (แยกจาก `checkins` เพื่อไม่ให้รายการบ้านหลุดเข้าสูตรสาย/ชั่วโมงทำงาน)
-- `backend/app/routers/home_verifications.py` — 5 endpoint: `POST /challenges`, `POST ""`, `GET /requests/{id}`, `GET /me`, `GET /employee/{id}` (หัวหน้า)
-- `backend/test_home_verifications.py` — **29 tests ผ่าน**
+
+| ไฟล์ | หน้าที่ |
+| --- | --- |
+| `frontend/tests/support-browser.cjs` | ขับเบราว์เซอร์สองฝั่งด้วย Playwright + กล้องปลอมของ Chromium |
+| `backend/test_support_browser.py` | เปิดเซิร์ฟเวอร์ชั่วคราว + SQLite แยก แล้วเรียกตัวบน |
+
+**🔴 บั๊กที่ 1 — ต่อสายติดแต่จอดำทั้งสองฝั่ง**
+
+`ontrack` ของเดิมเขียนว่า `const [stream] = event.streams; if (stream) ...` ซึ่งถูกตามตำรา
+แต่ผิดกับสถาปัตยกรรมที่เลือกไว้: เราส่งสื่อด้วย `replaceTrack` บน transceiver ที่เปิดไว้ล่วงหน้า
+(เพื่อให้สลับกล้องหน้า/หลังได้โดยไม่ต้องเจรจา SDP ใหม่) แต่ `replaceTrack` **ไม่ผูก track
+เข้ากับ MediaStream ไหนเลย** SDP จึงไม่มี msid ฝั่งรับเลยได้ `event.streams = []` ตลอด
+แล้วโค้ดก็ทิ้งภาพนั้นไปเงียบ ๆ
+
+อาการที่ผู้ใช้จะเจอ: สถานะขึ้น "เชื่อมต่อแล้ว" ครบทั้งสองฝั่ง แต่ไม่มีใครเห็นภาพใคร
+ไม่มี error ในคอนโซล ไล่หาสาเหตุยากมาก
+
+แก้โดยประกอบ MediaStream เองเมื่อ `event.streams` ว่าง
+
+**🔴 บั๊กที่ 2 — ผู้ช่วยปิดห้องแล้วกล้องผู้ใช้ยังเปิดค้าง**
+
+`setStatus()` มีเงื่อนไข `if (disposed) return;` แต่ตอนรับข้อความ `ended` โค้ดตั้ง
+`disposed = true` **ก่อน** เรียก `setStatus` การแจ้งสถานะจึงเงียบไปทั้งหมด
+
+อาการ: ผู้ช่วยกดปิดห้อง → ฝั่งผู้ใช้ไม่รู้เรื่องเลย หน้าจอค้างเหมือนยังคุยกันอยู่
+**ไฟกล้องยังติดอยู่ทั้งที่ไม่มีใครดูแล้ว** — เป็นปัญหาความเป็นส่วนตัว ไม่ใช่แค่ UX
+
+แก้โดยสลับลำดับ + เพิ่มสถานะ `ended` แยกจาก `failed` แล้วให้ฝั่งผู้ใช้ดับกล้องทันที
+พร้อมขึ้นหน้า "ผู้ช่วยปิดห้องแล้ว"
+
+**สิ่งที่เทสครอบคลุม** (10 ข้อ ผ่านหมด)
+
+สร้างห้อง → ผู้ใช้เห็นชื่อผู้ช่วยก่อนกดอนุญาต → WebRTC ต่อสำเร็จ → ภาพจริงมาถึง (640x480) →
+วาดวงกลมแล้วอีกฝั่งเห็น (ตรวจด้วยการอ่านพิกเซลบน canvas) → หยุดภาพ → วาดทับภาพนิ่ง →
+ลบทั้งหมด → หน้าจอพอดีมือถือ 390px → ปิดห้องแล้วกล้องดับ
+
+ภาพหน้าจอยืนยันด้วยตาว่าเส้นแดงตกตำแหน่งเดียวกันเป๊ะทั้งจอคอม 1440px และมือถือ 390px
+(เก็บที่ `backend/storage/logs/support-{host,guest}.png`)
 
 **ไฟล์ที่แก้**
-- `backend/app/config.py` — เพิ่ม `home_verification_challenge_ttl_seconds` (120), `_max_photo_bytes` (8 MB), `_min_photo_pixels` (160)
-- `backend/app/main.py` — ลงทะเบียน router
-- `deploy/windows-server/web.config` — เติม `home-verifications` ในกฎ `ProxyToBackend` (กับดักข้อ 1: ไม่เติม = 404 บน production)
 
-**สิ่งที่บังคับได้จริง:** ไม่มีฟิลด์ `face_detected` ใน endpoint นี้เลย · **ไม่ยกเว้นบัญชีหัวหน้า** (ต่างจาก `POST /checkins` ที่ยังยกเว้น `is_manager` — ของเดิมไม่ถูกแตะ) · challenge ผูกบัญชี อายุ 120 วิ ใช้ครั้งเดียว · ไบต์รูปห้ามซ้ำทั้งระบบ · geofence ตัดสินฝั่ง server และต้องเป็น `category=home` · `request_id` เดิม+payload เดิมคืนรายการเดิม ไม่สร้างซ้ำ, payload ต่างได้ 409 · ตรวจคำขอเดิม**ก่อน**ตรวจ challenge หมดอายุ · `local_date` ตัดด้วยเวลาไทยฝั่ง server · response ไม่มี `late_minutes`/`expected_check_in`/ชั่วโมงทำงาน (มีเทสต์คุม)
+- `frontend/src/lib/support-call.js` — แก้บั๊กทั้งสองตัว + เพิ่มสถานะ `ended`
+- `frontend/src/pages/RemoteHelpPage.jsx` — เพิ่ม `stopLocalMedia()` ใช้ร่วมกันทุกทางออก
+  และดับกล้องทันทีเมื่อห้องถูกปิด
+- `frontend/src/pages/SupportPage.jsx` — รองรับสถานะ `ended`
+- `frontend/package.json` — เพิ่ม `playwright` เป็น devDependency
+  (repo มี `tests/chat-browser.cjs` ที่เรียกใช้อยู่แล้วแต่ไม่เคยมีใครลง — ตอนนี้เทสนั้นรันได้ด้วย)
+- `REMOTE_SUPPORT.md` — วิธีรันเทสเบราว์เซอร์
 
-**ข้อจำกัดที่ต้องรู้:** verifier **ไม่ได้ยืนยันว่าใบหน้าในรูปเป็นเจ้าของบัญชี** และไม่ได้ตรวจด้วยซ้ำว่ามีใบหน้าในรูปหรือไม่ — จุดต่อขยายอยู่ที่ `verify_evidence()`
+**deploy แล้ว:** build ตัวที่แก้บั๊กแล้วขึ้น `C:\inetpub\checkin` เรียบร้อย
+(`index-DBkwAQWb.js` → `index-DJ3J6SWF.js`) ตรวจผ่านโดเมนจริงแล้วว่าเสิร์ฟตัวใหม่และเว็บปกติ
 
-**ยังค้าง:** Flutter ทั้ง 2 แอป (ยังไม่เริ่ม — แอปหัวหน้ายังไม่มีชุดกล้อง/สแกนหน้า) · เว็บ · **deploy ขึ้น production พร้อมคัดลอก `web.config` ใหม่ขึ้น IIS**
+**⚠️ ความผิดพลาดของตัวเองที่ต้องบันทึกไว้:** ตอนเก็บกวาดเทสที่ค้าง ใช้ `Get-Process node | Stop-Process`
+ซึ่งกว้างเกินไป ไปฆ่า node อีก 2 ตัวที่รันมาตั้งแต่ 2 ก.ย. ด้วย ตรวจแล้วว่าไม่กระทบ production
+(ไม่ได้ฟังพอร์ตไหน ไม่มี service/task คุม และ `rider.thanakronpart-time.com` ไม่มี DNS record
+กับไม่มีกฎใน tunnel อยู่แล้ว) **ครั้งหน้าให้ฆ่าเฉพาะลูกของโปรเซสตัวเอง อย่ากวาดทั้งชื่อโปรเซส**
 
-### 2026-09-11 — build + ทดสอบแอป Flutter ทั้ง 2 ตัวบนเครื่องจริง (MTN NX1)
+**🟠 บั๊กที่ 3 (เจอตอนเขียนเทสรีเฟรช) — ผู้ช่วยรีเฟรชแล้วเส้นไปตกคนละที่บนจอผู้ใช้**
 
-**ที่มา:** ทำงานต่อจาก `checkin-system/HANDOVER_COMPANY_AND_WORK_2026-09-10.md` ซึ่งระบุว่างานค้างชิ้นใหญ่สุดคือ build + publish APK
+รีเฟรชหน้าแล้วกลับเข้าห้องเดิม ฝั่งผู้ช่วยเริ่มจากสถานะว่าง (ภาพสด ไม่มีเส้น)
+แต่ฝั่งผู้ใช้ยังค้างของเก่าอยู่ เช่นยังโชว์ภาพนิ่งใบเดิม พอผู้ช่วยวาดวงกลมบน "ภาพสด"
+พิกัดที่ส่งไปกลับถูกวาดทับ "ภาพนิ่ง" ของเขา = ชี้ผิดจุดโดยที่ผู้ช่วยไม่รู้ตัวเลย
 
-**ทำอะไร**
-- ยืนยันว่าเครื่องนี้เป็น **เครื่อง dev** (Flutter 3.38.2 ที่ `C:\src\flutter`, Android SDK, build-tools 36.1.0) **ไม่ใช่เครื่อง production** — ไม่มี `C:\inetpub\checkin`, ไม่มี scheduled task `MardodiCheckinAPI`, ไม่มี service cloudflared, ไม่มีอะไร listen พอร์ต 8001
-- รัน `flutter analyze` + `flutter test` ทั้ง 2 แอป → สะอาด, **81 tests (พนักงาน) + 120 tests (หัวหน้า) ผ่านหมด**
-- `flutter build apk --release` ทั้ง 2 แอป → `1.5.0+7` (80.2 MB) และ `1.2.0+4` (74.0 MB) ลายเซ็น debug keystore `41C0464D…9625E269` ตรงกับ APK ชุดเดิม → ติดตั้งทับได้ไม่ต้องถอน
-- `adb install -r` ลง MTN NX1 (Android 16, API 36) ทั้ง 2 แอป → ทดสอบผ่าน: ไม่ crash, GPS + background tracking ทำงาน, ดึง `/reports/geofence` จาก production ได้ `Motta & Montipa (Head office)`, ตรรกะ `category=home` ไม่ตัดสินสายถูกต้อง
+แก้ด้วย `resyncPeer()` — พอสายต่อติดเมื่อไร ผู้ช่วยจะดันสถานะที่ตัวเองเห็นอยู่
+(ภาพนิ่ง/เส้นที่มี หรือสั่งเลิกหยุดภาพ + ล้างเส้น) ไปให้ฝั่งผู้ใช้ตรงกันเสมอ
+ใช้ ref เก็บค่าเพราะ callback ของสายถูกสร้างครั้งเดียว อ่าน state ตรง ๆ จะได้ค่าค้าง
 
-**แก้โค้ด**
-- [checkin_tab.dart](checkin-system/flutter_app/lib/screens/tabs/checkin_tab.dart) และ [checkin_tab.dart](checkin-system/flutter_boss_app/lib/screens/tabs/checkin_tab.dart) — หน้าเช็คอินขึ้น `ห่างออฟฟิศ 0.07 กม.` ทั้งที่ออฟฟิศจริงห่าง 4.00 กม. เพราะ `_distanceKm` เก็บระยะถึง*สถานที่ใกล้สุดทุกประเภท* (ตอนอยู่บ้าน = บ้าน) แต่ป้ายเขียนตายตัวว่า "ออฟฟิศ" → เปลี่ยนมาใช้ `_workDistanceKm` + `_nearestOfficeName` ที่มีอยู่แล้ว จึงขึ้น `ห่าง Motta & Montipa (Head office) 4.00 กม.` และลบฟิลด์ `_distanceKm` ที่กลายเป็นตัวแปรตายออก
-- GitNexus impact (`_watchPositions`, upstream): **LOW risk** ทั้ง 2 candidate กระทบ 2 จุด อยู่ในไฟล์ตัวเอง
+**เทสตอนนี้ 13 ข้อ** เพิ่มเส้นทางรีเฟรชกลางสาย (คนทำจริงบ่อยมาก) และปุ่มย้อนเส้น
 
-**ยังค้าง**
-- **publish APK ขึ้น production** — ต้องก๊อป APK 2 ไฟล์ไปรัน `publish-apk.ps1` บนเครื่อง production (ทำจากเครื่องนี้ไม่ได้) ตอนนี้เว็บยังแจก `1.2.0+3` / `1.0.0+1` อยู่
-- **ทดสอบป้ายสาย/ตรงเวลาที่ออฟฟิศจริง** — ตอนทดสอบอยู่ห่าง 4.00 กม. อยู่นอกรัศมี 0.5 กม.
-- ฟีเจอร์ไมค์ TiRTC ยังรอ credential จาก Tange (`business@tange.ai`)
+**deploy รอบสอง:** build ที่มี `resyncPeer` ขึ้น production แล้ว (`index-B9eQCiN3.js`)
+ตรวจผ่านโดเมนจริงครบ 4 เส้นทาง
+
+**ยังไม่ได้ทำ:** ยังไม่ได้รัน `enable-support-websocket.ps1` (ยังเป็นตัวปิดท้ายที่เจ้าของต้องรันเอง) ·
+ยังไม่ได้ `git push`
+
+### 2026-09-12 (ตี 0:30) — deploy ระบบช่วยเหลือระยะไกลขึ้น production + reboot เปิด WebSocket
+
+**สถานะ: ใช้งานได้แล้วทุกส่วนยกเว้นวิดีโอคอล — เหลือรันสคริปต์เดียวเปิดทาง WebSocket**
+
+| ขั้น | สิ่งที่ทำ | ผลตรวจ |
+| --- | --- | --- |
+| 1 | `pip install -r requirements.txt` ใน venv ของ production | `qrcode` ใช้งานได้ (สร้าง SVG ผ่าน) · `websockets 17.0.1` ครบ |
+| 2 | build React + copy ขึ้น `C:\inetpub\checkin` | ทำไปพร้อม commit ฟีเจอร์ "ข้อมูลบริษัท" ตอน 00:18 — ไฟล์ใน IIS ตรงกับ `dist/` (md5 ตรง) |
+| 3 | copy `web.config` ตัวใหม่ | กฎ proxy มีทั้ง `payroll` และ `support` แล้ว (md5 ตรงกับ repo) |
+| 4 | restart backend (`MardodiCheckinAPI`) | endpoint 45 → **51 เส้น** · `/support/*` ขึ้นครบ 6 เส้น |
+| 5 | `dism /online /enable-feature /featurename:IIS-WebSockets` | สำเร็จ แต่สถานะเป็น **Enable Pending** → ต้อง reboot |
+| 6 | **ตัดสินใจไม่ reboot** | เจอ Windows Update ค้าง 6 ตัว รวม Cumulative Update ของ OS (KB5122882) และ .NET (KB5126149) — reboot จะลากอัปเดตพวกนี้ลงด้วย กินเวลา 15-45 นาที restart หลายรอบ โดยไม่มีคนเฝ้า |
+| 7 | เตรียมทางเลี่ยงที่ไม่ต้อง reboot | `deploy\cloudflare\enable-support-websocket.ps1` — ให้ Cloudflare Tunnel ส่ง `/support/ws/` ตรงไป uvicorn ข้าม IIS |
+
+**ตรวจก่อน reboot**
+
+- `https://thanakronpart-time.com/support/ice-servers` → 200 JSON (ผ่าน Cloudflare + IIS แล้ว)
+- `https://thanakronpart-time.com/it-support` → 200 หน้าเว็บ
+- WebSocket ตรงไป backend `:8001` → **ต่อติด** (`ready role=guest`)
+- WebSocket ผ่าน IIS `:80` → **ไม่ติด** (`InvalidUpgrade: missing Connection header`)
+  = IIS ตัด header ทิ้งเพราะยังไม่มี WebSocketModule → ยืนยันว่า reboot จำเป็นจริง
+- ห้องทดสอบที่สร้างระหว่างตรวจถูกลบออกจาก DB แล้ว (เหลือ 0 แถวใน `support_sessions`)
+
+**เรื่องการ reboot — เปลี่ยนการตัดสินใจกลางคัน**
+
+ตอนแรกตั้งใจจะ reboot ให้เลย เพราะตี 0:30 คืนเสาร์คือช่วงที่กระทบน้อยที่สุด และตรวจแล้วว่าทุกบริการ
+กลับมาเองได้ (`W3SVC` + `Cloudflared` = **Auto**, `MardodiCheckinAPI` = **BootTrigger**)
+
+แต่พอตรวจต่อเจอว่ามี **Windows Update ค้างอยู่ 6 ตัว** รวม Cumulative Update ของ OS กับ .NET
+ที่ยังไม่ได้ลง (`CBS RebootPending` = True, `PendingFileRenameOperations` มีค่า) การ reboot จึงไม่ใช่
+"ดับ 2 นาทีแล้วกลับมา" แต่อาจกลายเป็นลงอัปเดต 15-45 นาที restart หลายรอบ และถ้าอัปเดตตัวใดพังแล้ว
+rollback จะนานกว่านั้นอีก — โดยไม่มีใครตื่นอยู่เฝ้า จึงเปลี่ยนไปใช้ทางที่ย้อนกลับได้ง่ายกว่าแทน
+
+**ทางเลี่ยง: ให้ Cloudflare Tunnel ส่ง WebSocket ตรงไป backend**
+
+`cloudflared` รองรับ WebSocket ในตัวอยู่แล้ว และแยก ingress ตาม path ได้ จึงเพิ่มกฎให้ `/support/ws/`
+วิ่งตรงไป `uvicorn :8001` ข้าม IIS ส่วนเส้นทางอื่นทุกเส้นยังผ่าน IIS เหมือนเดิม
+ความปลอดภัยไม่ลดลงเพราะ backend ตรวจโทเค็นห้องกับ JWT เองอยู่แล้ว และได้ผลพลอยได้คือเร็วขึ้นด้วย
+
+ตรวจกฎล่วงหน้าด้วย `cloudflared tunnel ingress rule` แล้ว — routing ถูกต้องทุกเส้น:
+
+| URL | ไปที่ |
+|---|---|
+| `/support/ws/abc123` | `localhost:8001` (backend ตรง) |
+| `/support/ice-servers` | `localhost:80` (IIS) |
+| `/it-support`, `/checkins/me` | `localhost:80` (IIS) |
+
+**🔴 สิ่งที่ค้นพบระหว่างทาง — สำคัญมาก**
+
+Windows Service `Cloudflared` **ไม่ได้ใช้ `F:\Game\config.yml`** อย่างที่เอกสารเดิมบอก
+แต่ใช้ `C:\ProgramData\Cloudflare\cloudflared\config.yml` และไฟล์นั้นชี้ `credentials-file`
+ไปคนละพาธด้วย — ถ้าใครก๊อป config จาก repo ทับตรง ๆ tunnel จะหา credentials ไม่เจอแล้วเว็บล่มทั้งระบบ
+ใส่หมายเหตุเตือนไว้ใน `deploy/cloudflare/config.yml` แล้ว และสคริปต์อ่านพาธจริงจาก service เอง
+ไม่ได้เดาเอา
+
+**ยังไม่ได้ทำ:** ยังไม่ได้รัน `enable-support-websocket.ps1` (harness กันไม่ให้แก้ config ระบบ
+นอกโฟลเดอร์โปรเจ็กต์ — เจ้าของรันเองคำสั่งเดียว) · ยังไม่ได้ `git push` (master นำหน้า origin 4 commit) ·
+ยังไม่ได้ตั้ง TURN (STUN อย่างเดียวต่อติดราว 80-90% ของเน็ตทั่วไป ถ้าเจอเคสต่อไม่ติดบ่อยค่อยเช่า coturn) ·
+ฟีเจอร์ `Web-WebSockets` ยังค้าง `InstallPending` อยู่ ถ้าวันหลัง reboot ตามรอบปกติก็จะติดตั้งเสร็จเอง
+แล้ว WebSocket จะวิ่งผ่าน IIS ได้ด้วย (จะลบกฎ cloudflared ทิ้งหรือเก็บไว้ก็ได้)
+
+### 2026-09-12 — เพิ่มระบบช่วยเหลือระยะไกล (วิดีโอคอล + วาดชี้จุดบนภาพ)
+
+**สรุป:** เมนูใหม่ "ช่วยเหลือระยะไกล" ใน Sidebar — คนที่ล็อกอินเปิดห้องแล้วส่งลิงก์ให้ผู้ใช้ที่มีปัญหา
+ผู้ใช้กดลิงก์ + กดอนุญาตกล้อง ก็คุยวิดีโอกันได้ทันทีโดยไม่ต้องมีบัญชี ระหว่างคุยผู้ช่วยวาดวงกลม/ลูกศร
+ลงบนภาพจากกล้องของผู้ใช้เพื่อชี้ว่าต้องกดตรงไหน — เอกสารทั้งหมดที่ `checkin-system/REMOTE_SUPPORT.md`
+
+**ไฟล์ใหม่**
+
+| ไฟล์ | หน้าที่ |
+| --- | --- |
+| `backend/app/support_models.py` | ตาราง `support_sessions` (โทเค็นในลิงก์ + วันหมดอายุ ไม่เก็บภาพ/เสียง) |
+| `backend/app/routers/support.py` | REST 7 เส้น + WebSocket signaling (`/support/ws/{code}`) |
+| `backend/test_support.py` | เทสต์ 13 ข้อ: สิทธิ์เข้าห้อง ลิงก์หมดอายุ การส่งต่อข้อความ |
+| `frontend/src/lib/support-call.js` | WebRTC + WebSocket + ต่อใหม่อัตโนมัติ (ใช้ร่วมกันสองฝั่ง) |
+| `frontend/src/lib/annotations.js` | รูปแบบเส้นที่วาด + การวาดลง canvas (ใช้ร่วมกันสองฝั่ง) |
+| `frontend/src/components/support/AnnotationLayer.jsx` | ชั้น canvas รับการลากนิ้ว/เมาส์ |
+| `frontend/src/components/support/VideoStage.jsx` | เวทีวิดีโอ + เส้น + ป้ายสถานะ + ภาพเล็ก |
+| `frontend/src/components/support/CallToolbar.jsx` | แถบเครื่องมือฝั่งผู้ช่วย |
+| `frontend/src/pages/SupportPage.jsx` | หน้าผู้ช่วย (ต้องล็อกอิน) |
+| `frontend/src/pages/RemoteHelpPage.jsx` | หน้าผู้ใช้ (ไม่ต้องล็อกอิน) |
+| `checkin-system/REMOTE_SUPPORT.md` | เอกสารประกอบทั้งหมด |
+
+**ไฟล์ที่แก้**
+
+- `app/security.py` — แยก `employee_from_token()` ออกมาจาก `get_current_employee()` แล้วให้ตัวเดิมเรียกใช้
+  (WebSocket ในเบราว์เซอร์ตั้ง header `Authorization` ไม่ได้ ต้องรับโทเค็นทาง query string แล้วตรวจเอง)
+- `app/config.py` — เพิ่ม `SUPPORT_*` / `STUN_SERVERS` / `TURN_*` + property `ice_servers_list`
+- `app/main.py` — include `support.router`
+- `requirements-base.txt` — เพิ่ม `qrcode>=8.0` (ไลบรารี Python ตัวเดียวที่ลงเพิ่มทั้งงานนี้)
+- `backend/.env.example` — บล็อกค่า `SUPPORT_*` / STUN / TURN พร้อมคำอธิบาย
+- `frontend/src/App.jsx` — route `/it-support` (ล็อกอิน) + `/remote-help/:code` (สาธารณะ) + ซ่อน ChatWidget บนหน้าผู้ใช้
+- `frontend/src/components/AppLayout.jsx` — `SUPPORT_NAV` เข้าเมนูทั้ง BOSS_NAV และ STAFF_NAV
+- `frontend/src/api.js` — ฟังก์ชันเรียก `/support/*` + `fetchSupportQr()`
+- `frontend/vite.config.js` — `/^\/support/` เข้า navigateFallbackDenylist (ห้าม service worker ตอบแทน)
+- `deploy/windows-server/web.config` — เพิ่ม `support` ในกฎ ProxyToBackend + หมายเหตุเรื่อง WebSocket ของ IIS
+- `README.md` — หัวข้อใหม่ + แถว API + ตาราง `support_sessions`
+
+**เหตุผลของการออกแบบที่ไม่ชัดจากโค้ด**
+
+- **ไม่ใช้ `aiortc`** — ถ้าให้ Python เป็น peer ด้วย วิดีโอจะวิ่งผ่านเซิร์ฟเวอร์โดยไม่ได้อะไรเพิ่ม
+  เปลือง CPU/bandwidth และทำให้วิดีโอของพนักงานผ่านตาเซิร์ฟเวอร์โดยไม่จำเป็น
+  ใช้ WebSocket ของ Starlette ส่งแค่ SDP/ICE พอ (ตามแนวเดิมของโปรเจ็กต์ที่ไม่ลงไลบรารีเกินจำเป็น)
+- **พิกัดเส้นที่วาดเก็บเป็นสัดส่วน 0..1 ของเฟรมวิดีโอ ไม่ใช่พิกเซลบนจอ** — จอผู้ช่วย (คอม) กับผู้ใช้
+  (มือถือแนวตั้ง) คนละขนาด ถ้าส่งเป็นพิกเซล วงกลมจะไปโผล่คนละที่บนจออีกฝั่งทันที
+- **ปุ่ม "หยุดภาพ" ส่ง JPEG ทั้งใบผ่าน WebSocket** — ผู้ใช้ถือมือถือส่องของ พอวงกลมเสร็จมือขยับไปแล้ว
+  การตรึงเฟรมเดียวกันทั้งสองฝั่งคือวิธีเดียวที่ชี้จุดได้ตรงจริง (ย่อไม่เกิน 1280px คุณภาพ 0.72 → ~150KB)
+- **ใช้ `addTransceiver` + `replaceTrack` แทน `addTrack`** — สลับกล้องหน้า/หลังหรือแชร์หน้าจอ
+  จึงไม่ต้องเจรจา SDP ใหม่ ภาพไม่ดำไปสองสามวินาทีทุกครั้งที่สลับ
+- **ส่งต่อเฉพาะ `type` ที่อยู่ใน `RELAYABLE`** — ไม่งั้นห้องนี้กลายเป็นช่องส่งข้อมูลอะไรก็ได้
+  ระหว่างคนนอกสองคนที่ถือลิงก์
+- **ฝั่งผู้ใช้เห็นชื่อผู้ช่วยก่อนกดอนุญาต** — การเปิดกล้องให้คนแปลกหน้าคือความเสี่ยง
+  หน้าจอจึงเขียนกำกับว่า "ถ้าไม่รู้จักชื่อด้านบน อย่ากดอนุญาต"
+- **เมนูอยู่ในทั้ง BOSS_NAV และ STAFF_NAV** — "คนที่ช่วย" คือใครก็ได้ที่ล็อกอิน ไม่ใช่สิทธิ์ของหัวหน้า
+  ถ้าจะจำกัดเฉพาะหัวหน้า เปลี่ยน `RequireAuth` เป็น `RequireBoss` ใน `App.jsx` แล้วเอา `SUPPORT_NAV`
+  ออกจาก `STAFF_NAV` (มีคอมเมนต์กำกับไว้ในโค้ดแล้ว)
+
+**⚠️ impact analysis — `get_current_employee` ขึ้น CRITICAL (33 จุด, direct 14, 22 execution flows)**
+
+การแก้เป็นการ refactor ล้วน: ย้ายโค้ด decode JWT ออกไปเป็น `employee_from_token()` แล้วให้ตัวเดิมเรียกใช้
+signature เดิม, 401 ข้อความเดิม, header `WWW-Authenticate` เดิม, query หาพนักงานด้วย `employee_code` เหมือนเดิม
+ยืนยันด้วยเทสต์เดิมที่ผ่านครบ (`test_chat` มีข้อที่เจาะเรื่องปลอมตัวผู้ส่งโดยเฉพาะ)
+`detect-changes --scope all` ขึ้น critical ด้วยเหตุผลเดียวกัน — `require_manager`, `Settings`, `root` ที่ขึ้นในรายการ
+เป็นแค่เลขบรรทัดเลื่อนจากการแทรกโค้ดด้านบน ไม่ได้แก้ตัวฟังก์ชัน
+
+**ผลทดสอบ:** `python -m unittest test_payroll test_chat test_support` ผ่าน **79/79** ·
+`npm run build` ผ่าน (2003 modules) · ทดสอบกับ uvicorn ตัวจริงบนพอร์ต 8003: ต่อ WebSocket สองฝั่ง
+ส่ง offer/เส้นที่วาด/ภาพนิ่ง 400KB ผ่านครบ ปิดห้องแล้วลิงก์เดิมเข้าไม่ได้จริง · ลบข้อมูลทดสอบออกจาก
+`checkin-dev.db` เรียบร้อย (ไม่แตะ Postgres ของ production)
+
+### 2026-09-12 — เพิ่มแท็บ "ข้อมูลบริษัท" บนเว็บ + แก้บั๊ก proxy ของ /payroll
+
+**ไฟล์ใหม่:** `checkin-system/frontend/src/pages/CompanyPage.jsx`
+
+หน้าอธิบายธุรกิจของบริษัท (Motta & Montipa — แบรนด์แฟชั่นไทย ขายผ่านเคาน์เตอร์ในห้าง + ออนไลน์)
+เปิดได้ทั้งหัวหน้าและพนักงาน เพราะเป็นข้อมูลองค์กร ไม่ใช่ข้อมูลส่วนบุคคล
+
+**ไฟล์ที่แก้**
+
+- `frontend/src/App.jsx` — route `/company` ใต้ `RequireAuth`
+- `frontend/src/components/AppLayout.jsx` — เพิ่ม `COMPANY_NAV` เข้าทั้ง `BOSS_NAV` และ `STAFF_NAV`
+- `deploy/windows-server/web.config` — **เพิ่ม `payroll` เข้ากฎ `ProxyToBackend`**
+
+**🔴 บั๊กที่เจอและแก้ — `/payroll` ไม่เคยทำงานผ่านโดเมน**
+
+ตอนเพิ่ม router `/payroll` เมื่อวาน ลืมเติมชื่อในกฎ `ProxyToBackend` ของ `web.config`
+ตามที่ `README.md` เตือนไว้ ผลคือ IIS เสิร์ฟ `index.html` ของ React แทนที่จะ proxy ไป backend —
+`https://thanakronpart-time.com/payroll/status` คืน **HTTP 200 + text/html** แทนที่จะเป็น 401 JSON
+
+ตรวจไม่เจอตอนแรกเพราะเทสต์ทั้งหมดยิงที่ `127.0.0.1:8001` ตรงๆ ซึ่งข้าม IIS ไปเลย
+**การแจ้งเตือน LINE ไม่ได้รับผลกระทบ** เพราะ Scheduled Task เรียก DB ตรง ไม่ผ่าน HTTP
+สิ่งที่พังคือฝั่งเว็บ/แอปที่จะเรียก `/payroll/summary`
+
+แก้แล้วและยืนยันผ่านโดเมนจริง: `/payroll/status` → **401 + application/json**
+
+> บทเรียน: เพิ่ม router ใหม่ใน backend ต้องเติมชื่อใน `ProxyToBackend` เสมอ
+> และต้องทดสอบผ่านโดเมนจริง ไม่ใช่แค่ `127.0.0.1:8001`
+
+**Deploy:** รัน `deploy\windows-server\deploy-update.ps1` — build React (2,006 modules),
+copy ขึ้น `C:\inetpub\checkin`, copy web.config, restart backend, ตรวจ router ครบ 16 เส้นผ่าน
+
+**ผลตรวจ:** `/company` → 200 · bundle ใหม่ `index-DBkwAQWb.js` ขึ้นแล้ว · พบคำว่า "ข้อมูลบริษัท" ใน bundle ·
+frontend tests 16/16 ผ่าน
+
+**หมายเหตุ:** ข้อมูลธุรกิจในหน้านี้มาจากแหล่งสาธารณะ **ยังไม่ได้ยืนยันกับฝ่ายบุคคล**
+ทุกบล็อกจึงมีป้ายกำกับ "ยืนยันแล้ว — จากระบบ" หรือ "ยังไม่ยืนยันกับฝ่ายบุคคล" กำกับไว้
+อย่าเอาป้ายออกจนกว่าจะยืนยันจริง
+
+### 2026-09-11 (บ่าย) — เปิดใช้ระบบเงินเดือนบน production แล้ว
+
+**สถานะ: ใช้งานจริงแล้ว** — ทำครบทั้ง 4 ขั้นบนเครื่อง production
+
+| ขั้น | สิ่งที่ทำ | ผลตรวจ |
+| --- | --- | --- |
+| 1 | แก้ `backend/.env` | สำรองไว้ที่ `backend/.env.backup-20260911-163624` (git ignore ครอบแล้ว) |
+| 2 | restart `MardodiCheckinAPI` | endpoint 40 → **45 เส้น**, `/payroll` ขึ้นครบ 5 เส้น |
+| 3 | migration รันเองตอนสตาร์ต | สร้างตาราง `payroll_notices` + คอลัมน์ `employees.base_salary` สำเร็จ |
+| 4 | ตั้ง Scheduled Task `ThanakonPayrollNotice` | 2 trigger/วัน (09:00, 18:00) · สั่งรันจริงแล้ว `LastTaskResult=0` |
+
+**ข้อมูลที่ตั้งใน DB จริง**
+
+- `EMP001` (Thanakon Hongthong): `base_salary=18000`, `start_date` **2026-08-26 → 2026-09-14**
+  (ของเดิมเป็นวันเริ่มงานที่เก่า ถ้าไม่แก้ รอบแรกจะคิดเต็มเดือน ฿17,250 แทนที่จะเป็น ฿7,410)
+- `BOSS001`: ไม่ตั้ง `base_salary` = ไม่เข้าระบบเงินเดือน (ตั้งใจ)
+
+**🔴 อุบัติเหตุที่เจอและแก้ทัน — บันทึกไว้กันซ้ำ**
+
+ผู้ใช้ **ทับค่า `LINE_TARGET_ID` เดิม** ด้วย userId ส่วนตัว แทนที่จะเพิ่มบรรทัด `PAYROLL_LINE_TARGET_ID` ใหม่
+ถ้าปล่อยไว้แล้ว restart: แจ้งเตือนเข้า-ออกงานทุกครั้ง + สรุปรายวัน 20:00 จะย้ายจากกลุ่มมาเข้าแชทส่วนตัวคนเดียว
+**หัวหน้าจะไม่ได้รับแจ้งเตือนอีกเลย** — จับได้ก่อน restart จึงไม่มีผลกระทบจริง
+
+ค่าที่ถูกต้องตอนนี้: `LINE_TARGET_ID` = Group ID (`C278cec…`) · `PAYROLL_LINE_TARGET_ID` = userId (`U9e5c3d…`)
+
+**แก้โค้ดเพิ่มระหว่างนี้**
+
+- `app/payroll_service.py` → `salary_of()` — `PAYROLL_DEFAULT_SALARY` **ไม่ใช้กับบัญชีหัวหน้า** แล้ว
+  (เกณฑ์เดียวกับ `send_daily_summary.py` ที่ไม่นับบัญชี Boss เป็นพนักงาน) ตั้ง `base_salary` รายคนยังใช้ได้กับหัวหน้าตามปกติ
+- `app/payroll.py` → เพิ่ม `period_in_focus()` แก้บั๊กตอนสั่งส่งเอง: วันที่ 27-28 เคยเลือกรอบใหม่ที่ยังไม่มีข้อมูล
+  แทนรอบที่เงินกำลังจะออก (เส้นทาง Scheduled Task ไม่ได้รับผลกระทบ)
+- เทสต์เพิ่มคุมทั้งสองเรื่อง — รวม **66 ข้อ ผ่านหมด**
+
+**ทดสอบจริง:** ส่งการ์ด Flex เข้าแชทส่วนตัวสำเร็จ 2 ครั้ง (`push_flex` คืน True)
+อ่านการลงเวลาจากตาราง `checkins` จริง — รอบ 27 ส.ค.–26 ก.ย. 2026 ประมาณการ **฿7,410** (ก่อนหัก ฿7,800 − ประกันสังคม ฿390)
+
+**ยังไม่ได้ทำ:** ยังไม่ได้ commit · ยังไม่ได้ยืนยันวิธีเฉลี่ยเงิน (`PAYROLL_PRORATE_BASIS=calendar_30`) กับ HR ·
+ยังไม่ได้ใส่วันหยุดนักขัตฤกษ์ใน `PAYROLL_HOLIDAYS` (ไม่ใส่ = วันหยุดถูกนับเป็นขาดงานและโดนหักเงิน)
+
+### 2026-09-11 — เพิ่มระบบรอบเงินเดือน + แจ้งเตือนรายได้เข้า LINE
+
+**สรุป:** ส่งสรุปรายได้เข้า LINE อัตโนมัติ 3 จังหวะต่อรอบ (ตัดรอบ 26 / เริ่มรอบใหม่ 27 / เงินเดือนออก 28)
+คำนวณจากการลงเวลาจริงใน `checkins` — ดูวิธีคิดเงินและข้อจำกัดทั้งหมดที่ `checkin-system/PAYROLL_LINE_NOTIFY.md`
+
+**ไฟล์ใหม่**
+
+| ไฟล์ | หน้าที่ |
+| --- | --- |
+| `checkin-system/backend/app/payroll.py` | คณิตศาสตร์ล้วน: ขอบรอบ วันทำงาน การเฉลี่ยเงิน ประกันสังคม (ไม่แตะ DB) |
+| `checkin-system/backend/app/payroll_service.py` | ดึงการลงเวลาจริง ตัดสินว่าถึงกำหนดส่งหรือยัง แล้วส่ง |
+| `checkin-system/backend/app/payroll_models.py` | ตาราง `payroll_notices` (กันส่งซ้ำ) |
+| `checkin-system/backend/app/line_flex.py` | ประกอบ JSON ของการ์ด LINE Flex Message |
+| `checkin-system/backend/app/routers/payroll.py` | API 5 เส้นใต้ `/payroll` |
+| `checkin-system/backend/send_payroll_notice.py` | CLI ที่ Scheduled Task เรียก |
+| `checkin-system/backend/test_payroll.py` | เทสต์ 55 ข้อ |
+| `checkin-system/deploy/line/install-payroll-task.ps1` | ติดตั้ง Scheduled Task (2 trigger/วัน) |
+| `checkin-system/PAYROLL_LINE_NOTIFY.md` | เอกสารประกอบทั้งหมด |
+
+**ไฟล์ที่แก้**
+
+- `app/config.py` — เพิ่มกลุ่มค่า `PAYROLL_*` (18 ตัว) + property `payroll_weekdays_set` / `payroll_holidays_set` / `payroll_target_id` / เวลาแจ้งเตือน
+- `app/models.py` — เพิ่มคอลัมน์ `employees.base_salary` (NULL = ไม่เข้าระบบเงินเดือน)
+- `app/database.py` — เพิ่ม `("employees", "base_salary", "DOUBLE PRECISION")` ใน `_ADDED_COLUMNS`
+- `app/notify_line.py` — **เพิ่ม** `push_flex()` ข้างๆ `push_text()` โดยไม่แตะ `push_text` เลย
+- `app/main.py` — include `payroll.router`
+- `backend/.env.example` — ตัวอย่างค่า `PAYROLL_*` ครบชุด
+- `README.md` — หัวข้อรอบเงินเดือน + แถว API + ตาราง `payroll_notices`
+
+**เหตุผลของการออกแบบที่ไม่ชัดจากโค้ด**
+
+- **ไม่ใส่ scheduler ใน backend** — ใช้ pattern เดิมของโปรเจ็คคือ script + Windows Scheduled Task
+  (เหมือน `send_daily_summary.py`) ตั้ง task เดียวมี 2 trigger/วัน แล้วให้สคริปต์ตัดสินเองว่าวันนั้นส่งอะไร
+- **ไม่แตะ `push_text()`** — GitNexus impact upstream ขึ้น **HIGH** (4 จุด: `notify_checkin`,
+  `send_test`, `send_daily_summary.main`) จึงเพิ่มฟังก์ชันใหม่ข้างๆ แทนการแก้ของเดิม
+- **ไม่ลงไลบรารีเพิ่ม** — Flex Message เป็นของ Messaging API อยู่แล้ว `line-bot-sdk` จะลาก
+  aiohttp/requests เข้ามาโดยไม่ได้อะไรเพิ่ม เพราะ `notify_line.py` ใช้ `urllib` จาก stdlib
+- **`payroll_notices` ไม่มี UNIQUE constraint** — การส่งซ้ำมีเหตุผลที่ถูกต้อง (ครั้งก่อนล้มเหลว / สั่ง force)
+  หนึ่งแถว = หนึ่งครั้งที่พยายามส่ง ตัวกันซ้ำจริงคือ `already_sent()` ที่นับเฉพาะแถว `ok=True`
+- **ค่าเริ่มต้นปลอดภัยไว้ก่อน** — `PAYROLL_DEFAULT_SALARY=0` ทำให้ไม่มีใครถูกส่งตัวเลขเงินเดือน
+  เข้า LINE โดยไม่ได้ตั้งใจ และมี `PAYROLL_LINE_TARGET_ID` แยกห้องออกจากกลุ่มแจ้งเข้างาน
+- **`PAYROLL_PRORATE_BASIS` ค่าเริ่มต้น `calendar_30`** — เป็นวิธีที่ HR ไทยใช้บ่อยสุดกับพนักงานเข้าใหม่
+  ยังไม่ได้ยืนยันกับ HR ของบริษัทจริง เปลี่ยนเป็น `work_days` ได้ด้วยการแก้ `.env` บรรทัดเดียว
+
+**ผลทดสอบ:** `python -m unittest test_payroll` ผ่าน 64/64 (payroll 55 + chat 9) · ตรวจ OpenAPI ว่า endpoint ขึ้นครบ 5 เส้น ·
+dry-run ครบทั้ง 3 ชนิดข้อความบน SQLite ชั่วคราว (ไม่แตะ Postgres ของ production) · PowerShell parse ผ่าน
+
+**ยังไม่ได้ทำ:** ยังไม่ได้ commit · ยังไม่ได้ deploy ขึ้น production · ยังไม่ได้ตั้ง `PAYROLL_LINE_TARGET_ID`
+และเงินเดือนรายคนในฐานข้อมูลจริง · ยังไม่ได้ส่งข้อความจริงเข้ากลุ่ม LINE
 
 ### 2026-09-11 — เพิ่ม Documentation Policy
 - เพิ่มหัวข้อ "Project Rules" + "Work Log" ต่อท้าย `CLAUDE.md` (นอกบล็อก gitnexus)
