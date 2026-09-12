@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/home_verification.dart';
+import '../services/api_service.dart' show endpointUnavailableCode, sessionExpiredCode;
 
 /// การ์ดสถานะ "ยืนยันตัวตนประจำวัน" ตอนอยู่บ้าน
 ///
@@ -16,6 +17,13 @@ class HomeVerificationCard extends StatelessWidget {
   /// **ห้ามแสดงว่าผู้ใช้ยังไม่รับผิดชอบ** เพราะเราไม่รู้ผลจริง
   final bool loadFailed;
 
+  /// สาเหตุที่โหลดไม่สำเร็จ ใช้แยกข้อความให้ตรงเหตุจริง
+  ///
+  /// `endpoint_unavailable` = เซิร์ฟเวอร์ยังไม่ได้อัปเดต กดลองใหม่ก็ไม่มีวันสำเร็จ
+  /// `session_expired` = ต้องเข้าสู่ระบบใหม่
+  /// null = เหตุอื่น (เน็ต/timeout) กดลองใหม่มีโอกาสสำเร็จ
+  final String? failureCode;
+
   final bool busy;
   final VoidCallback onVerify;
   final VoidCallback onRetryLoad;
@@ -26,6 +34,7 @@ class HomeVerificationCard extends StatelessWidget {
     required this.onVerify,
     required this.onRetryLoad,
     this.loadFailed = false,
+    this.failureCode,
     this.busy = false,
   });
 
@@ -59,34 +68,66 @@ class HomeVerificationCard extends StatelessWidget {
         ],
       );
 
-  Widget _unknownBody(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.help_outline, color: Colors.blueGrey),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'ยังตรวจสอบผลการยืนยันไม่ได้',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
+  Widget _unknownBody(BuildContext context) {
+    // แยกสาเหตุให้ตรงจริง — บอกว่า "เชื่อมต่อไม่สำเร็จ" ทั้งที่เน็ตปกติ
+    // ทำให้ผู้ใช้ไล่แก้ผิดทาง (สลับ Wi-Fi/เน็ตมือถือวนไปไม่จบ)
+    final unavailable = failureCode == endpointUnavailableCode;
+    final expired = failureCode == sessionExpiredCode;
+
+    final (icon, color, title, detail) = switch (failureCode) {
+      endpointUnavailableCode => (
+          Icons.cloud_off,
+          Colors.orange,
+          'ฟีเจอร์นี้ยังไม่พร้อมใช้งาน',
+          'เซิร์ฟเวอร์ยังไม่ได้อัปเดตให้รองรับการยืนยันตัวตนประจำวัน '
+              'ไม่ใช่ปัญหาอินเทอร์เน็ตของคุณ — กดลองใหม่ตอนนี้จะยังไม่สำเร็จ '
+              'กรุณาแจ้งผู้ดูแลระบบให้อัปเดตเซิร์ฟเวอร์',
+        ),
+      sessionExpiredCode => (
+          Icons.lock_clock,
+          Colors.redAccent,
+          'เซสชันหมดอายุ',
+          'กรุณาเข้าสู่ระบบใหม่เพื่ออ่านสถานะการยืนยันของวันนี้',
+        ),
+      _ => (
+          Icons.help_outline,
+          Colors.blueGrey,
+          'ยังตรวจสอบผลการยืนยันไม่ได้',
+          'เชื่อมต่อเพื่ออ่านสถานะไม่สำเร็จ จึงยังไม่ทราบว่าวันนี้ยืนยันแล้วหรือยัง',
+        ),
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'เชื่อมต่อเพื่ออ่านสถานะไม่สำเร็จ จึงยังไม่ทราบว่าวันนี้ยืนยันแล้วหรือยัง',
-            style: TextStyle(color: Colors.black54),
-          ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(detail, style: const TextStyle(color: Colors.black54)),
+        // เซสชันหมดอายุต้องไป login ไม่ใช่กดลองใหม่ — ปุ่มจึงไม่ขึ้น
+        // ส่วนเซิร์ฟเวอร์ยังไม่อัปเดต ให้กดได้แต่บอกตรง ๆ ว่าเป็นการเช็คซ้ำ
+        if (!expired) ...[
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: onRetryLoad,
             icon: const Icon(Icons.refresh),
-            label: const Text('ลองอีกครั้ง'),
+            label: Text(unavailable ? 'เช็คอีกครั้งว่าอัปเดตแล้วหรือยัง' : 'ลองอีกครั้ง'),
           ),
         ],
-      );
+      ],
+    );
+  }
 
   Widget _unverifiedBody() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,

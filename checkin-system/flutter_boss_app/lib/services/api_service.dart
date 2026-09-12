@@ -37,6 +37,15 @@ class CheckInResult {
 ///
 /// backend ตอบ error เป็น {"detail": "ข้อความภาษาไทย"} เสมอ จึงดึงข้อความนั้น
 /// ออกมาใช้ตรงๆ แทนที่จะโชว์รหัสสถานะเปล่าๆ ที่ผู้ใช้อ่านไม่รู้เรื่อง
+/// backend ยังไม่มีเส้นทางนี้ — router ยังไม่ได้ deploy หรือ IIS ยังไม่มีกฎ proxy
+///
+/// **ต้องไม่แสดงเป็น "เชื่อมต่ออินเทอร์เน็ตไม่ได้"** เพราะเน็ตปกติดี
+/// การให้ผู้ใช้กดลองใหม่ซ้ำ ๆ จะไม่มีวันสำเร็จจนกว่าจะ deploy ฝั่งเซิร์ฟเวอร์
+const String endpointUnavailableCode = 'endpoint_unavailable';
+
+/// token หมดอายุ/ถูกเพิกถอน — ต้องพาไป login ไม่ใช่ให้กดลองใหม่
+const String sessionExpiredCode = 'session_expired';
+
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
@@ -367,13 +376,22 @@ class ApiService {
       throw const ApiException(
         'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',
         statusCode: 401,
+        code: sessionExpiredCode,
       );
     }
     if (res.statusCode < 200 || res.statusCode >= 300) {
+      final code = _errorCode(res);
+      // 404/405 ที่ไม่มี code จาก FastAPI = เส้นทางนี้ไปไม่ถึง backend เลย
+      // (router ยังไม่ได้ deploy หรือ IIS ยังไม่มีกฎ proxy) ต่างจาก 404 ของ
+      // FastAPI เองที่แนบ detail.code มาด้วยเสมอ เช่น request_not_found
+      final unreachable =
+          code == null && (res.statusCode == 404 || res.statusCode == 405);
       throw ApiException(
-        _errorMessage(res, errorText),
+        unreachable
+            ? '$errorText: เซิร์ฟเวอร์ยังไม่รองรับเส้นทาง $path'
+            : _errorMessage(res, errorText),
         statusCode: res.statusCode,
-        code: _errorCode(res),
+        code: unreachable ? endpointUnavailableCode : code,
       );
     }
 
@@ -381,11 +399,15 @@ class ApiService {
       // ต้องถอดรหัสเป็น utf8 เอง ไม่งั้นข้อความไทยจาก backend จะกลายเป็นตัวยึกยือ
       return jsonDecode(utf8.decode(res.bodyBytes));
     } on FormatException {
+      // 200 แต่ตอบ HTML = IIS เสิร์ฟ index.html ของ React แทนที่จะ proxy ไป
+      // backend เพราะลืมเติมชื่อ router ในกฎ ProxyToBackend ของ web.config
+      // (เคยเกิดกับ /payroll มาแล้ว) — เป็นปัญหา deploy ไม่ใช่ปัญหาเครือข่าย
       final contentType = res.headers['content-type'] ?? 'unknown';
       throw ApiException(
         '$errorText: เซิร์ฟเวอร์ตอบข้อมูลผิดรูปแบบ ($contentType) '
         'กรุณาตรวจ IIS reverse proxy ของเส้นทาง $path',
         statusCode: res.statusCode,
+        code: endpointUnavailableCode,
       );
     }
   }

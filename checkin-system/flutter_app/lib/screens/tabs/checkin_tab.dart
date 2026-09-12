@@ -58,6 +58,8 @@ class _CheckInTabState extends State<CheckInTab> {
   HomeVerificationDay? _homeDay;
   // โหลดไม่สำเร็จ ≠ ยังไม่ได้ยืนยัน — ต้องแสดงว่า "ยังตรวจสอบผลไม่ได้"
   bool _homeDayFailed = false;
+  // สาเหตุที่โหลดไม่สำเร็จ ใช้แยกข้อความ (เซิร์ฟเวอร์ยังไม่อัปเดต / เซสชันหมดอายุ / เน็ต)
+  String? _homeDayFailureCode;
   bool _verifying = false;
 
   Timer? _attendanceTimer;
@@ -210,11 +212,17 @@ class _CheckInTabState extends State<CheckInTab> {
       setState(() {
         _homeDay = day;
         _homeDayFailed = false;
+        _homeDayFailureCode = null;
       });
     } catch (err) {
       debugPrint('Load home verification failed: $err');
       if (!mounted) return;
-      setState(() => _homeDayFailed = true);
+      setState(() {
+        _homeDayFailed = true;
+        // เก็บสาเหตุไว้ให้การ์ดเลือกข้อความ — เน็ตหลุดกับเซิร์ฟเวอร์ยังไม่อัปเดต
+        // ต้องบอกผู้ใช้คนละแบบ ไม่งั้นจะไล่แก้ผิดทาง
+        _homeDayFailureCode = err is ApiException ? err.code : null;
+      });
     }
   }
 
@@ -456,6 +464,7 @@ class _CheckInTabState extends State<CheckInTab> {
             HomeVerificationCard(
               day: _homeDay,
               loadFailed: _homeDayFailed,
+              failureCode: _homeDayFailureCode,
               busy: _verifying,
               onVerify: _goVerifyHome,
               onRetryLoad: _loadHomeDay,

@@ -61,6 +61,53 @@ This project is indexed by GitNexus as **project_job_part-time** (4823 symbols, 
 
 <!-- ใหม่สุดอยู่บนสุด / Newest first -->
 
+### 2026-09-12 (บ่าย) — แก้เคส "ยังตรวจสอบผลการยืนยันไม่ได้" ตาม LOGIN_STATUS_HANDOFF
+
+**ต้นเหตุ: แอปล้ำหน้า backend ที่ deploy อยู่ ไม่ใช่ปัญหา login/เน็ต/เซิร์ฟเวอร์ล่ม**
+
+มือถือมี `1.6.0+8` ที่เรียก `/home-verifications/*` แต่ **backend production รัน 51 endpoints
+และไม่มี `home-verifications` เลยสักเส้น** และ `web.config` ก็ไม่มีในกฎ `ProxyToBackend`
+
+หลักฐานชี้ขาด: `GET /home-verifications/me` → **200 `text/html`** (หน้า React ไม่ใช่ API)
+IIS ตกไปเข้ากฎ `StaticFiles` แล้วตอบ `index.html` พร้อมรหัส 200 แอป `jsonDecode` HTML แล้วพัง
+
+**เป็นบั๊กตัวเดียวกับ `/payroll` เมื่อเช้าวันเดียวกัน** — เพิ่ม router แล้วลืมเติมชื่อในกฎ proxy
+ของผมรอบก่อนแก้ไว้ใน working tree แต่**ไม่เคย commit** จึงหายไปตอน merge
+
+**ข้อสงสัย "login ไม่ได้" ในรายงานไม่จริง** — `POST /auth/login` ตอบ `401 application/json`
+พร้อมข้อความไทยถูกต้อง auth ทำงานปกติ
+
+**ไฟล์ที่แก้**
+
+- `deploy/windows-server/web.config` — เติม `home-verifications` กลับเข้ากฎ `ProxyToBackend`
+- `api_service.dart` (ทั้ง 2 แอป) — เพิ่มค่าคงที่ `endpointUnavailableCode` / `sessionExpiredCode`
+  และให้ `_json` แนบ code เมื่อ **(ก)** ตอบ HTML แทน JSON **(ข)** 404/405 ที่ไม่มี `detail.code`
+  (404 ของ FastAPI เองแนบ `detail.code` มาเสมอ เช่น `request_not_found` จึงแยกออกจากกันได้แม่นยำ)
+- `home_verification_card.dart` (ทั้ง 2 แอป) — แยกข้อความตามสาเหตุจริง: เซิร์ฟเวอร์ยังไม่อัปเดต /
+  เซสชันหมดอายุ (ไม่มีปุ่มลองใหม่ เพราะกดไปก็ไม่ช่วย) / เน็ตหลุด (พฤติกรรมเดิม)
+- `checkin_tab.dart` (ทั้ง 2 แอป) — ส่ง `failureCode` จาก `ApiException` ขึ้นไปให้การ์ด
+- `test/home_verification_test.dart` (ทั้ง 2 แอป) — เพิ่ม 3 เทสต์คุมข้อความแต่ละสาเหตุ
+
+**ทำไมต้องแก้ข้อความ ไม่ใช่แค่ deploy:** ข้อความเดิม "เชื่อมต่อเพื่ออ่านสถานะไม่สำเร็จ"
+ทำให้ผู้ใช้ไปไล่สลับ Wi-Fi/เน็ตมือถือวนไม่จบทั้งที่เน็ตปกติดี — ตรงกับข้อ 5 และ 6 ของรายงาน
+
+**ไฟล์เอกสารใหม่:** `SERVER_DEPLOY_HOME_VERIFICATION_2026-09-12.md` — ขั้นตอน deploy ฝั่งเซิร์ฟเวอร์
+พร้อมวิธีตรวจว่าสำเร็จจริง (ต้องดู `content-type` ไม่ใช่แค่รหัสสถานะ) และตารางไล่ปัญหา
+
+**⚠️ impact:** `_json` = MEDIUM (38 จุด) แต่รวมเป็น UNKNOWN เพราะมี candidate ที่เดินกราฟไม่ได้
+ยืนยันด้วย text search แล้วว่าผู้เรียกอยู่ใน `api_service.dart` เองทั้ง 5 จุด ·
+`detect-changes` ขึ้น critical/29 flows เพราะ `ApiException` อยู่บนเส้นทางทุก API call
+แก้แบบ additive ล้วน ยืนยันด้วยเทสต์เดิมทั้งหมด
+
+**ผลทดสอบ:** analyze สะอาดทั้งคู่ · พนักงาน **106 tests** · หัวหน้า **145 tests** ·
+build ผ่าน · **ติดตั้งบน MTN NX1 แล้วยิง production จริง** การ์ดเปลี่ยนเป็น
+"ฟีเจอร์นี้ยังไม่พร้อมใช้งาน — ไม่ใช่ปัญหาอินเทอร์เน็ตของคุณ" ถูกต้องตามสาเหตุจริง
+
+**bump version:** พนักงาน `1.6.0+8` → `1.6.1+9` · หัวหน้า `1.3.0+5` → `1.3.1+6`
+
+**ยังค้าง:** **ต้อง deploy บนเครื่อง production** (เครื่อง dev ไม่มี IIS/backend) ตามขั้นตอนใน
+`SERVER_DEPLOY_HOME_VERIFICATION_2026-09-12.md` · publish APK ใหม่ (เว็บยังแจก `1.2.0+3` / `1.0.0+1`)
+
 ### 2026-09-12 (เช้า) — เทสด้วยเบราว์เซอร์จริง แล้วเจอบั๊ก 2 ตัวที่ทำให้ฟีเจอร์ใช้ไม่ได้เลย
 
 **สรุป: เขียนเทสที่เปิด Edge สองหน้าต่างต่อ WebRTC หากันจริง แล้วมันจับบั๊กที่เทสฝั่ง

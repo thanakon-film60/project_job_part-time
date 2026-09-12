@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thanakon_box_boss/models/home_verification.dart';
+import 'package:thanakon_box_boss/services/api_service.dart'
+    show endpointUnavailableCode, sessionExpiredCode;
 import 'package:thanakon_box_boss/services/home_verification_service.dart';
 import 'package:thanakon_box_boss/widgets/home_verification_card.dart';
 
@@ -242,6 +244,58 @@ void main() {
       );
       expect(find.textContaining('ยังตรวจสอบผลการยืนยันไม่ได้'), findsOneWidget);
       expect(find.textContaining('ยังไม่ได้ยืนยันตัวตน'), findsNothing);
+    });
+
+    testWidgets('เซิร์ฟเวอร์ยังไม่อัปเดต ต้องไม่โทษอินเทอร์เน็ตของผู้ใช้', (tester) async {
+      await pump(
+        tester,
+        HomeVerificationCard(
+          day: null,
+          loadFailed: true,
+          failureCode: endpointUnavailableCode,
+          onVerify: () {},
+          onRetryLoad: () {},
+        ),
+      );
+      expect(find.textContaining('ฟีเจอร์นี้ยังไม่พร้อมใช้งาน'), findsOneWidget);
+      expect(find.textContaining('ไม่ใช่ปัญหาอินเทอร์เน็ตของคุณ'), findsOneWidget);
+      // ห้ามใช้ข้อความเดิมที่ทำให้ผู้ใช้ไปไล่สลับ Wi-Fi/เน็ตมือถือวนไม่จบ
+      expect(find.textContaining('เชื่อมต่อเพื่ออ่านสถานะไม่สำเร็จ'), findsNothing);
+      expect(find.textContaining('ยังไม่ได้ยืนยันตัวตน'), findsNothing);
+    });
+
+    testWidgets('เซสชันหมดอายุ ต้องบอกให้เข้าสู่ระบบใหม่ ไม่ใช่ให้กดลองใหม่',
+        (tester) async {
+      await pump(
+        tester,
+        HomeVerificationCard(
+          day: null,
+          loadFailed: true,
+          failureCode: sessionExpiredCode,
+          onVerify: () {},
+          onRetryLoad: () {},
+        ),
+      );
+      expect(find.textContaining('เซสชันหมดอายุ'), findsOneWidget);
+      expect(find.textContaining('เข้าสู่ระบบใหม่'), findsOneWidget);
+      // กดลองใหม่ไม่ช่วยอะไรถ้า token หมดอายุ ปุ่มจึงต้องไม่มี
+      expect(find.textContaining('ลองอีกครั้ง'), findsNothing);
+    });
+
+    testWidgets('เน็ตหลุด (ไม่มี code) ยังใช้ข้อความเดิมและกดลองใหม่ได้', (tester) async {
+      var retried = 0;
+      await pump(
+        tester,
+        HomeVerificationCard(
+          day: null,
+          loadFailed: true,
+          onVerify: () {},
+          onRetryLoad: () => retried++,
+        ),
+      );
+      expect(find.textContaining('ยังตรวจสอบผลการยืนยันไม่ได้'), findsOneWidget);
+      await tester.tap(find.text('ลองอีกครั้ง'));
+      expect(retried, 1);
     });
 
     testWidgets('ยังโหลดไม่เสร็จ ต้องไม่กล่าวหาว่ายังไม่ยืนยัน', (tester) async {
