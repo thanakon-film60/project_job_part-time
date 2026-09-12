@@ -169,6 +169,56 @@ const countInk = (canvas) => {
     );
     console.log('  [ผ่าน] กดลบทั้งหมดแล้วเส้นหายทั้งสองฝั่ง');
 
+    // ---------------------------------------------------------- ผู้ช่วยรีเฟรชกลางสาย
+    //
+    // คนทำงานจริงรีเฟรชหน้ากันบ่อยมาก ถ้าเข้าห้องเดิมต่อไม่ได้ = ต้องเริ่มใหม่ทั้งหมด
+    // และผู้ใช้ที่รออยู่จะเห็นจอค้างโดยไม่รู้ว่าเกิดอะไรขึ้น
+    await host.reload();
+    await host.getByRole('button', { name: 'เข้าห้อง' }).first().click();
+    await host.getByText('เชื่อมต่อแล้ว').first().waitFor({ timeout: 45000 });
+    await host.waitForFunction(
+      () => {
+        const v = document.querySelector('video');
+        return Boolean(v && v.videoWidth > 0);
+      },
+      null,
+      { timeout: 30000 },
+    );
+    console.log('  [ผ่าน] ผู้ช่วยรีเฟรชแล้วกลับเข้าห้องเดิมได้ ภาพกลับมา');
+
+    // วาดได้เหมือนเดิมหลังต่อใหม่ ไม่ใช่แค่เห็นภาพแต่สั่งอะไรไม่ได้
+    await host.getByRole('button', { name: 'ลูกศรชี้' }).click();
+    const box2 = await host.locator('canvas').first().boundingBox();
+    await host.mouse.move(box2.x + box2.width * 0.4, box2.y + box2.height * 0.3);
+    await host.mouse.down();
+    await host.mouse.move(box2.x + box2.width * 0.6, box2.y + box2.height * 0.5, { steps: 10 });
+    await host.mouse.up();
+    await guest.waitForFunction(
+      () => {
+        const canvas = document.querySelector('canvas');
+        const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+        for (let i = 3; i < data.length; i += 4) if (data[i] > 0) return true;
+        return false;
+      },
+      null,
+      { timeout: 15000 },
+    );
+    console.log('  [ผ่าน] หลังรีเฟรชแล้ววาดชี้จุดได้ตามปกติ');
+
+    // ---------------------------------------------------------- ย้อนเส้น
+    await host.getByRole('button', { name: 'ย้อนเส้นล่าสุด' }).click();
+    await guest.waitForFunction(
+      () => {
+        const canvas = document.querySelector('canvas');
+        const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+        for (let i = 3; i < data.length; i += 4) if (data[i] > 0) return false;
+        return true;
+      },
+      null,
+      { timeout: 15000 },
+    );
+    console.log('  [ผ่าน] กดย้อนเส้นแล้วเส้นหายทั้งสองฝั่ง');
+
     // ---------------------------------------------------------- จอแคบต้องไม่ล้น
     assert.equal(
       await guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

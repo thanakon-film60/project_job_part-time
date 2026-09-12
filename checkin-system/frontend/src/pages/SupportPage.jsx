@@ -88,10 +88,35 @@ export default function SupportPage() {
   const [qr, setQr] = useState(null);
 
   const callRef = useRef(null);
+  const strokesRef = useRef([]);
+  const frozenRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const selfVideoRef = useRef(null);
   const frozenImageRef = useRef(null);
+
+  // callback ของสายถูกสร้างครั้งเดียวตอนเปิดห้อง ถ้าอ่าน state ตรง ๆ จะได้ค่าตอนนั้นค้างอยู่
+  useEffect(() => {
+    strokesRef.current = strokes;
+  }, [strokes]);
+  useEffect(() => {
+    frozenRef.current = frozen;
+  }, [frozen]);
+
+  /** ดันสถานะที่เราเห็นอยู่ไปให้ฝั่งผู้ใช้ตรงกัน
+   *
+   * จำเป็นตอนต่อสายใหม่ (เช่นผู้ช่วยรีเฟรชหน้า) เพราะฝั่งผู้ใช้ยังค้างสถานะเก่าอยู่
+   * เคสที่เจ็บที่สุดคือเขาค้างภาพนิ่งใบเก่าไว้ แต่เราเห็นภาพสด — วาดวงกลมทีไร
+   * ก็ไปตกคนละที่บนจอเขาโดยที่เราไม่รู้ตัวเลย
+   */
+  const resyncPeer = useCallback(() => {
+    const call = callRef.current;
+    if (!call) return;
+    if (frozenRef.current) call.send({ type: "freeze", image: frozenRef.current });
+    else call.send({ type: "unfreeze" });
+    call.send({ type: "clear" });
+    for (const stroke of strokesRef.current) call.send({ type: "draw", stroke });
+  }, []);
 
   const refreshSessions = useCallback(() => {
     getSupportSessions()
@@ -123,7 +148,10 @@ export default function SupportPage() {
           if (cancelled) return;
           setStatus(next);
           setStatusDetail(detail || "");
-          if (next === "connected") refreshSessions();
+          if (next === "connected") {
+            resyncPeer();
+            refreshSessions();
+          }
         },
         onRemoteStream: (stream) => {
           const video = remoteVideoRef.current;
@@ -176,7 +204,7 @@ export default function SupportPage() {
       localStreamRef.current = null;
       callRef.current = null;
     };
-  }, [active?.code, refreshSessions]);
+  }, [active?.code, refreshSessions, resyncPeer]);
 
   // เลิกใช้ object URL ของ QR ไม่งั้นรูปเก่าค้างอยู่ในหน่วยความจำไปเรื่อย ๆ
   useEffect(() => () => qr && URL.revokeObjectURL(qr), [qr]);
