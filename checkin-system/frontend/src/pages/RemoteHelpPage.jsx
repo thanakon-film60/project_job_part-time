@@ -28,6 +28,7 @@ const STATUS_TEXT = {
   connected: ["คุยกันได้แล้ว", "live"],
   reconnecting: ["สัญญาณหลุด กำลังต่อใหม่...", "bad"],
   failed: ["เชื่อมต่อไม่สำเร็จ", "bad"],
+  ended: ["ผู้ช่วยปิดห้องแล้ว", "bad"],
   closed: ["จบการช่วยเหลือแล้ว", "bad"],
 };
 
@@ -123,6 +124,16 @@ export default function RemoteHelpPage() {
     if (joined) applyTracks();
   }, [joined, applyTracks]);
 
+  /** ดับกล้องและไมค์ทันที โดยไม่ยุ่งกับสถานะหน้าจอ */
+  const stopLocalMedia = useCallback(() => {
+    stopStream(streamRef.current);
+    audioTrackRef.current?.stop();
+    videoTrackRef.current?.stop();
+    audioTrackRef.current = null;
+    videoTrackRef.current = null;
+    streamRef.current = null;
+  }, []);
+
   function swapVideoTrack(track) {
     videoTrackRef.current?.stop();
     videoTrackRef.current = track || null;
@@ -166,6 +177,12 @@ export default function RemoteHelpPage() {
           onStatus: (next, detail) => {
             setStatus(next);
             setStatusDetail(detail || "");
+            // ห้องถูกปิดจากฝั่งผู้ช่วยแล้ว — ดับกล้องทันที ไม่ปล่อยให้ไฟกล้องติดค้าง
+            // โดยที่ผู้ใช้ไม่รู้ว่าไม่มีใครดูอยู่แล้ว
+            if (next === "ended") {
+              stopLocalMedia();
+              setJoined(false);
+            }
           },
           onRemoteStream: (remote) => {
             const video = helperVideoRef.current;
@@ -250,11 +267,7 @@ export default function RemoteHelpPage() {
   function hangUp() {
     callRef.current?.close();
     callRef.current = null;
-    stopStream(streamRef.current);
-    audioTrackRef.current?.stop();
-    videoTrackRef.current?.stop();
-    audioTrackRef.current = null;
-    videoTrackRef.current = null;
+    stopLocalMedia();
     setJoined(false);
     setStatus("closed");
   }
@@ -273,10 +286,10 @@ export default function RemoteHelpPage() {
   if (!info.joinable) {
     return <Notice tone="bad" title="เข้าห้องไม่ได้" detail={info.reason || "ลิงก์นี้ใช้ไม่ได้แล้ว"} />;
   }
-  if (status === "closed" && !joined) {
+  if (!joined && (status === "closed" || status === "ended")) {
     return (
       <Notice
-        title="จบการช่วยเหลือแล้ว"
+        title={status === "ended" ? "ผู้ช่วยปิดห้องแล้ว" : "จบการช่วยเหลือแล้ว"}
         detail="ปิดหน้านี้ได้เลย กล้องและไมโครโฟนถูกปิดเรียบร้อยแล้ว"
         icon={<CircleCheck className="size-10 text-emerald-400" />}
       />

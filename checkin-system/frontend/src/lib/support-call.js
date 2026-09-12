@@ -50,6 +50,7 @@ async function loadIceServers() {
  *   connected    เห็นภาพกันแล้ว
  *   reconnecting สายหลุดชั่วคราว กำลังต่อใหม่
  *   failed       ต่อไม่ได้/ถูกปฏิเสธ (ดู error ที่ส่งมาด้วย)
+ *   ended        ห้องถูกปิดจากอีกฝั่ง — จบแล้วจริง ๆ ต่อใหม่ไม่ได้
  *   closed       ปิดเอง
  */
 export function createSupportCall({ code, role, token = "", handlers = {} }) {
@@ -58,6 +59,7 @@ export function createSupportCall({ code, role, token = "", handlers = {} }) {
   let ws = null;
   let pc = null;
   let pcSetup = null;
+  let remoteStream = null;
   let localStream = null;
   let senders = { audio: null, video: null };
   let pendingIce = [];
@@ -126,8 +128,21 @@ export function createSupportCall({ code, role, token = "", handlers = {} }) {
       if (event.candidate) send({ type: "ice", candidate: event.candidate.toJSON() });
     };
     pc.ontrack = (event) => {
+      // ⚠️ event.streams เป็นอาเรย์ว่างได้ และเป็นแบบนั้น "เกือบตลอด" ในฟีเจอร์นี้
+      //
+      // เราส่งสื่อด้วย replaceTrack บน transceiver ที่เปิดไว้ล่วงหน้า (เพื่อให้สลับ
+      // กล้องหน้า/หลังได้โดยไม่ต้องเจรจา SDP ใหม่) แต่ replaceTrack ไม่ผูก track
+      // เข้ากับ MediaStream ไหนเลย SDP จึงไม่มี msid ติดไปด้วย
+      // ฝั่งรับเลยได้ event.streams = [] — ถ้าเชื่อค่านั้นตรง ๆ แล้วข้ามไป
+      // จะกลายเป็น "ต่อสายติดแต่จอดำทั้งสองฝั่ง" ซึ่งไล่หาสาเหตุยากมาก
       const [stream] = event.streams;
-      if (stream) handlers.onRemoteStream?.(stream);
+      if (stream) {
+        remoteStream = stream;
+      } else {
+        if (!remoteStream) remoteStream = new MediaStream();
+        remoteStream.addTrack(event.track);
+      }
+      handlers.onRemoteStream?.(remoteStream);
     };
     pc.onconnectionstatechange = () => {
       if (pc?.connectionState === "connected") setStatus("connected");
@@ -167,6 +182,7 @@ export function createSupportCall({ code, role, token = "", handlers = {} }) {
     }
     pc = null;
     pcSetup = null;
+    remoteStream = null;
     senders = { audio: null, video: null };
     pendingIce = [];
   }
@@ -267,16 +283,19 @@ export function createSupportCall({ code, role, token = "", handlers = {} }) {
         if (role === "host" && pc) await makeOffer();
         break;
 
+      // ⚠️ ต้องแจ้งสถานะ "ก่อน" ตั้ง disposed เพราะ setStatus จะเงียบทันทีที่ disposed
+      // เป็น true — เคยสลับลำดับกันแล้วฝั่งผู้ใช้ไม่รู้เลยว่าห้องปิดไปแล้ว
+      // หน้าจอค้างเหมือนยังคุยกันอยู่ทั้งที่สายตายแล้ว และกล้องยังเปิดค้าง
       case "ended":
-        disposed = true;
         teardownPeerConnection();
-        setStatus("failed", "ห้องนี้ถูกปิดแล้ว");
+        setStatus("ended", "ห้องนี้ถูกปิดแล้ว");
+        disposed = true;
         break;
 
       case "replaced":
-        disposed = true;
         teardownPeerConnection();
-        setStatus("failed", FATAL_CLOSE_REASONS[4409]);
+        setStatus("ended", FATAL_CLOSE_REASONS[4409]);
+        disposed = true;
         break;
 
       case "pong":

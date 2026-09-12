@@ -177,4 +177,16 @@ python verify_support_ws.py --public thanakronpart-time.com
 ```bash
 cd backend
 python -m unittest test_support -v      # 13 ข้อ: สิทธิ์เข้าห้อง ลิงก์หมดอายุ การส่งต่อข้อความ
+python test_support_browser.py          # เบราว์เซอร์จริงสองฝั่ง ต่อ WebRTC หากันจริง
 ```
+
+ตัวที่สองเปิด Edge แบบ headless สองหน้าต่าง ใช้กล้อง/ไมค์ปลอมของ Chromium แล้วให้
+ทั้งสองฝั่งต่อ WebRTC หากันจริงบน localhost ตรวจครบตั้งแต่สร้างห้อง → ผู้ใช้กดอนุญาต →
+เห็นภาพกัน → วาดวงกลมแล้วอีกฝั่งเห็น → หยุดภาพ → ลบเส้น → ปิดห้องแล้วกล้องดับ
+เก็บภาพหน้าจอไว้ที่ `backend/storage/logs/support-{host,guest}.png`
+
+ต้องมี `playwright` (ลงไว้แล้วใน `frontend/package.json`) และ Microsoft Edge บนเครื่อง
+ใช้ฐานข้อมูล SQLite ชั่วคราวที่ลบทิ้งเมื่อจบ ไม่แตะฐานข้อมูลจริงหรือ tunnel ใด ๆ
+
+> เทสตัวนี้จับบั๊กที่เทสฝั่งเซิร์ฟเวอร์มองไม่เห็นมาแล้ว 2 ตัว:
+> `event.streams` ว่างจนภาพไม่ขึ้นทั้งสองฝั่ง และฝั่งผู้ใช้ไม่รู้ว่าห้องถูกปิดจนกล้องติดค้าง

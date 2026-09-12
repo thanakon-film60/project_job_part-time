@@ -41,6 +41,7 @@ const STATUS_TEXT = {
   connected: ["เชื่อมต่อแล้ว", "live"],
   reconnecting: ["สายหลุด กำลังต่อใหม่...", "bad"],
   failed: ["เชื่อมต่อไม่สำเร็จ", "bad"],
+  ended: ["ห้องนี้ถูกปิดแล้ว", "bad"],
   closed: ["ปิดห้องแล้ว", "bad"],
 };
 
