@@ -279,6 +279,9 @@ class _HomeVerificationScreenState extends State<HomeVerificationScreen>
           child: FaceScanner(
             confirmLabel: 'ยืนยันว่าอยู่บ้าน / ไม่ได้ไปทำงาน',
             onCapture: _onCapture,
+            // ส่งคำสั่งจาก server ให้ scanner ตรวจว่าทำจริง ไม่ใช่แค่โชว์ข้อความ
+            challengeAction: action,
+            challengeCode: _challenge?.actionCode,
             footnote: 'ต้องสแกนใหม่ทุกครั้งที่ยืนยัน และต้องอยู่ในพื้นที่บ้านที่ระบบกำหนด\n'
                 'การยืนยันนี้ไม่ใช่การเข้างาน จึงไม่มีเวลาเข้า–ออกและไม่คิดชั่วโมงทำงาน',
           ),

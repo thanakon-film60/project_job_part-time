@@ -109,10 +109,11 @@ def create_challenge(
     response.headers["Cache-Control"] = "no-store"
 
     now = datetime.utcnow()
+    action_code, action_text = pick_action()
     challenge = HomeVerificationChallenge(
         challenge_id=str(uuid.uuid4()),
         employee_id=emp.id,
-        action=pick_action(),
+        action=action_text,
         created_at=now,
         expires_at=now + timedelta(seconds=settings.home_verification_challenge_ttl_seconds),
     )
@@ -126,6 +127,8 @@ def create_challenge(
     return {
         "challenge_id": challenge.challenge_id,
         "action": challenge.action,
+        # รหัสให้แอปเลือกวิธีตรวจท่า โดยไม่ต้องเดาจากข้อความไทย
+        "action_code": action_code,
         "expires_at": _iso_utc(challenge.expires_at),
         "server_time": _iso_utc(now),
         "ttl_seconds": settings.home_verification_challenge_ttl_seconds,

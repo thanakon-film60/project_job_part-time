@@ -3,8 +3,42 @@
 > **วันที่:** 12 กันยายน 2026
 > **ถึง:** ผู้ดูแลเครื่อง production
 > **ที่มา:** `LOGIN_STATUS_HANDOFF_2026-09-12.md` — ผู้ใช้แจ้งว่าแอปขึ้น "ยังตรวจสอบผลการยืนยันไม่ได้"
-> **สถานะ:** ✅ ฝั่งโค้ดเสร็จและทดสอบแล้ว — ❌ **เหลือแค่ deploy ฝั่งเซิร์ฟเวอร์**
+> **สถานะ:** ✅ **deploy เสร็จแล้ว 13 ก.ย. 2026** — ดูผลตรวจในหัวข้อ 0
 > **ต้องทำบนเครื่อง production เท่านั้น** (เครื่อง dev ไม่มี IIS / ไม่มี backend รันอยู่)
+
+---
+
+## 0. ✅ ผลตรวจหลัง deploy (13 กันยายน 2026)
+
+**backend deploy สำเร็จแล้ว — ฟีเจอร์พร้อมใช้งาน**
+
+| รายการ | ก่อน deploy | หลัง deploy |
+|---|---|---|
+| `GET /home-verifications/me` | ❌ `200 text/html` | ✅ **`401 application/json`** |
+| จำนวน endpoint ทั้งหมด | 51 | ✅ **56** |
+| endpoint ของ `home-verifications` | ไม่มีเลย | ✅ **ครบ 5 เส้น** |
+| พิกัดบ้าน `category=home` | มี | ✅ ยังอยู่ (รัศมี 0.2 กม.) |
+
+ตรวจครบทั้ง 5 เส้น ได้ `401 application/json` ทุกเส้น (401 ถูกต้องเพราะยังไม่ได้ส่ง token):
+
+```text
+POST /home-verifications/challenges          401 application/json
+POST /home-verifications                     401 application/json
+GET  /home-verifications/me                  401 application/json
+GET  /home-verifications/requests/{id}       401 application/json
+GET  /home-verifications/employee/{id}       401 application/json
+```
+
+### ยังค้างอยู่ข้อเดียว: publish APK
+
+เว็บยังแจก APK เก่า — คนอื่นยังโหลดตัวที่มีฟีเจอร์นี้ไม่ได้
+
+| | เว็บแจกอยู่ | ควรเป็น |
+|---|---|---|
+| พนักงาน | `1.2.0+3` | `1.6.1+9` |
+| หัวหน้า | `1.0.0+1` | `1.3.1+6` |
+
+→ ทำตามหัวข้อ 6
 
 ---
 

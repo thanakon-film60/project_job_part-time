@@ -20,11 +20,15 @@ import secrets
 
 # คำสั่งที่สุ่มให้ผู้ใช้ทำตอนสแกน — ส่งไปกับ challenge เพื่อให้แอปแสดงและใช้ตรวจ
 # liveness บนอุปกรณ์ server บันทึกไว้ว่าออกคำสั่งใด แต่ **ตรวจท่าทางในรูปไม่ได้**
+#
+# แต่ละรายการเป็น (รหัสสำหรับเครื่องอ่าน, ข้อความสำหรับคนอ่าน)
+# รหัสมีไว้ให้แอปเลือกวิธีตรวจโดยไม่ต้องเดาจากข้อความไทย ซึ่งจะพังทันที
+# ถ้าวันหลังแก้คำหรือเพิ่มภาษา
 CHALLENGE_ACTIONS = (
-    "หันหน้าตรงกล้อง",
-    "หันหน้าไปทางซ้ายช้า ๆ",
-    "หันหน้าไปทางขวาช้า ๆ",
-    "กะพริบตา 2 ครั้ง",
+    ("look_straight", "หันหน้าตรงกล้อง"),
+    ("turn_left", "หันหน้าไปทางซ้ายช้า ๆ"),
+    ("turn_right", "หันหน้าไปทางขวาช้า ๆ"),
+    ("blink", "กะพริบตา 2 ครั้ง"),
 )
 
 # นามสกุลไฟล์ตามชนิดรูปที่ยอมรับ
@@ -40,8 +44,17 @@ class EvidenceError(ValueError):
         self.message = message
 
 
-def pick_action() -> str:
+def pick_action() -> tuple[str, str]:
+    """สุ่มคำสั่ง คืน (รหัส, ข้อความ)"""
     return secrets.choice(CHALLENGE_ACTIONS)
+
+
+def action_code_of(action: str) -> str | None:
+    """หารหัสจากข้อความ — ใช้กับ challenge เก่าที่บันทึกไว้ก่อนมีคอลัมน์รหัส"""
+    for code, text in CHALLENGE_ACTIONS:
+        if text == action:
+            return code
+    return None
 
 
 def _png_size(data: bytes) -> tuple[int, int] | None:

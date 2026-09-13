@@ -240,6 +240,26 @@ class HomeVerificationTests(unittest.TestCase):
         self.assertEqual(res.status_code, 422)
         self.assertEqual(self.code(res), "face_not_enrolled")
 
+    def test_challenge_carries_machine_readable_action_code(self):
+        """แอปต้องเลือกวิธีตรวจท่าจากรหัส ไม่ใช่เดาจากข้อความไทย"""
+        res = self.client.post("/home-verifications/challenges", headers=self.headers(1))
+        body = res.json()
+        self.assertIn(body["action_code"],
+                      {"look_straight", "turn_left", "turn_right", "blink"})
+        # รหัสกับข้อความต้องเป็นคู่กันเสมอ
+        from app.home_verification import CHALLENGE_ACTIONS
+        self.assertIn((body["action_code"], body["action"]), CHALLENGE_ACTIONS)
+
+    def test_every_action_has_a_code_and_text(self):
+        from app.home_verification import CHALLENGE_ACTIONS, action_code_of
+        codes = set()
+        for code, text in CHALLENGE_ACTIONS:
+            self.assertTrue(code and text)
+            self.assertEqual(action_code_of(text), code)
+            codes.add(code)
+        self.assertEqual(len(codes), len(CHALLENGE_ACTIONS), "รหัสต้องไม่ซ้ำกัน")
+        self.assertIsNone(action_code_of("ข้อความที่ไม่มีอยู่จริง"))
+
     def test_challenge_reports_whether_face_is_enrolled(self):
         with_face = self.client.post("/home-verifications/challenges", headers=self.headers(1))
         self.assertTrue(with_face.json()["face_enrolled"])

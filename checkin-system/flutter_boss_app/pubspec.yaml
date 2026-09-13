@@ -1,7 +1,7 @@
 name: thanakon_box_boss
 description: แอปหัวหน้า THANAKON-BOX (ดูทีม + ลงเวลา · การยืนยันตัวตนตอนอยู่บ้านต้องสแกนใบหน้าเหมือนพนักงาน)
 publish_to: "none"
-version: 1.3.1+6
+version: 1.4.0+7
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

@@ -127,6 +127,13 @@ class HomeVerificationChallenge {
   /// ⚠️ **server ตรวจไม่ได้ว่าทำจริงไหม** การบังคับอยู่ที่แอปทั้งหมด
   final String action;
 
+  /// รหัสท่าแบบอ่านด้วยเครื่อง เช่น `blink` / `turn_left`
+  ///
+  /// null ได้ — backend รุ่นที่ deploy อยู่ยังไม่ส่งค่านี้ แอปจะถอยไปเดา
+  /// จากข้อความไทยใน [action] แทน **ห้ามทำให้เป็นค่าบังคับ** ไม่งั้นแอปจะพัง
+  /// กับเซิร์ฟเวอร์ที่ใช้งานจริงอยู่ตอนนี้
+  final String? actionCode;
+
   final DateTime expiresAt;
 
   /// ยังไม่มีใบหน้าอ้างอิง = ต้องพาไปลงทะเบียนก่อน อย่าปล่อยให้สแกนแล้วโดนปฏิเสธ
@@ -137,14 +144,17 @@ class HomeVerificationChallenge {
     required this.action,
     required this.expiresAt,
     required this.faceEnrolled,
+    this.actionCode,
   });
 
   bool get isExpired => DateTime.now().toUtc().isAfter(expiresAt);
 
   factory HomeVerificationChallenge.fromJson(Map<String, dynamic> json) {
+    final code = json['action_code']?.toString();
     return HomeVerificationChallenge(
       challengeId: json['challenge_id']?.toString() ?? '',
       action: json['action']?.toString() ?? 'หันหน้าตรงกล้อง',
+      actionCode: (code == null || code.isEmpty) ? null : code,
       expiresAt: HomeVerification._parseUtc(json['expires_at']),
       faceEnrolled: json['face_enrolled'] == true,
     );
